@@ -1,0 +1,18 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.7
+    hooks:
+      # Run the linter.
+      - id: ruff
+      # Run the formatter.
+      - id: ruff-format
+  - repo: local
+    hooks:
+      # Run in local venv to have dev dependencies.
+      - id: typing
+        name: MyPy type checker
+        entry: .venv/bin/mypy
+        language: system
+        types: [python]
+        exclude: ^(examples/|docs/)
+

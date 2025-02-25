@@ -1,0 +1,138 @@
+import itertools
+
+
+def build_tree(translator):
+    # Estrarre gli attributi del nodo
+    nodes_treeids = translator._attributes["nodes_treeids"]
+    nodes_nodeids = translator._attributes["nodes_nodeids"]
+    nodes_modes = translator._attributes["nodes_modes"]
+    nodes_truenodeids = translator._attributes["nodes_truenodeids"]
+    nodes_falsenodeids = translator._attributes["nodes_falsenodeids"]
+    nodes_thresholds = translator._attributes["nodes_values"]
+    nodes_featureids = translator._attributes["nodes_featureids"]
+    nodes_missing_value_tracks_true = translator._attributes["nodes_missing_value_tracks_true"]
+    node = translator._node
+
+    # Assert a few things to ensure we don't ed up genearting a tree with wrong data
+    # All entries related to branches should match in length
+    assert (
+        len(nodes_treeids)
+        == len(nodes_nodeids)
+        == len(nodes_modes)
+        == len(nodes_truenodeids)
+        == len(nodes_falsenodeids)
+        == len(nodes_thresholds)
+        == len(nodes_featureids)
+    )
+
+    weights = {}
+    if node.op_type == "TreeEnsembleClassifier":
+        # Weights for classifier, in this case the weights are per-class
+        class_nodeids = translator._attributes["class_nodeids"]
+        class_treeids = translator._attributes["class_treeids"]
+        class_weights = translator._attributes["class_weights"]
+        weights_classid = translator._attributes["class_ids"]
+        assert (
+            len(class_treeids)
+            == len(class_nodeids)
+            == len(class_weights)
+            == len(weights_classid)
+        )
+        classlabels = translator._attributes.get("classlabels_strings") or translator._attributes.get(
+            "classlabels_int64s"
+        )
+        if not classlabels:
+            raise ValueError("Missing class labels when building tree")
+        
+        for tree_id, node_id, weight, weight_classid in zip(
+            class_treeids, class_nodeids, class_weights, weights_classid
+        ):
+            weights.setdefault((tree_id, node_id), {})[classlabels[weight_classid]] = (
+                weight
+            )
+    elif node.op_type == "TreeEnsembleRegressor":
+        # Weights for the regressor, in this case leaf nodes have only 1 weight
+        target_weights = translator._attributes["target_weights"]
+        target_nodeids = translator._attributes["target_nodeids"]
+        target_treeids = translator._attributes["target_treeids"]
+        assert len(target_treeids) == len(target_nodeids) == len(target_weights)
+        for tree_id, node_id, weight in zip(
+            target_treeids, target_nodeids, target_weights
+        ):
+            weights[(tree_id, node_id)] = weight
+    else:
+        raise NotImplementedError(f"Unsupported tree node type: {node.op_type}")
+
+    # Create all nodes for the trees
+    trees = {}
+    for tree_id, node_id, mode, true_id, false_id, threshold, feature_id in zip(
+        nodes_treeids,
+        nodes_nodeids,
+        nodes_modes,
+        nodes_truenodeids,
+        nodes_falsenodeids,
+        nodes_thresholds,
+        nodes_featureids,
+    ):
+        if tree_id not in trees:
+            trees[tree_id] = {}
+
+        node_dict = {
+            "mode": mode,
+            "feature_id": feature_id,
+            "missing_tracks_true": bool(
+                nodes_missing_value_tracks_true[node_id]
+                if nodes_missing_value_tracks_true
+                else 0
+            ),
+        }
+        if mode == "LEAF":
+            node_dict["weight"] = weights[(tree_id, node_id)]
+        else:
+            node_dict["treshold"] = threshold
+
+        trees[tree_id][node_id] = node_dict
+
+    # Link nodes creating a tree structure
+    for tree_id, node_id, true_id, false_id in itertools.zip_longest(
+        nodes_treeids,
+        nodes_nodeids,
+        nodes_truenodeids,
+        nodes_falsenodeids,
+        fillvalue=None,
+    ):
+        if node_id in trees[tree_id]:
+            node = trees[tree_id][node_id]
+            if node["mode"] == "LEAF":
+                # Leaf nodes have no true or false branches
+                # In the end they are leaves so they don't have branches
+                continue
+            if true_id in trees[tree_id]:
+                node["true"] = trees[tree_id][true_id]
+            if false_id in trees[tree_id]:
+                node["false"] = trees[tree_id][false_id]
+
+    return {tree_id: trees[tree_id][0] for tree_id in trees}
+
+
+def mode_to_condition(node, feature_expr):
+    threshold = node["treshold"]
+    if node["mode"] == "BRANCH_LEQ":
+        condition = feature_expr <= threshold
+    elif node["mode"] == "BRANCH_LT":
+        condition = feature_expr < threshold
+    elif node["mode"] == "BRANCH_GTE":
+        condition = feature_expr >= threshold
+    elif node["mode"] == "BRANCH_GT":
+        condition = feature_expr > threshold
+    elif node["mode"] == "BRANCH_EQ":
+        condition = feature_expr == threshold
+    elif node["mode"] == "BRANCH_NEQ":
+        condition = feature_expr != threshold
+    else:
+        raise NotImplementedError(f"Unsupported node mode: {node['mode']}")
+    return condition
+
+
+
+

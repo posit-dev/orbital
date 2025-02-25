@@ -1,0 +1,23 @@
+import ibis
+
+from ..translator import Translator
+
+
+class OneHotEncoderTranslator(Translator):        
+    # https://onnx.ai/onnx/operators/onnx_aionnxml_OneHotEncoder.html
+    
+    def process(self):
+        cats = self._attributes.get("cats_strings")
+        if cats is None:
+            # We currently only support string values for categories
+            raise ValueError("OneHotEncoder: attribute cats_strings not found")
+
+        input_expr = self._variables.consume(self.inputs[0])
+        result = {
+            cat: self._optimizer.fold_case(
+                ibis.case().when(input_expr == cat, 1).else_(0).end()
+            )
+            for cat in cats
+        }
+
+        self.set_output(result)

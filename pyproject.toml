@@ -1,0 +1,95 @@
+[build-system]
+requires = [
+    "setuptools>=63.0.0",
+    "wheel"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Mustela"
+version = "0.1.0"
+description = "Allow SKLearn predictions to run on database systems in pure SQL."
+keywords = ["database", "machine learning", "sql"]
+readme = { file = "README.rst", content-type = "text/x-rst" }
+license = { file = "LICENSE.md" }
+authors = [
+  { name = "Alessandro Molina", email = "alessandro@posit.co" },
+  { name = "Posit Software PBC" }
+]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13"
+]
+
+requires-python = ">=3.8"
+dependencies = [
+  "scikit-learn",
+  "skl2onnx",
+  "ibis-framework"
+]
+
+[project.optional-dependencies]
+test = [
+  "pandas",
+  "polars-lts-cpu",  # For testing we prefer compatibility over performance.
+  "pyarrow",
+  "pyarrow-hotfix",  # Ibis seems to demand this even on versions without hotfixes
+  "pytest-cov>=5.0.0",
+  "pytest>=8.3.2",
+]
+
+[tool.uv]
+dev-dependencies = [
+    # Need to repeat test dependencies
+    # uv doesn't allow to merge them with extras
+    # and we don't want users to know that they need to run
+    # uv sync with extras.
+    "pandas",
+    "polars-lts-cpu",
+    "pyarrow",
+    "pyarrow-hotfix",
+    "pytest-cov>=5.0.0",
+    "pytest>=8.3.2",
+    # Necessary for development workflow
+    "mypy>=1.11.2",
+    "pre-commit",
+    "ruff>=0.6.3",
+    "sphinx",
+    "pydot",
+    "onnxruntime",
+    "onnxscript",
+    "ibis-framework[duckdb]>=5.1.0",
+]
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+exclude = ["tests"]
+
+[tool.pytest.ini_options]
+addopts = "--doctest-modules --cov=src --cov-report term-missing"
+testpaths = ["tests"]
+
+[tool.mypy]
+ignore_missing_imports = true
+mypy_path = "$MYPY_CONFIG_FILE_DIR/src"
+packages = ["mustela"]
+
+[tool.ruff]
+src = ["src"]
+extend-exclude = ["docs", "tests"]
+output-format = "grouped"
+lint.select = [
+  "E4", "E7", "E9",
+  "F",
+  "I001",
+  "D100", "D101", "D102", "D103", 
+  "D104", "D107", "D417",
+  "ANN001", "ANN201", "ANN202", 
+  "ANN204", "ANN205", "ANN206"
+]

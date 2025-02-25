@@ -10,7 +10,7 @@ Testing
 
 Setup testing environment::
 
-    $ uv sync --extra test
+    $ uv sync --no-dev --extra test
 
 Run Tests::
 

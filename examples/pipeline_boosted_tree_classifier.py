@@ -16,7 +16,7 @@ import mustela.types
 
 PRINT_SQL = False
 logging.basicConfig(level=logging.INFO)
-logging.getLogger("mustela").setLevel(logging.DEBUG)
+logging.getLogger("mustela").setLevel(logging.INFO)
 
 # Load Ames Housing for classification
 ames = fetch_openml(name="house_prices", as_frame=True)

@@ -1,4 +1,5 @@
 import logging
+
 import ibis
 import numpy as np
 from sklearn.compose import ColumnTransformer
@@ -9,6 +10,7 @@ from sklearn.feature_selection import VarianceThreshold
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
+
 import mustela
 import mustela.types
 
@@ -16,29 +18,28 @@ PRINT_SQL = False
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("mustela").setLevel(logging.DEBUG)
 
-# Carica il dataset Ames Housing e adatta per la classificazione
+# Load Ames Housing for classification
 ames = fetch_openml(name="house_prices", as_frame=True)
 ames = ames.frame
 
-# SQL non consente nomi di colonne che iniziano con numeri
+# SQL does not allow columns to start with a number.
 ames.columns = ["_" + col if col[0].isdigit() else col for col in ames.columns]
 
-# Selezione delle feature numeriche e categoriche
+# Pic numeric features to uniform them types to float
 numeric_features = [
     col
     for col in ames.select_dtypes(include=["int64", "float64"]).columns
     if col != "SalePrice"
 ]
-categorical_features = ames.select_dtypes(include=["object", "category"]).columns
-
-# Conversione delle feature numeriche in float per garantire compatibilità con Mustela
 ames[numeric_features] = ames[numeric_features].astype(np.float64)
 
-# Riempimento dei valori mancanti nelle feature categoriche
+# Fill the categorical types with a value for missing values 
+# (NaN is not a string and we can't mix types in the same column)
+categorical_features = ames.select_dtypes(include=["object", "category"]).columns
 ames[categorical_features] = ames[categorical_features].fillna("missing")
 
-# Creazione della variabile target classificatoria basata sul prezzo
-# Dividiamo le case in 3 fasce di prezzo
+# Let's create classes of prices, we will divide prices in 3 categories
+# We will use this as the target of the prediction
 def categorize_price(price: float) -> str:
     if price < 130000:
         return "low"
@@ -49,11 +50,11 @@ def categorize_price(price: float) -> str:
 
 ames["price_category"] = ames["SalePrice"].apply(categorize_price)
 
-# Separa le feature dalla target
+# Split target of prediction (sales cateogiry) from features used for prediction
 X = ames.drop(columns=["SalePrice", "price_category"])
 y = ames["price_category"]
 
-# Definizione delle pipeline di trasformazione
+
 numeric_transformer = Pipeline(
     steps=[("imputer", SimpleImputer(strategy="mean")), ("scaler", StandardScaler())]
 )
@@ -77,7 +78,6 @@ preprocessor = ColumnTransformer(
     ]
 )
 
-# Creazione del modello Gradient Boosting Classifier con pipeline
 model = Pipeline(
     steps=[
         ("preprocessor", preprocessor),
@@ -87,21 +87,20 @@ model = Pipeline(
     ]
 )
 
-# Addestramento del modello
 model.fit(X, y)
 
-# Identificazione delle feature per Mustela
+# Convert types from numpy to mustela types
 features = mustela.types.guess_datatypes(X)
 print("Mustela Features:", features)
 
-# Creazione di un sottoinsieme di dati per la predizione
+# Target only 5 rows, so that it's easier for a human to understand
 data_sample = X.head(5)
 
-# Conversione del modello in pipeline SQL con Mustela
+# Convert the model to an execution pipeline
 mustela_pipeline = mustela.parse_pipeline(model, features=features)
 print(mustela_pipeline)
 
-# Generazione della query SQL con Mustela
+# Translate the pipeline to a query
 ibis_expression = mustela.translate(ibis.memtable(data_sample), mustela_pipeline)
 con = ibis.sqlite.connect()
 
@@ -109,10 +108,10 @@ if PRINT_SQL:
     print("\nGenerated Query for SQLite:")
     print(con.compile(ibis_expression))
 
-# Predizione con SKLearn
 print("\nPrediction with SKLearn")
 target = model.predict(data_sample)
 print(target)
 
 # Predizione con Ibis
-print("\nPrediction with Ibis
+print("\nPrediction with Ibis")
+print(con.execute(ibis_expression))

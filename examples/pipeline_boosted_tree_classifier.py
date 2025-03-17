@@ -112,6 +112,5 @@ print("\nPrediction with SKLearn")
 target = model.predict(data_sample)
 print(target)
 
-# Predizione con Ibis
 print("\nPrediction with Ibis")
 print(con.execute(ibis_expression))

@@ -32,7 +32,9 @@ class TreeEnsembleClassifierTranslator(Translator):
             if node["mode"] == "LEAF":
                 votes = {}
                 for clslabel in classlabels:
-                    votes[clslabel] = ibis.literal(node["weight"][clslabel])
+                    # We can assume missing class = weight 0
+                    # The optimizer will remove this if both true and false have 0.
+                    votes[clslabel] = ibis.literal(node["weight"].get(clslabel, 0))
                 return votes
 
             # Branch node, build a CASE statement
@@ -56,7 +58,7 @@ class TreeEnsembleClassifierTranslator(Translator):
         for treeid, tree in ensemble_trees.items():
             tree_votes.append(build_tree_case(tree, tree))
 
-        # Aggrega i voti totali
+        # Aggregate votes from all trees.
         total_votes = {}
         for clslabel in classlabels:
             total_votes[clslabel] = ibis.literal(0.0)
@@ -65,7 +67,7 @@ class TreeEnsembleClassifierTranslator(Translator):
                     total_votes[clslabel] + votes.get(clslabel, ibis.literal(0.0))
                 )
 
-        # Determina la classe candidata e costruisce l'etichetta
+        # Compute prediction of class itself.
         candidate_cls = classlabels[0]
         candidate_vote = total_votes[candidate_cls]
         for clslabel in classlabels[1:]:
@@ -83,12 +85,12 @@ class TreeEnsembleClassifierTranslator(Translator):
             )
 
         label_expr = ibis.case()
-        for cls in classlabels:
-            label_expr = label_expr.when(candidate_cls == cls, cls)
+        for clslabel in classlabels:
+            label_expr = label_expr.when(candidate_cls == clslabel, clslabel)
         label_expr = label_expr.else_("unknown").end()
         label_expr = optimizer.fold_case(label_expr)
 
-        # Calcola le probabilità
+        # Compute probability to return it too.
         sum_votes = None
         for clslabel in classlabels:
             if sum_votes is None:

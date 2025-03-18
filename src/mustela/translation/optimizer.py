@@ -125,25 +125,33 @@ class Optimizer:
 
         op = expr.op()
 
-        if all(isinstance(c, Literal) for c in op.cases):
-            # print("Can fold case", [type(c).__name__ for c in op.cases])
-            for cond, res in zip(op.cases, op.results):
-                # print("\t", cond.value, res.value)
-                if cond.value:
-                    return self._ensure_expr(res)
-            return self._ensure_expr(op.default)
-        elif all(
+        results_are_literals = all(
             isinstance(c, Literal) for c in itertools.chain([op.default], op.results)
-        ):
-            # print("Want to fold case", expr, [op.default.value], [c.value for c in op.results])
-            values = set(
-                itertools.chain([op.default.value], [c.value for c in op.results])
-            )
-            if len(values) == 1:
-                # print("Folding case to", dir(expr))
-                return self._ensure_expr(values.pop())
+        )
+        possible_values = set(
+            itertools.chain([op.default.value], [c.value for c in op.results])
+        ) if results_are_literals else set()
 
-        # print("Unable to fold", [type(c).__name__ for c in op.cases])
+        if results_are_literals and len(possible_values) == 1:
+            # All results and the default are literals with the same value.
+            # It doesn't make any sense to have the case as it will always
+            # lead to the same result.
+            return self._ensure_expr(possible_values.pop())
+        elif len(op.cases) == 1 and isinstance(op.cases[0], Literal):
+            # It's only a IF ELSE statement, we can check the case
+            # and eventually drop it if it's a constant.
+            if op.cases[0].value:
+                return op.results[0].to_expr()
+            else:
+                return op.default.to_expr()
+        elif len(op.cases) == 1 and results_are_literals and possible_values == {1, 0}:
+            # results are 1 or 0, we can fold it to a boolean
+            # expression.
+            if op.results[0].value == 1:
+                return (op.cases[0].to_expr()).cast("float64")
+            else:
+                return (~(op.cases[0].to_expr())).cast("float64")
+
         return expr
 
     def fold_cast(self, expr):
@@ -156,7 +164,6 @@ class Optimizer:
         arg = op_instance.arg
         if isinstance(arg, Literal):
             value = arg.value
-            # print("Casting", value, "to", target_type, type(target_type), (target_type == dt.boolean))
             if target_type == dt.int64:
                 return ibis.literal(int(value))
             elif target_type == dt.float64:
@@ -219,7 +226,6 @@ class Optimizer:
         op = expr.op()
         inputs = op.args
 
-        # print(f"\t Trying to fold {type(op).__name__}({', '.join([self._debug(i) for i in inputs])})")
         if not all(isinstance(child, Literal) for child in inputs):
             # We can only fold operations where all children are literals.
             return self.fold_zeros(expr)

@@ -14,7 +14,7 @@ from sklearn.tree import DecisionTreeClassifier
 import mustela
 import mustela.types
 
-PRINT_SQL = True
+PRINT_SQL = False
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("mustela").setLevel(logging.DEBUG)

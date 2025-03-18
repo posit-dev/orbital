@@ -78,6 +78,7 @@ def build_tree(translator):
             trees[tree_id] = {}
 
         node_dict = {
+            "id": (tree_id, node_id),
             "mode": mode,
             "feature_id": feature_id,
             "missing_tracks_true": bool(

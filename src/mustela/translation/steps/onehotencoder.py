@@ -14,9 +14,7 @@ class OneHotEncoderTranslator(Translator):
 
         input_expr = self._variables.consume(self.inputs[0])
         result = {
-            cat: self._optimizer.fold_case(
-                ibis.case().when(input_expr == cat, 1).else_(0).end()
-            )
+            cat: (input_expr == cat).cast("float64")
             for cat in cats
         }
 

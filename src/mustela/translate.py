@@ -55,7 +55,7 @@ log = logging.getLogger(__name__)
 
 
 def translate(table: ibis.Table, pipeline: ParsedPipeline) -> set[str]:
-    optimizer = Optimizer(enabled=False)  # FIXME: Optimizer has currently a bug, need to investigate.
+    optimizer = Optimizer(enabled=True)
     variables = GraphVariables(table, pipeline._model.graph)
     nodes = {node.name: node for node in pipeline._model.graph.node}
     for node_name, node in nodes.items():

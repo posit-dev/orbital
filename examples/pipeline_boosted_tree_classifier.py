@@ -101,7 +101,7 @@ mustela_pipeline = mustela.parse_pipeline(model, features=features)
 print(mustela_pipeline)
 
 # Translate the pipeline to a query
-ibis_expression = mustela.translate(ibis.memtable(data_sample), mustela_pipeline)
+#ibis_expression = mustela.translate(ibis.memtable(data_sample), mustela_pipeline)
 con = ibis.sqlite.connect()
 
 if PRINT_SQL:
@@ -113,4 +113,9 @@ target = model.predict(data_sample)
 print(target)
 
 print("\nPrediction with Ibis")
-print(con.execute(ibis_expression))
+table = ibis.memtable(data_sample)
+con.create_table(table.get_name(), obj=table)
+q = mustela.translate_sqlglot(table, mustela_pipeline)
+print("\tRunning...")
+print(con.raw_sql(q).df())
+#print(con.execute(ibis_expression))

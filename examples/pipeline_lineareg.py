@@ -55,14 +55,21 @@ example_data = pa.table(
 )
 
 ibis_expression = mustela.translate(ibis.memtable(example_data), mustela_pipeline)
+con = ibis.duckdb.connect()
 
 if PRINT_SQL:
     print("\nGenerated Query for DuckDB:")
-    con = ibis.duckdb.connect()
     print(con.compile(ibis_expression))
 
 print("\nPrediction with Ibis")
 print(ibis_expression.execute())
+
+print("\Prediction with SQLGlot")
+table = ibis.memtable(example_data)
+con.create_table(table.get_name(), obj=table)
+sqlglot_q = mustela.translate_sqlglot(table, mustela_pipeline)
+print(sqlglot_q)
+print(con.raw_sql(sqlglot_q).df())
 
 print("\nPrediction with SKLearn")
 new_column_names = [name.replace("_", ".") for name in example_data.column_names]  # SkLearn uses dots

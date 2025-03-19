@@ -54,17 +54,19 @@ TRANSLATORS = {
 log = logging.getLogger(__name__)
 
 
-def translate(table: ibis.Table, pipeline: ParsedPipeline) -> set[str]:
+def translate(table: ibis.Table, pipeline: ParsedPipeline) -> ibis.Table:
     optimizer = Optimizer(enabled=True)
-    variables = GraphVariables(table, pipeline._model.graph)
+    features = {colname: table[colname] for colname in table.columns}
+    variables = GraphVariables(features, pipeline._model.graph)
     nodes = {node.name: node for node in pipeline._model.graph.node}
     for node_name, node in nodes.items():
         op_type = node.op_type
         if op_type not in TRANSLATORS:
             raise NotImplementedError(f"Translation for {op_type} not implemented")
-        translator = TRANSLATORS[op_type](node, variables, optimizer)
+        translator = TRANSLATORS[op_type](table, node, variables, optimizer)
         _log_debug_start(translator)
         translator.process()
+        table = translator.mutated_table  # Translator might return a new table.
         _log_debug_end(translator)
     return _projection_results(table, variables)
 
@@ -89,7 +91,7 @@ def _projection_results(table: ibis.Table, variables: GraphVariables) -> ibis.Ta
                 final_projections[colkey] = colvalue
         else:
             final_projections[key] = value
-    return table.select(**final_projections)
+    return table.mutate(**final_projections).select(final_projections.keys())
 
 
 def _log_debug_start(translator):

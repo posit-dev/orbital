@@ -21,6 +21,11 @@ class TreeEnsembleRegressorTranslator(Translator):
             ordered_features = list(input_expr.values())
         else:
             ordered_features = [input_expr]
+        ordered_features = [
+            feature.name(self.variable_unique_short_alias("tclass"))
+            for feature in ordered_features
+        ]
+        ordered_features = self.preserve(*ordered_features)
 
         def build_tree_value(node):
             # Leaf node, should return the prediction weight

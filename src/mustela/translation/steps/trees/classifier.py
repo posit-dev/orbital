@@ -9,11 +9,11 @@ class TreeEnsembleClassifierTranslator(Translator):
     # This is deprecated in ONNX but it's what skl2onnx uses.
 
     def process(self):
-            input_exr = self._variables.consume(self.inputs[0])
-            label_expr, prob_expr = self.build_classifier(input_exr)
-            
-            self._variables[self.outputs[0]] = label_expr
-            self._variables[self.outputs[1]] = prob_expr
+        input_exr = self._variables.consume(self.inputs[0])
+        label_expr, prob_expr = self.build_classifier(input_exr)
+        
+        self._variables[self.outputs[0]] = label_expr
+        self._variables[self.outputs[1]] = prob_expr
 
     def build_classifier(self, input_expr):
         optimizer = self._optimizer
@@ -26,6 +26,11 @@ class TreeEnsembleClassifierTranslator(Translator):
             ordered_features = list(input_expr.values())
         else:
             ordered_features = [input_expr]
+        ordered_features = [
+            feature.name(self.variable_unique_short_alias("tclass"))
+            for feature in ordered_features
+        ]
+        ordered_features = self.preserve(*ordered_features)
 
         def build_tree_case(tree, node):
             # Leaf node, return the votes

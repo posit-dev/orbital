@@ -1,6 +1,7 @@
 import abc
 
 import onnx
+import ibis
 
 from .._utils import onnx as onnx_utils
 from .optimizer import Optimizer
@@ -8,7 +9,8 @@ from .variables import GraphVariables
 
 
 class Translator(abc.ABC):
-    def __init__(self, node: onnx.NodeProto, variables: GraphVariables, optimizer: Optimizer=None):
+    def __init__(self, table: ibis.Table, node: onnx.NodeProto, variables: GraphVariables, optimizer: Optimizer=None):
+        self._table = table
         self._variables = variables
         self._node = node
         self._optimizer = optimizer
@@ -33,7 +35,35 @@ class Translator(abc.ABC):
     def outputs(self):
         return [str(o) for o in self._outputs]
 
+    @property
+    def mutated_table(self):
+        return self._table
+
     def set_output(self, value):
         if len(self.outputs) > 1:
             raise ValueError("Translator has more than one output")
         self._variables[self._output_name] = value
+
+    def preserve(self, *variables):
+        for v in variables:
+            if v.get_name() in self._table.columns:
+                raise ValueError(
+                    "Preserve variable already exists in the table: "
+                    f"{v.get_name()}"
+                )
+
+        mutate_args = {v.get_name(): v for v in variables}
+        self._table = self._table.mutate(**mutate_args)
+
+        # TODO: Should probably update self._variables too
+        # in case the same variable is used in multiple places
+        # but this is not a common case, and it's complex because
+        # we don't know the variable name (!= column_name)
+        # so we'll leave it for now.
+        return [self._table[cname] for cname in mutate_args]
+        
+    def variable_unique_short_alias(self, prefix=None):
+        shortname = self._variables.generate_unique_shortname()
+        if prefix:
+            shortname = f"{prefix}_{shortname}"
+        return shortname

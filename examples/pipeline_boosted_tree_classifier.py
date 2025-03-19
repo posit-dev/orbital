@@ -5,7 +5,7 @@ import numpy as np
 from sklearn.compose import ColumnTransformer
 from sklearn.datasets import fetch_openml
 from sklearn.decomposition import PCA
-from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
@@ -15,38 +15,45 @@ import mustela
 import mustela.types
 
 PRINT_SQL = False
-
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("mustela").setLevel(logging.DEBUG)
 
+# Load Ames Housing for classification
 ames = fetch_openml(name="house_prices", as_frame=True)
 ames = ames.frame
 
 # SQL does not allow columns to start with a number.
-# See http://www.postgresql.org/docs/current/static/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS
-# So we need to rename them
 ames.columns = ["_" + col if col[0].isdigit() else col for col in ames.columns]
 
+# Pic numeric features to uniform them types to float
 numeric_features = [
     col
     for col in ames.select_dtypes(include=["int64", "float64"]).columns
     if col != "SalePrice"
 ]
-categorical_features = ames.select_dtypes(include=["object", "category"]).columns
-
-# Mustela requires the input and outputs of an imputer to
-# be of the same type, as SimpleImputer has to compute the mean
-# the result is always a float. Which makes sense.
-# Let's convert all numeric features to doubles so
-# that the inputs and outputs are always double.
 ames[numeric_features] = ames[numeric_features].astype(np.float64)
 
-# Categorical features are all strings, so they shouldn't have any NaN values.
-# Let's add a missing value to ensure type consistency
+# Fill the categorical types with a value for missing values 
+# (NaN is not a string and we can't mix types in the same column)
+categorical_features = ames.select_dtypes(include=["object", "category"]).columns
 ames[categorical_features] = ames[categorical_features].fillna("missing")
 
-X = ames.drop("SalePrice", axis=1)
-y = ames["SalePrice"]
+# Let's create classes of prices, we will divide prices in 3 categories
+# We will use this as the target of the prediction
+def categorize_price(price: float) -> str:
+    if price < 130000:
+        return "low"
+    elif price < 250000:
+        return "medium"
+    else:
+        return "high"
+
+ames["price_category"] = ames["SalePrice"].apply(categorize_price)
+
+# Split target of prediction (sales cateogiry) from features used for prediction
+X = ames.drop(columns=["SalePrice", "price_category"])
+y = ames["price_category"]
+
 
 numeric_transformer = Pipeline(
     steps=[("imputer", SimpleImputer(strategy="mean")), ("scaler", StandardScaler())]
@@ -76,39 +83,34 @@ model = Pipeline(
         ("preprocessor", preprocessor),
         ("var_threshold", VarianceThreshold()),
         ("pca", PCA(n_components=5)),
-        ("regressor", GradientBoostingRegressor()),
+        ("classifier", GradientBoostingClassifier()),
     ]
 )
+
 model.fit(X, y)
 
+# Convert types from numpy to mustela types
 features = mustela.types.guess_datatypes(X)
 print("Mustela Features:", features)
 
-# Create a small set of data for the prediction
-# It's easier to understand if it's small
+# Target only 5 rows, so that it's easier for a human to understand
 data_sample = X.head(5)
 
+# Convert the model to an execution pipeline
 mustela_pipeline = mustela.parse_pipeline(model, features=features)
 print(mustela_pipeline)
 
+# Translate the pipeline to a query
 ibis_expression = mustela.translate(ibis.memtable(data_sample), mustela_pipeline)
-con = ibis.sqlite.connect()
+con = ibis.duckdb.connect()
 
 if PRINT_SQL:
-    print("\nGenerated Query for SQLite:")
+    print("\nGenerated Query for DuckDB:")
     print(con.compile(ibis_expression))
 
 print("\nPrediction with SKLearn")
 target = model.predict(data_sample)
 print(target)
 
-# NOTE: When the Mustela optimizer is enabled this is significantly faster
-#       But it's currently disabled due to a bug.
-# NOTE: Interestingly the DuckDB optimizer has a bug on this query too
-#       and unless disabled the query never completes.
-#       That's why we run using SQLite.
-#       The Mustela optimizer when enabled is able to preoptimize the query
-#       which seems to allow DuckDB to complete the query as probably the DuckDB
-#       optimizer has less work to do in that case.
 print("\nPrediction with Ibis")
 print(con.execute(ibis_expression))

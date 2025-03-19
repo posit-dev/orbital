@@ -17,7 +17,7 @@ import mustela.types
 PRINT_SQL = False
 
 logging.basicConfig(level=logging.INFO)
-logging.getLogger("mustela").setLevel(logging.INFO)
+logging.getLogger("mustela").setLevel(logging.DEBUG)
 
 ames = fetch_openml(name="house_prices", as_frame=True)
 ames = ames.frame
@@ -95,7 +95,7 @@ ibis_expression = mustela.translate(ibis.memtable(data_sample), mustela_pipeline
 con = ibis.duckdb.connect()
 
 if PRINT_SQL:
-    print("\nGenerated Query for SQLite:")
+    print("\nGenerated Query for DuckDB:")
     print(con.compile(ibis_expression))
 
 print("\nPrediction with SKLearn")

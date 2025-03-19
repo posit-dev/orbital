@@ -158,10 +158,17 @@ class Optimizer:
         if self.ENABLED is False:
             return expr
 
-        # TODO: When the expr is already of the target type do nothing
         op_instance = expr.op()
+        if not isinstance(op_instance, ibis.expr.operations.Cast):
+            # Not a cast, ignore
+            # This can happen when a Field (a column) is casted to a type
+            # and the Column is already of the same type.
+            # Ibis seems to optimize this case and remove the cast.
+            return expr
+
         target_type = op_instance.to
         arg = op_instance.arg
+
         if isinstance(arg, Literal):
             value = arg.value
             if target_type == dt.int64:
@@ -176,6 +183,11 @@ class Optimizer:
                 raise NotImplementedError(
                     f"Literal Cast to {target_type} not supported"
                 )
+        elif arg.dtype() == target_type:
+            # The expression is already of the target type
+            # No need to cast it again.
+            return expr
+
         return expr
 
     def fold_zeros(self, expr):

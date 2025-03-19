@@ -30,7 +30,7 @@ class TreeEnsembleClassifierTranslator(Translator):
             feature.name(self.variable_unique_short_alias("tclass"))
             for feature in ordered_features
         ]
-        self.preserve(*ordered_features)
+        ordered_features = self.preserve(*ordered_features)
 
         def build_tree_case(tree, node):
             # Leaf node, return the votes

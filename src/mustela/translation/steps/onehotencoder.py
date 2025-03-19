@@ -13,9 +13,11 @@ class OneHotEncoderTranslator(Translator):
             raise ValueError("OneHotEncoder: attribute cats_strings not found")
 
         input_expr = self._variables.consume(self.inputs[0])
-        result = {
-            cat: self._optimizer.fold_cast((input_expr == cat).cast("float64"))
-            for cat in cats
-        }
 
-        self.set_output(result)
+        casted_variables = [self._optimizer.fold_cast((input_expr == cat).cast("float64")).name(self.variable_unique_short_alias("onehot")) for cat in cats]
+        casted_variables = self.preserve(*casted_variables)
+
+        self.set_output({
+            cat: casted_variables[i]
+            for i, cat in enumerate(cats)
+        })

@@ -33,7 +33,41 @@ class Translator(abc.ABC):
     def outputs(self):
         return [str(o) for o in self._outputs]
 
+    def alias_output(self, value):
+        if isinstance(value, dict):
+            new_dict = {}
+            for name, expr in value.items():
+                cache_name = f"{self._output_name}_{name}"
+                new_dict[name] = expr
+            value = self._variables.alias(new_dict)
+        else:            
+            cache_name = f"{self._output_name}"
+            value = self._variables.alias({cache_name: value})[cache_name]
+        self.set_output(value)
+
     def set_output(self, value):
         if len(self.outputs) > 1:
             raise ValueError("Translator has more than one output")
         self._variables[self._output_name] = value
+
+    def preserve(self, *variables):
+        for v in variables:
+            if v.get_name() in self._variables._table.columns:
+                raise ValueError(
+                    "Preserve variable already exists in the table: "
+                    f"{v.get_name()}"
+                )
+
+        mutate_args = {
+            v.get_name(): v
+            for v in variables
+        }
+        self._variables._table = self._variables._table.mutate(**mutate_args)
+        for v in mutate_args.keys():
+            self._variables[v] = None
+        
+    def variable_unique_short_alias(self, prefix=None):
+        shortname = self._variables.generate_unique_shortname()
+        if prefix:
+            shortname = f"{prefix}_{shortname}"
+        return shortname

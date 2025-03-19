@@ -66,7 +66,7 @@ def translate(table: ibis.Table, pipeline: ParsedPipeline) -> ibis.Table:
         _log_debug_start(translator)
         translator.process()
         _log_debug_end(translator)
-    return _projection_results(table, variables)
+    return _projection_results(variables._table, variables)
 
 
 def translate_sqlglot(table: ibis.Table, pipeline: ParsedPipeline):
@@ -92,6 +92,7 @@ def _projection_results(table: ibis.Table, variables: GraphVariables) -> ibis.Ta
     # the remaining ones are the values resulting from all
     # graph branches.
     final_projections = {}
+    temporary_variables = []
     for key, value in variables.remaining().items():
         if isinstance(value, dict):
             for field in value:
@@ -105,9 +106,11 @@ def _projection_results(table: ibis.Table, variables: GraphVariables) -> ibis.Ta
                     colkey = colkey + "." + field
                     colvalue = colvalue[field]
                 final_projections[colkey] = colvalue
+        elif value is None:
+            temporary_variables.append(key)
         else:
             final_projections[key] = value
-    return table.select(**final_projections)
+    return table.select(temporary_variables, **final_projections).select(final_projections.keys())
 
 
 def _log_debug_start(translator):

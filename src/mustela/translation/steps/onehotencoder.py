@@ -14,7 +14,7 @@ class OneHotEncoderTranslator(Translator):
 
         input_expr = self._variables.consume(self.inputs[0])
         result = {
-            cat: (input_expr == cat).cast("float64")
+            cat: self._optimizer.fold_cast((input_expr == cat).cast("float64"))
             for cat in cats
         }
 

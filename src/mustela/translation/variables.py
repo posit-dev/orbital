@@ -6,10 +6,12 @@ from .._utils import onnx as onnx_utils
 
 class GraphVariables:
     def __init__(self, table: ibis.Table, graph: onnx.GraphProto):
+        self._table = table
         self._initializers = {init.name: init for init in graph.initializer}
         self._initializers_values = {init.name: onnx_utils.get_variable_data(init) for init in graph.initializer}
         self._variables = {inp.name: table[inp.name] for inp in graph.input}
         self._consumed = set()
+        self._uniqueid = 0
 
     def consume(self, name):
         if name in self._initializers:
@@ -56,3 +58,10 @@ class GraphVariables:
             for name in self._variables
             if name not in self._consumed
         }
+
+    def generate_unique_shortname(self):
+        """
+        Generate a unique short name for a variable.
+        """
+        self._uniqueid += 1
+        return f"v{self._uniqueid}"

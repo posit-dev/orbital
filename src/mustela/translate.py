@@ -71,24 +71,6 @@ def translate(table: ibis.Table, pipeline: ParsedPipeline) -> ibis.Table:
     return _projection_results(table, variables)
 
 
-def translate_sqlglot(table: ibis.Table, pipeline: ParsedPipeline):
-    ibis_expr = translate(table, pipeline)
-    # sqlglot_schema = table.schema().to_sqlglot(dialect="duckdb")
-        
-    import ibis.backends.sql.compilers as sc
-    sqlglot_expr = sc.duckdb.compiler.to_sqlglot(ibis_expr.unbind())
-
-    sqlglot_catalog = {
-        table.get_name(): table
-    }
-    from ibis.expr.sql import Catalog
-    catalog = Catalog(sqlglot_catalog)
-
-    import sqlglot.optimizer
-    sqlglot_expr = sqlglot.optimizer.optimize(sqlglot_expr, schema=catalog.to_sqlglot())
-
-    return sqlglot_expr.sql(dialect="duckdb")
-
 def _projection_results(table: ibis.Table, variables: GraphVariables) -> ibis.Table:
     # As we pop out the variables as we use them
     # the remaining ones are the values resulting from all

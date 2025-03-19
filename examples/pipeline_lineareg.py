@@ -64,13 +64,6 @@ if PRINT_SQL:
 print("\nPrediction with Ibis")
 print(ibis_expression.execute())
 
-print("\Prediction with SQLGlot")
-table = ibis.memtable(example_data)
-con.create_table(table.get_name(), obj=table)
-sqlglot_q = mustela.translate_sqlglot(table, mustela_pipeline)
-print(sqlglot_q)
-print(con.raw_sql(sqlglot_q).df())
-
 print("\nPrediction with SKLearn")
 new_column_names = [name.replace("_", ".") for name in example_data.column_names]  # SkLearn uses dots
 renamed_example_data = example_data.rename_columns(new_column_names).to_pandas()

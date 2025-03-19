@@ -39,18 +39,6 @@ class Translator(abc.ABC):
     def mutated_table(self):
         return self._table
 
-    def alias_output(self, value):
-        if isinstance(value, dict):
-            new_dict = {}
-            for name, expr in value.items():
-                cache_name = f"{self._output_name}_{name}"
-                new_dict[name] = expr
-            value = self._variables.alias(new_dict)
-        else:            
-            cache_name = f"{self._output_name}"
-            value = self._variables.alias({cache_name: value})[cache_name]
-        self.set_output(value)
-
     def set_output(self, value):
         if len(self.outputs) > 1:
             raise ValueError("Translator has more than one output")

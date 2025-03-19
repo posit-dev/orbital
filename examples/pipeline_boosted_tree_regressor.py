@@ -92,7 +92,7 @@ mustela_pipeline = mustela.parse_pipeline(model, features=features)
 print(mustela_pipeline)
 
 ibis_expression = mustela.translate(ibis.memtable(data_sample), mustela_pipeline)
-con = ibis.sqlite.connect()
+con = ibis.duckdb.connect()
 
 if PRINT_SQL:
     print("\nGenerated Query for SQLite:")
@@ -102,8 +102,6 @@ print("\nPrediction with SKLearn")
 target = model.predict(data_sample)
 print(target)
 
-# NOTE: When the Mustela optimizer is enabled this is significantly faster
-#       But it's currently disabled due to a bug.
 # NOTE: Interestingly the DuckDB optimizer has a bug on this query too
 #       and unless disabled the query never completes.
 #       That's why we run using SQLite.

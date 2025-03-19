@@ -1,38 +1,25 @@
 import onnx
-
-TYPE_TO_DATA_FIELD = {
-    onnx.TensorProto.FLOAT: "float_data",
-    onnx.TensorProto.UINT8: "int32_data",
-    onnx.TensorProto.INT8: "int32_data",
-    onnx.TensorProto.UINT16: "int32_data",
-    onnx.TensorProto.INT16: "int32_data",
-    onnx.TensorProto.INT32: "int32_data",
-    onnx.TensorProto.INT64: "int64_data",
-    onnx.TensorProto.STRING: "string_data",
-    onnx.TensorProto.BOOL: "int32_data",
-    onnx.TensorProto.FLOAT16: "int32_data",
-    onnx.TensorProto.DOUBLE: "double_data",
-    onnx.TensorProto.UINT32: "int64_data",
-    onnx.TensorProto.UINT64: "int64_data",
-}
+import onnx.helper
+import onnx.numpy_helper
 
 
-def get_variable_data(var):
+def get_initializer_data(var):
     if var is None:
         raise ValueError("Expected a variable, got None")
     
-    attr_name = TYPE_TO_DATA_FIELD[var.data_type]
-    values = getattr(var, attr_name)
+    attr_name = onnx.helper.tensor_dtype_to_field(var.data_type)
+    values = list(getattr(var, attr_name))
     dimensions = getattr(var, "dims", None)
 
     if not dimensions and len(values) == 1:
+        # If there are no dimensions, it's a scalar
+        # and we should return the single value
         return values[0]
     return values
 
 
 def get_attr_value(attr):
-    # TODO: Check if it can be replaced with onnx.numpy_helper.get_attribute_value
-    #       for some reason it doesn't behave as expected, so we wrote our own function.
+    # TODO: Check if it can be replaced with onnx.helper.get_attribute_value
     if attr.type == attr.INTS:
         return list(attr.ints)
     elif attr.type == attr.FLOATS:

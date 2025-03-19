@@ -10,9 +10,20 @@ class ReshapeTranslator(Translator):
             first_operand_len = 1
 
         shape = self._variables.get_initializer_value(self.inputs[1])
-        assert shape[1] == first_operand_len and shape[0] == -1, (
-            "Reshaping is only supported when it doesn't change the shape"
-        )
+        if shape[0] != -1:
+            # We don't support changing the numer of rows
+            raise NotImplementedError("Reshape can't change the number of rows")
+
+        if len(shape) == 1 and first_operand_len == 1:
+            # We can reshape a single column to a single column
+            # nothing has changed.
+            pass
+        elif len(shape) == 2 and shape[1] == first_operand_len:
+            # We can reshape a group of columns into the same
+            # number of columns, nothing has changed.
+            pass
+        else:
+            raise ValueError(f"Reshape shape={shape} not supported")
 
         # At this point we should have a single column containing the
         # result of the whole expression, so there should really be nothing to reshape.

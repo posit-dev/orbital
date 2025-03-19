@@ -17,6 +17,8 @@ from .translation.steps.matmul import MatMulTranslator
 from .translation.steps.onehotencoder import OneHotEncoderTranslator
 from .translation.steps.reshape import ReshapeTranslator
 from .translation.steps.sub import SubTranslator
+from .translation.steps.argmax import ArgMaxTranslator
+from .translation.steps.softmax import SoftmaxTranslator
 from .translation.steps.trees import (
     TreeEnsembleClassifierTranslator,
     TreeEnsembleRegressorTranslator,
@@ -47,6 +49,8 @@ TRANSLATORS = {
     "OneHotEncoder": OneHotEncoderTranslator,
     "Where": WhereTranslator,
     "ZipMap": ZipMapTranslator,
+    "ArgMax": ArgMaxTranslator,
+    "Softmax": SoftmaxTranslator,
     "TreeEnsembleClassifier": TreeEnsembleClassifierTranslator,
     "TreeEnsembleRegressor": TreeEnsembleRegressorTranslator,
 }

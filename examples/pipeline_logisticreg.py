@@ -64,9 +64,11 @@ example_data = pa.table({
 })
 
 ibis_expression = mustela.translate(ibis.memtable(example_data), mustela_pipeline)
+con = ibis.duckdb.connect()
+ibis.set_backend(con)
+
 if PRINT_SQL:
     print("\nGenerated Query:")
-    con = ibis.duckdb.connect()
     print(con.compile(ibis_expression))
 
 print("\nPrediction with Ibis")

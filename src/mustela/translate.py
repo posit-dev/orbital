@@ -57,6 +57,8 @@ TRANSLATORS = {
 
 log = logging.getLogger(__name__)
 
+LOG_DATA = True  # This is primarily for development purposes.
+
 
 def translate(table: ibis.Table, pipeline: ParsedPipeline) -> ibis.Table:
     optimizer = Optimizer(enabled=True)
@@ -68,10 +70,10 @@ def translate(table: ibis.Table, pipeline: ParsedPipeline) -> ibis.Table:
         if op_type not in TRANSLATORS:
             raise NotImplementedError(f"Translation for {op_type} not implemented")
         translator = TRANSLATORS[op_type](table, node, variables, optimizer)
-        _log_debug_start(translator)
+        _log_debug_start(translator, variables)
         translator.process()
         table = translator.mutated_table  # Translator might return a new table.
-        _log_debug_end(translator)
+        _log_debug_end(translator, variables)
     return _projection_results(table, variables)
 
 
@@ -98,7 +100,7 @@ def _projection_results(table: ibis.Table, variables: GraphVariables) -> ibis.Ta
     return table.mutate(**final_projections).select(final_projections.keys())
 
 
-def _log_debug_start(translator):
+def _log_debug_start(translator, variables):
     debug_inputs = {}
     node = translator._node
     for inp in translator._inputs:
@@ -115,8 +117,21 @@ def _log_debug_start(translator):
     log.debug(
         f"Node: {node.name}, Op: {node.op_type}, Attributes: {translator._attributes}, Inputs: {debug_inputs}"
     )
+    if LOG_DATA:
+        # print("Input Expressions")
+        # print(ibis.duckdb.connect().compile(self._table.select(**data)))
+        print("Input Data", flush=True)
+        print(_projection_results(translator.mutated_table, variables).execute(), flush=True)
+        print("", flush=True)
 
-def _log_debug_end(translator):
+
+def _log_debug_end(translator, variables):
     variables = translator._variables
     output_vars = {name: type(variables.peek_variable(name)) for name in translator.outputs}
     log.debug(f"\tOutput: {output_vars} TOTAL: {variables.nested_len()}/{len(variables)}")
+
+    if LOG_DATA:
+        print("\tOutput Data", flush=True)
+        print(_projection_results(translator.mutated_table, variables).execute(), flush=True)
+        print("", flush=True)
+

@@ -15,6 +15,10 @@ import mustela.types
 
 PRINT_SQL = False
 
+np.set_printoptions(precision=6, suppress=True)
+pd.set_option('display.float_format', '{:.6f}'.format)
+#pd.set_option('display.max_columns', None)
+
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("mustela").setLevel(logging.DEBUG)
 
@@ -63,9 +67,10 @@ example_data = pa.table({
     "petal_width_cat": ["narrow", "wide", "wide", "wide"]
 })
 
-ibis_expression = mustela.translate(ibis.memtable(example_data), mustela_pipeline)
 con = ibis.duckdb.connect()
 ibis.set_backend(con)
+
+ibis_expression = mustela.translate(ibis.memtable(example_data), mustela_pipeline)
 
 if PRINT_SQL:
     print("\nGenerated Query:")

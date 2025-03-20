@@ -42,11 +42,4 @@ class ArgMaxTranslator(Translator):
             case_expr = case_expr.when(cond, idx)
         argmax_expr = case_expr.else_(0).end()
 
-        print("ArgMax Input Expressions")
-        print(self._table.select(**data).compile())
-        print("ArgMax Original Data")
-        print(self._table.select(**data).execute())
-        print("ArgMax Result:")
-        print(self._table.select(**{"value": argmax_expr}).execute())
-
         self.set_output(argmax_expr)

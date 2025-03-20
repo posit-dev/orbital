@@ -57,7 +57,11 @@ TRANSLATORS = {
 
 log = logging.getLogger(__name__)
 
-LOG_DATA = True  # This is primarily for development purposes.
+# This is primarily for development purposes.
+# It's disabled by default because it implies
+# a significant cost of executing queries on each step.
+LOG_DATA = False
+LOG_SQL = False
 
 
 def translate(table: ibis.Table, pipeline: ParsedPipeline) -> ibis.Table:
@@ -118,8 +122,6 @@ def _log_debug_start(translator, variables):
         f"Node: {node.name}, Op: {node.op_type}, Attributes: {translator._attributes}, Inputs: {debug_inputs}"
     )
     if LOG_DATA:
-        # print("Input Expressions")
-        # print(ibis.duckdb.connect().compile(self._table.select(**data)))
         print("Input Data", flush=True)
         print(_projection_results(translator.mutated_table, variables).execute(), flush=True)
         print("", flush=True)
@@ -134,4 +136,7 @@ def _log_debug_end(translator, variables):
         print("\tOutput Data", flush=True)
         print(_projection_results(translator.mutated_table, variables).execute(), flush=True)
         print("", flush=True)
+    if LOG_SQL:
+        print("\tSQL Expressions", flush=True)
+        print(ibis.duckdb.connect().compile((_projection_results(translator.mutated_table, variables))), flush=True)
 

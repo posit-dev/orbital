@@ -36,7 +36,8 @@ class ArgMaxTranslator(Translator):
                 if j == idx:
                     # Do not compare to yourself.
                     continue
-                # Se select_last_index è attivo si userebbe '>', altrimenti '>=' per selezionare la prima occorrenza
+                # When select_last_index is True 
+                # We use '>', otherwise '>=' so that we can pick the first occurrence.
                 cmp_expr = data[key] > data[other] if select_last_index else data[key] >= data[other]
                 cond = cmp_expr if cond is None else cond & cmp_expr
             case_expr = case_expr.when(cond, idx)

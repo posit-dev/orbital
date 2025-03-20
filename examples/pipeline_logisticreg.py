@@ -15,10 +15,6 @@ import mustela.types
 
 PRINT_SQL = False
 
-np.set_printoptions(precision=6, suppress=True)
-pd.set_option('display.float_format', '{:.6f}'.format)
-#pd.set_option('display.max_columns', None)
-
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("mustela").setLevel(logging.DEBUG)
 

@@ -18,9 +18,12 @@ class TreeEnsembleClassifierTranslator(Translator):
     def build_classifier(self, input_expr):
         optimizer = self._optimizer
         ensemble_trees = build_tree(self)
-        classlabels = self._attributes.get("classlabels_strings") or self._attributes(
+
+        classlabels = self._attributes.get("classlabels_strings") or self._attributes.get(
             "classlabels_int64s"
         )
+        if classlabels is None:
+            raise ValueError("Unable to detect classlabels for classification")
 
         if isinstance(input_expr, dict):
             ordered_features = list(input_expr.values())
@@ -92,7 +95,7 @@ class TreeEnsembleClassifierTranslator(Translator):
         label_expr = ibis.case()
         for clslabel in classlabels:
             label_expr = label_expr.when(candidate_cls == clslabel, clslabel)
-        label_expr = label_expr.else_("unknown").end()
+        label_expr = label_expr.else_(ibis.null()).end()
         label_expr = optimizer.fold_case(label_expr)
 
         # Compute probability to return it too.
@@ -105,7 +108,7 @@ class TreeEnsembleClassifierTranslator(Translator):
 
         prob_dict = {}
         for clslabel in classlabels:
-            prob_dict[clslabel] = total_votes[clslabel] / sum_votes
+            prob_dict[str(clslabel)] = total_votes[clslabel] / sum_votes
         prob_expr = ibis.struct(prob_dict)
 
         return label_expr, prob_expr

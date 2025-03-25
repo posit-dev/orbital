@@ -30,17 +30,18 @@ class ColumnType(abc.ABC):
         for scls in ColumnType.__subclasses__():
             supported_type = inspect.signature(scls._to_onnxtype).return_annotation
             if supported_type == onnxtype.__class__:
-                return scls()
+                return scls()  # type: ignore[abstract]
         else:
             raise TypeError(f"Unsupported data type {onnxtype.__class__.__name__}")
 
-    def __eq__(self, other: "ColumnType") -> bool:
+    def __eq__(self, other: object) -> bool:
         return self.__class__ == other.__class__
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}()"
 
-FeaturesTypes = typing.TypeVar("FeaturesTypes", bound=typing.Dict[str, ColumnType])
+
+FeaturesTypes = typing.Dict[str, ColumnType]
 
 
 def guess_datatypes(dataframe: typing.Any) -> FeaturesTypes:
@@ -68,84 +69,99 @@ def guess_datatypes(dataframe: typing.Any) -> FeaturesTypes:
         try:
             typesmap[name] = ColumnType._from_onnxtype(dtype)
         except (ValueError, TypeError, AttributeError) as exc:
-            log.debug(f"Unable to convert to column type from {name}:{repr(dtype)}, exception: {exc}")
+            log.debug(
+                f"Unable to convert to column type from {name}:{repr(dtype)}, exception: {exc}"
+            )
             raise ValueError(f"Unsupported datatype for column {name}") from None
     return typesmap
 
 
 class FloatColumnType(ColumnType):
     """Mark a column as containing float values"""
+
     def _to_onnxtype(self) -> _sl2o_types.FloatTensorType:
         return _sl2o_types.FloatTensorType(shape=[None, 1])
 
 
 class Float16ColumnType(ColumnType):
     """Mark a column as containing 16bit float values"""
+
     def _to_onnxtype(self) -> _sl2o_types.Float16TensorType:
         return _sl2o_types.Float16TensorType(shape=[None, 1])
 
 
 class DoubleColumnType(ColumnType):
     """Mark a column as containing double values"""
+
     def _to_onnxtype(self) -> _sl2o_types.DoubleTensorType:
         return _sl2o_types.DoubleTensorType(shape=[None, 1])
 
 
 class StringColumnType(ColumnType):
     """Mark a column as containing string values"""
+
     def _to_onnxtype(self) -> _sl2o_types.StringTensorType:
         return _sl2o_types.StringTensorType(shape=[None, 1])
 
 
 class Int64ColumnType(ColumnType):
     """Mark a column as containing signed 64bit integer values"""
+
     def _to_onnxtype(self) -> _sl2o_types.Int64TensorType:
         return _sl2o_types.Int64TensorType(shape=[None, 1])
 
 
 class UInt64ColumnType(ColumnType):
     """Mark a column as containing unsigned 64bit integer values"""
+
     def _to_onnxtype(self) -> _sl2o_types.UInt64TensorType:
         return _sl2o_types.UInt64TensorType(shape=[None, 1])
 
 
 class Int32ColumnType(ColumnType):
     """Mark a column as containing signed 32bit integer values"""
+
     def _to_onnxtype(self) -> _sl2o_types.Int32TensorType:
         return _sl2o_types.Int32TensorType(shape=[None, 1])
 
 
 class UInt32ColumnType(ColumnType):
     """Mark a column as containing unsigned 32bit integer values"""
+
     def _to_onnxtype(self) -> _sl2o_types.UInt32TensorType:
         return _sl2o_types.UInt32TensorType(shape=[None, 1])
 
 
 class Int16ColumnType(ColumnType):
     """Mark a column as containing signed 16bit integer values"""
+
     def _to_onnxtype(self) -> _sl2o_types.Int16TensorType:
         return _sl2o_types.Int16TensorType(shape=[None, 1])
 
 
 class UInt16ColumnType(ColumnType):
     """Mark a column as containing unsigned 16bit integer values"""
+
     def _to_onnxtype(self) -> _sl2o_types.UInt16TensorType:
         return _sl2o_types.UInt16TensorType(shape=[None, 1])
 
 
 class Int8ColumnType(ColumnType):
     """Mark a column as containing signed 8bit integer values"""
+
     def _to_onnxtype(self) -> _sl2o_types.Int8TensorType:
         return _sl2o_types.Int8TensorType(shape=[None, 1])
 
 
 class UInt8ColumnType(ColumnType):
     """Mark a column as containing unsigned 8bit integer values"""
+
     def _to_onnxtype(self) -> _sl2o_types.UInt8TensorType:
         return _sl2o_types.UInt8TensorType(shape=[None, 1])
 
 
 class BooleanColumnType(ColumnType):
     """Mark a column as containing boolean values"""
+
     def _to_onnxtype(self) -> _sl2o_types.BooleanTensorType:
         return _sl2o_types.BooleanTensorType(shape=[None, 1])

@@ -10,6 +10,7 @@ import onnx as _onnx
 import skl2onnx as _skl2o
 import sklearn.pipeline
 
+from ._utils import repr_pipeline
 from .types import FeaturesTypes
 
 log = logging.getLogger(__name__)
@@ -24,8 +25,12 @@ class ParsedPipeline:
     is usually more convenient.
     """
 
+    _model: _onnx.ModelProto  # type: ignore[assignment]
+    features: FeaturesTypes  # type: ignore[assignment]
+
     def __init__(self) -> None:
         """ParsedPipeline objects can only be created by the parse_pipeline function."""
+
         raise NotImplementedError(
             "parse_pipeline must be used to create a ParsedPipeline object."
         )
@@ -71,6 +76,10 @@ class ParsedPipeline:
             model = _onnx.load_model(f)
         return cls._from_onnx_model(model, header["features"])
 
+    def __str__(self) -> str:
+        """Generate a string representation of the pipeline."""
+        return str(repr_pipeline.ParsedPipelineStr(self))
+
 
 def parse_pipeline(
     pipeline: sklearn.pipeline.Pipeline, features: FeaturesTypes
@@ -97,8 +106,9 @@ def parse_pipeline(
 
 class UnsupportedFormatVersion(Exception):
     """Format of loaded pipeline is not supported.
-    
+
     This usually happens when trying to load a newer
     format version with an older version of the framework.
     """
+
     pass

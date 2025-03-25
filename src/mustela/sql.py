@@ -26,6 +26,9 @@ def export_sql(
     used to execute the pipeline on a database. The generated SQL is compatible
     with the specified SQL dialect.
 
+    `dialect` can be any of the SQL dialects supported by sqlglot,
+    see :class:`sqlglot.dialects.DIALECTS`` for a complete list of supported dialects.
+
     If `optimize` is set to True, the SQL query will be optimized using
     sqlglot's optimizer.
     """

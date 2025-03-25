@@ -1,3 +1,8 @@
+"""Implement optiomizations to the Ibis expression tree.
+
+Primarily it takes care of folding constant expressions
+and removing unnecessary casts.
+"""
 import functools
 import itertools
 import operator
@@ -32,6 +37,13 @@ from ibis.expr.types import NumericScalar
 
 
 class Optimizer:
+    """Optimizer for Ibis expressions.
+
+    This class is responsible for applying a set
+    of optimization processes to Ibis expressions
+    to remove unecessary operations and reduce
+    query complexity.
+    """
     BINARY_OPS = {
         # Mathematical Operators
         Add: operator.add,
@@ -128,9 +140,11 @@ class Optimizer:
         results_are_literals = all(
             isinstance(c, Literal) for c in itertools.chain([op.default], op.results)
         )
-        possible_values = set(
-            itertools.chain([op.default.value], [c.value for c in op.results])
-        ) if results_are_literals else set()
+        possible_values = (
+            set(itertools.chain([op.default.value], [c.value for c in op.results]))
+            if results_are_literals
+            else set()
+        )
 
         if results_are_literals and len(possible_values) == 1:
             # All results and the default are literals with the same value.
@@ -160,8 +174,8 @@ class Optimizer:
 
         op_instance = expr.op()
         if not isinstance(op_instance, ibis.expr.operations.Cast):
-            # Not a cast, ignore
-            # This can happen when a Field (a column) is casted to a type
+            # Not a cast, ignore
+            # This can happen when a Field (a column) is casted to a type
             # and the Column is already of the same type.
             # Ibis seems to optimize this case and remove the cast.
             return expr
@@ -210,6 +224,13 @@ class Optimizer:
                 return inputs[1].to_expr()
             elif right_val == 0:
                 return inputs[0].to_expr()
+        elif op_class == Subtract:
+            left_val = inputs[0].value if isinstance(inputs[0], Literal) else None
+            right_val = inputs[1].value if isinstance(inputs[1], Literal) else None
+            if left_val == 0:
+                return inputs[1].to_expr()
+            elif right_val == 0:
+                return inputs[0].to_expr()
 
         return expr
 
@@ -240,6 +261,7 @@ class Optimizer:
 
         if not all(isinstance(child, Literal) for child in inputs):
             # We can only fold operations where all children are literals.
+            # At least we can remove zeros if they exist.
             return self.fold_zeros(expr)
 
         op_class = type(op)

@@ -82,8 +82,9 @@ mypy_path = "$MYPY_CONFIG_FILE_DIR/src"
 packages = ["mustela"]
 
 [tool.ruff]
+target-version = "py39"
 src = ["src"]
-extend-exclude = ["docs", "tests"]
+extend-exclude = ["docs", "tests", "examples"]
 output-format = "grouped"
 lint.select = [
   "E4", "E7", "E9",

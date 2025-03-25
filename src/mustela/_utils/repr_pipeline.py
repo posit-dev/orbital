@@ -19,7 +19,7 @@ class ParsedPipelineStr:
 
     def __str__(self) -> str:
         """Generate a string representation of the pipeline."""
-        return f""""{self._pipeline.__class__.__name__}(
+        return f"""{self._pipeline.__class__.__name__}(
   features={{\n{self._features_str()}\n  }},
   steps=[\n{self._steps_str()}\n  ],
 )

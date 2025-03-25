@@ -34,7 +34,7 @@ from .translation.variables import GraphVariables
 # It could be implemented via some form of autodiscovery and
 # registration, but explicit mapping avoids effects at a distance and
 # makes it easier to understand the translation process.
-TRANSLATORS = {
+TRANSLATORS: dict[str, type[Translator]] = {
     "Cast": CastTranslator,
     "CastLike": CastLikeTranslator,
     "Concat": ConcatTranslator,
@@ -84,7 +84,7 @@ def translate(table: ibis.Table, pipeline: ParsedPipeline) -> ibis.Table:
         op_type = node.op_type
         if op_type not in TRANSLATORS:
             raise NotImplementedError(f"Translation for {op_type} not implemented")
-        translator = TRANSLATORS[op_type](table, node, variables, optimizer)
+        translator = TRANSLATORS[op_type](table, node, variables, optimizer)  # type: ignore[abstract]
         _log_debug_start(translator, variables)
         translator.process()
         table = translator.mutated_table  # Translator might return a new table.

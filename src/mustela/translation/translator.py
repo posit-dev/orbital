@@ -14,7 +14,7 @@ class Translator(abc.ABC):
         table: ibis.Table,
         node: onnx.NodeProto,
         variables: GraphVariables,
-        optimizer: Optimizer = None,
+        optimizer: Optimizer,
     ):
         self._table = table
         self._variables = variables

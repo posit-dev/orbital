@@ -79,8 +79,8 @@ def translate(table: ibis.Table, pipeline: ParsedPipeline) -> ibis.Table:
     optimizer = Optimizer(enabled=True)
     features = {colname: table[colname] for colname in table.columns}
     variables = GraphVariables(features, pipeline._model.graph)
-    nodes = {node.name: node for node in pipeline._model.graph.node}
-    for node_name, node in nodes.items():
+    nodes = list(pipeline._model.graph.node)
+    for node in nodes:
         op_type = node.op_type
         if op_type not in TRANSLATORS:
             raise NotImplementedError(f"Translation for {op_type} not implemented")

@@ -11,6 +11,7 @@ import skl2onnx as _skl2o
 import sklearn.pipeline
 
 from .types import FeaturesTypes
+from ._utils import repr_pipeline
 
 log = logging.getLogger(__name__)
 
@@ -70,6 +71,10 @@ class ParsedPipeline:
                 raise UnsupportedFormatVersion("Unsupported format version.")
             model = _onnx.load_model(f)
         return cls._from_onnx_model(model, header["features"])
+
+    def __str__(self) -> str:
+        """Generate a string representation of the pipeline."""
+        return str(repr_pipeline.ParsedPipelineStr(self))
 
 
 def parse_pipeline(

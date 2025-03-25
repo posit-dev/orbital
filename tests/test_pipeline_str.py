@@ -13,7 +13,7 @@ BASIC_MODEL = onnx.helper.make_model(onnx.parser.parse_graph("""
     (float[N, 128] X, float[128,10] W, float[10] B) => (float[N] C) < float Z = {123.0}, float[1] Q = {456.0} >
     {
         T = MatMul <alpha: float = 0.5> (X, W)
-        S = Add(T, B)
+        S = Add(T, Z)
         C = Softmax(S)
     }
 """))
@@ -35,7 +35,7 @@ ParsedPipeline(
       attributes: alpha=0.5
     )
     S=Add(
-      inputs: T, B,
+      inputs: T, Z=123.0,
       attributes: 
     )
     C=Softmax(

@@ -11,23 +11,26 @@ from sklearn.preprocessing import StandardScaler
 import mustela
 import mustela.types
 
-PRINT_SQL = False
+PRINT_SQL = True
 
 logging.basicConfig(level=logging.INFO)
-logging.getLogger("mustela").setLevel(logging.DEBUG)
+logging.getLogger("mustela").setLevel(logging.INFO)
 
 iris = load_iris(as_frame=True)
+iris_x = iris.data
 
-names = ["sepal.length", "sepal.width", "petal.length", "petal.width"]
+# SQL and Mustela don't like dots in column names, replace them with underscores
+iris_x.columns = [cname.replace(".", "_") for cname in iris_x.columns]
 
-iris_x = iris.data.set_axis(names, axis=1)
+numeric_cols = ["sepal_length", "sepal_width", "petal_length", "petal_width"]
+iris_x = iris_x.set_axis(numeric_cols, axis=1)
 
 pipeline = Pipeline(
     [
         (
             "preprocess",
             ColumnTransformer(
-                [("scaler", StandardScaler(with_std=False), names)],
+                [("scaler", StandardScaler(with_std=False), numeric_cols)],
                 remainder="passthrough",
             ),
         ),
@@ -36,7 +39,6 @@ pipeline = Pipeline(
 )
 pipeline.fit(iris_x, iris.target)
 
-print(iris_x.columns)
 
 features = mustela.types.guess_datatypes(iris_x)
 print("Mustela Features:", features)
@@ -53,19 +55,23 @@ example_data = pa.table(
         "petal_width": [0.2, 1.2, 2.3, 1.199333],
     }
 )
+ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
 
-ibis_expression = mustela.translate(ibis.memtable(example_data), mustela_pipeline)
+ibis_expression = mustela.translate(ibis_table, mustela_pipeline)
 con = ibis.duckdb.connect()
 
 if PRINT_SQL:
+    sql = mustela.export_sql("DATA_TABLE", mustela_pipeline, dialect="duckdb")
     print("\nGenerated Query for DuckDB:")
-    print(con.compile(ibis_expression))
+    print(sql)
+    print("\nPrediction with SQL")
+    # We need to create the table for the SQL to query it.
+    con.create_table(ibis_table.get_name(), obj=ibis_table)
+    print(con.raw_sql(sql).df())
 
 print("\nPrediction with Ibis")
 print(ibis_expression.execute())
 
 print("\nPrediction with SKLearn")
-new_column_names = [name.replace("_", ".") for name in example_data.column_names]  # SkLearn uses dots
-renamed_example_data = example_data.rename_columns(new_column_names).to_pandas()
-predictions = pipeline.predict(renamed_example_data)
+predictions = pipeline.predict(example_data.to_pandas())
 print(predictions)

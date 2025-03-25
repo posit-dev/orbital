@@ -1,3 +1,5 @@
+"""Translate a pipeline into an Ibis expression."""
+
 import logging
 
 import ibis
@@ -5,6 +7,7 @@ import ibis
 from .ast import ParsedPipeline
 from .translation.optimizer import Optimizer
 from .translation.steps.add import AddTranslator
+from .translation.steps.argmax import ArgMaxTranslator
 from .translation.steps.arrayfeatureextractor import ArrayFeatureExtractorTranslator
 from .translation.steps.cast import CastLikeTranslator, CastTranslator
 from .translation.steps.concat import ConcatTranslator, FeatureVectorizerTranslator
@@ -16,20 +19,20 @@ from .translation.steps.labelencoder import LabelEncoderTranslator
 from .translation.steps.matmul import MatMulTranslator
 from .translation.steps.onehotencoder import OneHotEncoderTranslator
 from .translation.steps.reshape import ReshapeTranslator
-from .translation.steps.sub import SubTranslator
-from .translation.steps.argmax import ArgMaxTranslator
 from .translation.steps.softmax import SoftmaxTranslator
+from .translation.steps.sub import SubTranslator
 from .translation.steps.trees import (
     TreeEnsembleClassifierTranslator,
     TreeEnsembleRegressorTranslator,
 )
 from .translation.steps.where import WhereTranslator
 from .translation.steps.zipmap import ZipMapTranslator
+from .translation.translator import Translator
 from .translation.variables import GraphVariables
 
 # This is a mapping of ONNX operations to their respective translators
 # It could be implemented via some form of autodiscovery and
-# registration, but explicit mapping avoids effects at a distance and 
+# registration, but explicit mapping avoids effects at a distance and
 # makes it easier to understand the translation process.
 TRANSLATORS = {
     "Cast": CastTranslator,
@@ -65,6 +68,14 @@ LOG_SQL = False
 
 
 def translate(table: ibis.Table, pipeline: ParsedPipeline) -> ibis.Table:
+    """Translate a pipeline into an Ibis expression.
+
+    This function takes a pipeline and a table and translates the pipeline
+    into an Ibis expression applied to the table.
+
+    It is possible to further chain operations on the result
+    to allow post processing of the prediction.
+    """
     optimizer = Optimizer(enabled=True)
     features = {colname: table[colname] for colname in table.columns}
     variables = GraphVariables(features, pipeline._model.graph)
@@ -104,7 +115,7 @@ def _projection_results(table: ibis.Table, variables: GraphVariables) -> ibis.Ta
     return table.mutate(**final_projections).select(final_projections.keys())
 
 
-def _log_debug_start(translator, variables):
+def _log_debug_start(translator: Translator, variables: GraphVariables) -> None:
     debug_inputs = {}
     node = translator._node
     for inp in translator._inputs:
@@ -123,20 +134,34 @@ def _log_debug_start(translator, variables):
     )
     if LOG_DATA:
         print("Input Data", flush=True)
-        print(_projection_results(translator.mutated_table, variables).execute(), flush=True)
+        print(
+            _projection_results(translator.mutated_table, variables).execute(),
+            flush=True,
+        )
         print("", flush=True)
 
 
-def _log_debug_end(translator, variables):
+def _log_debug_end(translator: Translator, variables: GraphVariables) -> None:
     variables = translator._variables
-    output_vars = {name: type(variables.peek_variable(name)) for name in translator.outputs}
-    log.debug(f"\tOutput: {output_vars} TOTAL: {variables.nested_len()}/{len(variables)}")
+    output_vars = {
+        name: type(variables.peek_variable(name)) for name in translator.outputs
+    }
+    log.debug(
+        f"\tOutput: {output_vars} TOTAL: {variables.nested_len()}/{len(variables)}"
+    )
 
     if LOG_DATA:
         print("\tOutput Data", flush=True)
-        print(_projection_results(translator.mutated_table, variables).execute(), flush=True)
+        print(
+            _projection_results(translator.mutated_table, variables).execute(),
+            flush=True,
+        )
         print("", flush=True)
     if LOG_SQL:
         print("\tSQL Expressions", flush=True)
-        print(ibis.duckdb.connect().compile((_projection_results(translator.mutated_table, variables))), flush=True)
-
+        print(
+            ibis.duckdb.connect().compile(
+                (_projection_results(translator.mutated_table, variables))
+            ),
+            flush=True,
+        )

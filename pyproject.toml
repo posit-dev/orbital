@@ -83,7 +83,7 @@ packages = ["mustela"]
 
 [tool.ruff]
 src = ["src"]
-extend-exclude = ["docs", "tests"]
+extend-exclude = ["docs", "tests", "examples"]
 output-format = "grouped"
 lint.select = [
   "E4", "E7", "E9",

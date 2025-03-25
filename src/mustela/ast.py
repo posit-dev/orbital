@@ -11,7 +11,7 @@ import skl2onnx as _skl2o
 import sklearn.pipeline
 
 from ._utils import repr_pipeline
-from .types import FeaturesTypes
+from .types import ColumnType, FeaturesTypes
 
 log = logging.getLogger(__name__)
 
@@ -46,8 +46,27 @@ class ParsedPipeline:
         """
         self = super().__new__(cls)
         self._model = model
-        self.features = features
+        self.features = self._validate_features(features)
         return self
+
+    @classmethod
+    def _validate_features(cls, features: FeaturesTypes) -> FeaturesTypes:
+        """Validate the features of the pipeline.
+
+        This checks that the features provided are compatible
+        with what a SQL query can handle.
+        """
+        for name in features:
+            if "." in name:
+                raise ValueError(
+                    f"Feature names cannot contain '.' characters: {name}, replace with '_'"
+                )
+
+        for ftype in features.values():
+            if not isinstance(ftype, ColumnType):
+                raise TypeError(f"Feature types must be ColumnType objects: {ftype}")
+
+        return features
 
     def dump(self, filename: str) -> None:
         """Dump the parsed pipeline to a file."""

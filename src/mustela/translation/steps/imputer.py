@@ -3,7 +3,7 @@ import ibis
 from ..translator import Translator
 
 
-class ImputerTranslator(Translator):        
+class ImputerTranslator(Translator):
     # https://onnx.ai/onnx/operators/onnx_aionnxml_Imputer.html
 
     def process(self):
@@ -20,6 +20,4 @@ class ImputerTranslator(Translator):
                 new_expr[key] = ibis.coalesce(expr[key], imputed_values[i])
             self.set_output(new_expr)
         else:
-            self.set_output(ibis.coalesce(
-                expr, imputed_values[0]
-            ))
+            self.set_output(ibis.coalesce(expr, imputed_values[0]))

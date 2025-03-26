@@ -9,7 +9,7 @@ class GatherTranslator(Translator):
         idx = self._variables.get_initializer_value(self.inputs[1])[0]
         if not isinstance(idx, int):
             raise ValueError("Gather: index must be an integer constant")
-        
+
         if isinstance(expr, dict):
             keys = list(expr.keys())
             if idx < 0 or idx >= len(keys):

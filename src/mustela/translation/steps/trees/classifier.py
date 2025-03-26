@@ -11,7 +11,7 @@ class TreeEnsembleClassifierTranslator(Translator):
     def process(self):
         input_exr = self._variables.consume(self.inputs[0])
         label_expr, prob_expr = self.build_classifier(input_exr)
-        
+
         self._variables[self.outputs[0]] = label_expr
         self._variables[self.outputs[1]] = prob_expr
 
@@ -19,9 +19,9 @@ class TreeEnsembleClassifierTranslator(Translator):
         optimizer = self._optimizer
         ensemble_trees = build_tree(self)
 
-        classlabels = self._attributes.get("classlabels_strings") or self._attributes.get(
-            "classlabels_int64s"
-        )
+        classlabels = self._attributes.get(
+            "classlabels_strings"
+        ) or self._attributes.get("classlabels_int64s")
         if classlabels is None:
             raise ValueError("Unable to detect classlabels for classification")
 

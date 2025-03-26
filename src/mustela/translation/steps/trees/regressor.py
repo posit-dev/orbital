@@ -58,6 +58,8 @@ class TreeEnsembleRegressorTranslator(Translator):
         base_values = self._attributes.get("base_values", [0.0])
         if len(base_values) != 1:
             raise NotImplementedError("Base values with length != 1 not supported")
-        total_value = optimizer.fold_operation(total_value + ibis.literal(base_values[0]))
+        total_value = optimizer.fold_operation(
+            total_value + ibis.literal(base_values[0])
+        )
 
         return total_value

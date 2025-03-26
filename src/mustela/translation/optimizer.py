@@ -3,6 +3,7 @@
 Primarily it takes care of folding constant expressions
 and removing unnecessary casts.
 """
+
 import functools
 import itertools
 import operator
@@ -42,10 +43,11 @@ from ibis.expr.types import NumericScalar
 class Optimizer:
     """Optimizer for Ibis expressions.
 
-    This class is responsible for applying a set of optimization 
+    This class is responsible for applying a set of optimization
     processes to Ibis expressionsto remove unecessary operations and
     reduce query complexity.
     """
+
     BINARY_OPS: dict[Binary, typing.Callable] = {
         # Mathematical Operators
         Add: operator.add,
@@ -76,7 +78,7 @@ class Optimizer:
         Not: operator.not_,
     }
 
-    def __init__(self, enabled: bool=True) -> None:
+    def __init__(self, enabled: bool = True) -> None:
         """
         :param enabled: Whether to enable the optimizer.
                         When disabled, the optimizer will
@@ -94,7 +96,9 @@ class Optimizer:
             return ibis.literal(value.value)
         return value
 
-    def _fold_associative_op_contiguous(self, lst: list[ibis.Expr], pyop: typing.Callable) -> list[ibis.Expr]:
+    def _fold_associative_op_contiguous(
+        self, lst: list[ibis.Expr], pyop: typing.Callable
+    ) -> list[ibis.Expr]:
         """Precompute an operation applied on multiple elements.
 
         Given a list of expressions and a binary operation,
@@ -211,7 +215,7 @@ class Optimizer:
 
     def fold_zeros(self, expr: ibis.Expr) -> ibis.Expr:
         """Given a binary expression, precompute the result if it contains zeros.
-        
+
         Operations like x + 0, x * 0, x - 0 etc can be folded in just x or 0
         without the need to compute the operation.
         """
@@ -287,7 +291,7 @@ class Optimizer:
             # No possible folding
             return expr
 
-    def _debug(self, expr: ibis.Expr, show_args: bool=True) -> str:
+    def _debug(self, expr: ibis.Expr, show_args: bool = True) -> str:
         """Given an expression, return a string representation for debugging."""
         if isinstance(expr, Literal):
             return repr(expr.value)

@@ -1,12 +1,17 @@
+""""""
+
 import ibis.expr.types
 
 from ..translator import Translator
 
 
 class ArrayFeatureExtractorTranslator(Translator):
-    # https://onnx.ai/onnx/operators/onnx_aionnxml_ArrayFeatureExtractor.html
+    """Processes an ArgMax node and updates the variables with the output expression."""
 
-    def process(self):      
+
+    def process(self):
+        # https://onnx.ai/onnx/operators/onnx_aionnxml_ArrayFeatureExtractor.html
+
         # Given an array of features, grab only one of them
         # This probably is used to extract a single feature from a list of features
         # Previously made by Concat.
@@ -38,8 +43,6 @@ class ArrayFeatureExtractorTranslator(Translator):
                 case_expr = case_expr.when(indices == i, col)
             result = case_expr.else_(data[0]).end()
         else:
-            raise ValueError(
-                f"Index Type not supported: {type(indices)}: {indices}"
-            )
+            raise ValueError(f"Index Type not supported: {type(indices)}: {indices}")
 
         self.set_output(result)

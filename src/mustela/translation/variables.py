@@ -1,21 +1,28 @@
 import ibis
 import onnx
 
-from .._utils import onnx as onnx_utils, VariableTypes
+from .._utils import onnx as onnx_utils
 
 
 class GraphVariables:
     def __init__(self, table: ibis.Table, graph: onnx.GraphProto):
-        self._initializers: dict[str, onnx.TensorProto] = {init.name: init for init in graph.initializer}
-        self._initializers_values: dict[str, VariableTypes] = {init.name: onnx_utils.get_initializer_data(init) for init in graph.initializer}
-        self._variables: dict[str, ibis.Column] = {inp.name: table[inp.name] for inp in graph.input}
+        self._initializers: dict[str, onnx.TensorProto] = {
+            init.name: init for init in graph.initializer
+        }
+        self._initializers_values: dict[str, onnx_utils.VariableTypes] = {
+            init.name: onnx_utils.get_initializer_data(init)
+            for init in graph.initializer
+        }
+        self._variables: dict[str, ibis.Column] = {
+            inp.name: table[inp.name] for inp in graph.input
+        }
         self._consumed: set[str] = set()
         self._uniqueid: int = 0
 
-    def consume(self, name: str) -> ibis.Expr | VariableTypes:
+    def consume(self, name: str) -> ibis.Expr | onnx_utils.VariableTypes:
         if name in self._initializers:
             return self.get_initializer_value(name)
-        
+
         self._consumed.add(name)
         return self._variables[name]
 

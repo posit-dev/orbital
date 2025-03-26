@@ -1,7 +1,7 @@
 from ..translator import Translator
 
 
-class ZipMapTranslator(Translator):        
+class ZipMapTranslator(Translator):
     # https://onnx.ai/onnx/operators/onnx_aionnxml_ZipMap.html
 
     def process(self):
@@ -16,9 +16,7 @@ class ZipMapTranslator(Translator):
                         zipped[label] = expr[keys[i]]
                 self.set_output(zipped)
             else:
-                self.set_output({
-                    label: expr for label in labels
-                })
+                self.set_output({label: expr for label in labels})
         else:
             # int64 class labels,
             # for the moment assume our data is aldeary numeric

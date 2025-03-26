@@ -1,4 +1,5 @@
 """Translators for Cast and CastLike operations"""
+
 import onnx
 
 from ..translator import Translator
@@ -20,13 +21,12 @@ class CastTranslator(Translator):
             target_type = ONNX_TYPES_TO_IBIS[to_type]
             if isinstance(expr, dict):
                 casted = {
-                    k: self._optimizer.fold_cast(expr[k].cast(target_type)) for k in expr
+                    k: self._optimizer.fold_cast(expr[k].cast(target_type))
+                    for k in expr
                 }
                 self.set_output(casted)
             else:
-                self.set_output(self._optimizer.fold_cast(
-                    expr.cast(target_type)
-                ))
+                self.set_output(self._optimizer.fold_cast(expr.cast(target_type)))
         else:
             raise NotImplementedError(f"Cast: type {to_type} not supported")
 

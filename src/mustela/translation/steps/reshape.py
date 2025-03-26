@@ -11,12 +11,12 @@ class ReshapeTranslator(Translator):
 
         shape = self._variables.get_initializer_value(self.inputs[1])
         if shape[0] != -1:
-            # We don't support changing the numer of rows
+            # We don't support changing the numer of rows
             raise NotImplementedError("Reshape can't change the number of rows")
 
         if len(shape) == 1 and first_operand_len == 1:
             # We can reshape a single column to a single column
-            # nothing has changed.
+            # nothing has changed.
             pass
         elif len(shape) == 2 and shape[1] == first_operand_len:
             # We can reshape a group of columns into the same

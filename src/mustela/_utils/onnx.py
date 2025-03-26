@@ -9,7 +9,7 @@ def get_initializer_data(var: onnx.TensorProto) -> VariableTypes:
     """Given a constant initializer, return its value"""
     if var is None:
         raise ValueError("Expected a variable, got None")
-    
+
     attr_name = onnx.helper.tensor_dtype_to_field(var.data_type)
     values = list(getattr(var, attr_name))
     dimensions = getattr(var, "dims", None)

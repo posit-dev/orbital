@@ -10,7 +10,9 @@ def build_tree(translator):
     nodes_falsenodeids = translator._attributes["nodes_falsenodeids"]
     nodes_thresholds = translator._attributes["nodes_values"]
     nodes_featureids = translator._attributes["nodes_featureids"]
-    nodes_missing_value_tracks_true = translator._attributes["nodes_missing_value_tracks_true"]
+    nodes_missing_value_tracks_true = translator._attributes[
+        "nodes_missing_value_tracks_true"
+    ]
     node = translator._node
 
     # Assert a few things to ensure we don't ed up genearting a tree with wrong data
@@ -38,12 +40,12 @@ def build_tree(translator):
             == len(class_weights)
             == len(weights_classid)
         )
-        classlabels = translator._attributes.get("classlabels_strings") or translator._attributes.get(
-            "classlabels_int64s"
-        )
+        classlabels = translator._attributes.get(
+            "classlabels_strings"
+        ) or translator._attributes.get("classlabels_int64s")
         if not classlabels:
             raise ValueError("Missing class labels when building tree")
-        
+
         for tree_id, node_id, weight, weight_classid in zip(
             class_treeids, class_nodeids, class_weights, weights_classid
         ):

@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-set -eo pipefail
-
 EXAMPLES_DIR=$(dirname "${BASH_SOURCE[0]}")
 
 for example in ${EXAMPLES_DIR}/pipeline_*.py; do
     echo "Running example: ${example}"
-    python ${example} 2>/dev/null
+    time python ${example} > test_examples.log 2>&1
+    if [ $? -ne 0 ]; then
+        echo "Error running example: ${example}"
+        cat test_examples.log
+        exit 1
+    fi
 done

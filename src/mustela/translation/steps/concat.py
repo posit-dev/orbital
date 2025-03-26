@@ -1,17 +1,41 @@
+"""Translator for Concat and FeatureVectorizer operations."""
+
 from ..translator import Translator
 
 
 class ConcatTranslator(Translator):
-    # https://onnx.ai/onnx/operators/onnx__Concat.html
+    """Concatenate multiple columns into a single group of columns.
 
-    def process(self):
+    In tensor terms, this is meant to create a new tensor by concatenating
+    the inputs along a given axis. In most cases, this is used to
+    concatenate multiple features into a single one, thus its purpose
+    is usually to create a column group from separate columns.
+
+    This means that the most common use case is axis=1,
+    which means concatenating over the columns (by virtue of
+    column/rows in tensors being flipped over column groups),
+    and thus only axis=1 case is supported.
+    """
+    def process(self) -> None:
+        """Performs the translation and set the output variable."""
+        # https://onnx.ai/onnx/operators/onnx__Concat.html
+
         # Currently only support concatenating over columns,
         # we can't concatenate rows.
-        assert self._attributes["axis"] in (1, -1)
-        self._concatenate_columns(self)
+        if self._attributes["axis"] not in (1, -1):
+            # -1 means last axis, which for 2D entities is equal axis=1
+            raise NotImplementedError(
+                "Concat currently only supports concatenating over columns (axis=1 or -1)."
+            )
+        self.set_output(self._concatenate_columns(self))
 
     @classmethod
-    def _concatenate_columns(cls, translator):
+    def _concatenate_columns(cls, translator: Translator) -> dict:
+        """Implement actual operation of concatenating columns.
+
+        This is used by both Concat and FeatureVectorizer translators,
+        as they both need to concatenate columns.
+        """
         result = {}
         for col in translator.inputs:
             feature = translator._variables.consume(col)
@@ -26,20 +50,39 @@ class ConcatTranslator(Translator):
             else:
                 result[col] = feature
 
-        translator._variables[translator._output_name] = result
+        return result
 
 
 class FeatureVectorizerTranslator(Translator):
-    # https://onnx.ai/onnx/operators/onnx_aionnxml_FeatureVectorizer.html
+    """Concatenate multiple columns into a single group of columns.
+    
+    This is similar to Concat, but it is a simplified version
+    that always only acts on columns, and does not support
+    concatenating over rows. While Concat can in theory
+    support rows concatenation, even though mustela doesn't implement it.
+    """
 
-    def process(self):
+    def process(self) -> None:
+        """Performs the translation and set the output variable."""
+        # https://onnx.ai/onnx/operators/onnx_aionnxml_FeatureVectorizer.html
+
         # We can support this by doing the same as Concat,
         # in most cases it's sufficient
         ninputdimensions = self._attributes["inputdimensions"]
-        assert len(ninputdimensions) == len(self._inputs), (
-            f"Only supported when concatenating, got {len(ninputdimensions)} over {len(self._inputs)} features"
-        )
-        assert set(ninputdimensions) == {1}, (
-            f"Only supported when all input dimensions are 1, got {ninputdimensions}"
-        )
-        ConcatTranslator._concatenate_columns(self)
+
+        if len(ninputdimensions) != len(self._inputs):
+            raise ValueError("Number of input dimensions should be equal to number of inputs.")
+
+        # Validate that dimensions are actually correct,
+        # as inputdimensions is meant to provide the number of columns of each variable
+        for input_idx, colname in enumerate(self.inputs):
+            dimensions = ninputdimensions[input_idx]
+            feature = self._variables.peek_variable(colname)
+            if isinstance(feature, dict):
+                if len(feature) != dimensions:
+                    raise ValueError(f"Number of columns in input {colname} should be equal to the number of dimensions, got {len(feature)} != {dimensions}")
+            else:
+                if dimensions != 1:
+                    raise ValueError(f"When merging over individual columns, the dimension should be 1, got {dimensions} for {colname}")
+
+        self.set_output(ConcatTranslator._concatenate_columns(self))

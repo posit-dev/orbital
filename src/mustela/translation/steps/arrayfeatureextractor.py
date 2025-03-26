@@ -34,30 +34,34 @@ class ArrayFeatureExtractorTranslator(Translator):
         data = self._variables.consume(self.inputs[0])
         indices = self._variables.consume(self.inputs[1])
 
-        if not isinstance(data, dict):
-            # TODO: Implement support for selecting rows from a 1D tensor
-            raise NotImplementedError("ArrayFeatureExtractor only supports column groups as inputs")
+        if isinstance(data, dict):
+            # We are selecting a set of columns out of a column group
 
-        # This expects that dictionaries are sorted by insertion order
-        # AND that all values of the dictionary are columns.
-        data_keys = list(data.keys())
-        data = list(data.values())
+            # This expects that dictionaries are sorted by insertion order
+            # AND that all values of the dictionary are columns.
+            data_keys = list(data.keys())
+            data = list(data.values())
 
-        if isinstance(indices, (list, tuple)):
-            if data_keys is None:
-                raise ValueError("ArrayFeatureExtractor expects a group of columns as input when receiving a list of indices")
+            if not isinstance(indices, (list, tuple)):
+                raise ValueError("ArrayFeatureExtractor expects a list of indices as input.")
+
             if len(indices) > len(data_keys):
                 raise ValueError("Indices requested are more than the available numer of columns.")
+            
             # Pick only the columns that are in the list of indicies.
             result = {data_keys[i]: data[i] for i in indices}
-        elif isinstance(indices, ibis.expr.types.Column):
-            # The indices that we need to pick are contained in
-            # another column of the table.
+        elif isinstance(data, (tuple, list)):
+            # We are selecting values out of a list of values
+            # This is usually used to select "classes" out of a list of
+            # possible values based on the variables that represents those classes.
+            if not isinstance(indices, ibis.expr.types.Column):
+                raise ValueError("ArrayFeatureExtractor expects a column as indices when picking from a group of values.")
+
             case_expr = ibis.case()
             for i, col in enumerate(data):
                 case_expr = case_expr.when(indices == i, col)
-            result = case_expr.else_(data[0]).end()
+            result = case_expr.else_(ibis.null()).end()
         else:
-            raise ValueError(f"Index Type not supported: {type(indices)}: {indices}")
+            raise NotImplementedError("ArrayFeatureExtractor only supports column groups or lists of constants as input.")
 
         self.set_output(result)

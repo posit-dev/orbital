@@ -1,4 +1,4 @@
-name: Type Checks
+name: Smoke Tests
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       - '**'
 
 jobs:
-  mypy:
+  lint:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,8 +18,6 @@ jobs:
 
       - name: Set up Python
         uses: actions/setup-python@v4
-        with:
-          python-version: 3.11
       
       - name: Install uv
         run: |
@@ -28,8 +26,8 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync --dev
-      
-      - name: Run Type Checks
+
+      - name: Check Examples
         run: |
-          uv run mypy
-      
+          uv run examples/test_examples.sh
+

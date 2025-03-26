@@ -14,7 +14,14 @@ ONNX_TYPES_TO_IBIS = {
 
 
 class CastTranslator(Translator):
-    def process(self):
+    """Processes a Cast node and updates the variables with the output expression.
+
+    Cast operation is used to convert a variable from one type to another one
+    provided by the attribute `to`.
+    """
+    def process(self) -> None:
+        """Performs the translation and set the output variable."""
+        # https://onnx.ai/onnx/operators/onnx__Cast.html
         expr = self._variables.consume(self.inputs[0])
         to_type = self._attributes["to"]
         if to_type in ONNX_TYPES_TO_IBIS:
@@ -32,7 +39,15 @@ class CastTranslator(Translator):
 
 
 class CastLikeTranslator(Translator):
-    def process(self):
+    """Processes a CastLike node and updates the variables with the output expression.
+
+    CastLike operation is used to convert a variable from one type to
+    the same type of another variable, thus uniforming the two
+    """
+    def process(self) -> None:
+        """Performs the translation and set the output variable."""
+        # https://onnx.ai/onnx/operators/onnx__CastLike.html
+
         # Cast a variable to have the same type of another variable.
         # For the moment provide a very minimal implementation,
         # in most cases this is used to cast concatenated features to the same type
@@ -41,15 +56,16 @@ class CastLikeTranslator(Translator):
         like_expr = self._variables.consume(self.inputs[1])
 
         # Assert that the first input is a dict (multiple concatenated columns).
-        # TODO: Support single variables as well.
-        assert isinstance(expr, dict), (
-            "CastLike: first input must be a dict of expressions."
-        )
+        if not isinstance(expr, dict):
+            # TODO: Support single variables as well.
+            #       This should be fairly straightforward to implement,
+            #       but there hasn't been the need for it yet.
+            raise NotImplementedError("CastLike currently only supports casting a group of columns.")
 
         # Assert that the second input is a single expression.
-        assert not isinstance(like_expr, dict), (
-            "CastLike: second input must be a single expression."
-        )
+        if isinstance(like_expr, dict):
+            raise NotImplementedError("CastLike currently only supports casting to a single column type, not a group.")
+
         assert hasattr(like_expr, "type"), (
             "CastLike: second input must have a 'type' attribute."
         )

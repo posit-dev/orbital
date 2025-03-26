@@ -1,0 +1,31 @@
+name: Type Checks
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  mypy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+      
+      - name: Install uv
+        run: |
+          pip install uv
+      
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+      
+      - name: Run tests
+        run: |
+          uv run mypy
+      

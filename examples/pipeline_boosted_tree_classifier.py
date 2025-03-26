@@ -16,7 +16,7 @@ import mustela.types
 
 PRINT_SQL = False
 logging.basicConfig(level=logging.INFO)
-logging.getLogger("mustela").setLevel(logging.DEBUG)
+logging.getLogger("mustela").setLevel(logging.INFO)  # Set DEBUG to see translation process.
 
 # Load Ames Housing for classification
 ames = fetch_openml(name="house_prices", as_frame=True)
@@ -91,7 +91,6 @@ model.fit(X, y)
 
 # Convert types from numpy to mustela types
 features = mustela.types.guess_datatypes(X)
-print("Mustela Features:", features)
 
 # Target only 5 rows, so that it's easier for a human to understand
 data_sample = X.head(5)

@@ -16,7 +16,7 @@ import mustela.types
 PRINT_SQL = False
 
 logging.basicConfig(level=logging.INFO)
-logging.getLogger("mustela").setLevel(logging.DEBUG)
+logging.getLogger("mustela").setLevel(logging.INFO)  # Set DEBUG to see translation process.
 
 iris = load_iris()
 df = pd.DataFrame(iris.data, columns=["sepal_length", "sepal_width", "petal_length", "petal_width"])

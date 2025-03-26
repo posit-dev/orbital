@@ -29,10 +29,9 @@ class ArgMaxTranslator(Translator):
     on which to perform a prediction/classification (row).
     """
 
-    # https://onnx.ai/onnx/operators/onnx__ArgMax.html
-
     def process(self) -> None:
         """Performs the translation and set the output variable."""
+        # https://onnx.ai/onnx/operators/onnx__ArgMax.html
         data = self._variables.consume(self.inputs[0])
         axis = self._attributes.get("axis", 1)
         keepdims = self._attributes.get("keepdims", 1)

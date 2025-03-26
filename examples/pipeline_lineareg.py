@@ -14,7 +14,7 @@ import mustela.types
 PRINT_SQL = True
 
 logging.basicConfig(level=logging.INFO)
-logging.getLogger("mustela").setLevel(logging.INFO)
+logging.getLogger("mustela").setLevel(logging.INFO)  # Set DEBUG to see translation process.
 
 iris = load_iris(as_frame=True)
 iris_x = iris.data
@@ -39,9 +39,9 @@ pipeline = Pipeline(
 )
 pipeline.fit(iris_x, iris.target)
 
-
+# Convenience for this example to avoid repeating the schema,
+# in real cases, the user would know the schema of its database.
 features = mustela.types.guess_datatypes(iris_x)
-print("Mustela Features:", features)
 
 mustela_pipeline = mustela.parse_pipeline(pipeline, features=features)
 print(mustela_pipeline)

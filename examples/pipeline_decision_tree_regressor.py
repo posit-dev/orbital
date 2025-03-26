@@ -16,7 +16,7 @@ import mustela.types
 
 PRINT_SQL = False
 logging.basicConfig(level=logging.INFO)
-logging.getLogger("mustela").setLevel(logging.DEBUG)
+logging.getLogger("mustela").setLevel(logging.INFO)  # Set DEBUG to see translation process.
 
 # Carica il dataset
 iris = load_iris()

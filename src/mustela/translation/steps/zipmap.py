@@ -15,8 +15,7 @@ class ZipMapTranslator(Translator):
                 zipped = {}
                 keys = list(expr.keys())
                 for i, label in enumerate(labels):
-                    if i < len(keys):
-                        zipped[label] = expr[keys[i]]
+                    zipped[label] = expr[keys[i]]
                 self.set_output(zipped)
             else:
                 self.set_output({label: expr for label in labels})

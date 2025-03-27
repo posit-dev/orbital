@@ -5,7 +5,7 @@ import onnx
 
 from .._utils import onnx as onnx_utils
 from .optimizer import Optimizer
-from .variables import GraphVariables
+from .variables import GraphVariables, VariablesGroup
 
 
 class Translator(abc.ABC):
@@ -49,7 +49,7 @@ class Translator(abc.ABC):
     def mutated_table(self):
         return self._table
 
-    def set_output(self, value: ibis.Expr | dict[str, ibis.Expr] | onnx_utils.VariableTypes) -> None:
+    def set_output(self, value: ibis.Expr | VariablesGroup | onnx_utils.VariableTypes) -> None:
         if len(self.outputs) > 1:
             raise ValueError("Translator has more than one output")
         if not isinstance(value, (ibis.Expr, dict)):

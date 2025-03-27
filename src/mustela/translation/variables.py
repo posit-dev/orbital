@@ -3,6 +3,8 @@ import onnx
 
 from .._utils import onnx as onnx_utils
 
+VariablesGroup = dict[str, ibis.Expr]
+
 
 class GraphVariables:
     def __init__(self, table: ibis.Table, graph: onnx.GraphProto):
@@ -19,7 +21,7 @@ class GraphVariables:
         self._consumed: set[str] = set()
         self._uniqueid: int = 0
 
-    def consume(self, name: str) -> ibis.Expr | onnx_utils.VariableTypes | dict[str, ibis.Expr]:
+    def consume(self, name: str) -> ibis.Expr | onnx_utils.VariableTypes | VariablesGroup:
         constant_value = self._initializers_values.get(name)
         if constant_value is not None:
             return constant_value

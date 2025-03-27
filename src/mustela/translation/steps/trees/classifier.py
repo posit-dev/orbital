@@ -1,6 +1,7 @@
 import ibis
 
 from ...translator import Translator
+from ..softmax import SoftmaxTranslator
 from .tree import build_tree, mode_to_condition
 
 
@@ -10,10 +11,19 @@ class TreeEnsembleClassifierTranslator(Translator):
 
     def process(self):
         input_exr = self._variables.consume(self.inputs[0])
-        label_expr, prob_expr = self.build_classifier(input_exr)
+        label_expr, prob_colgroup = self.build_classifier(input_exr)
+        post_transform = self._attributes.get("post_transform", "NONE")
+
+        if post_transform != "NONE":
+            if post_transform == "SOFTMAX":
+                prob_colgroup = SoftmaxTranslator.compute_softmax(prob_colgroup)
+            else:
+                raise NotImplementedError(
+                    f"Post transform {post_transform} not implemented."
+                ) 
 
         self._variables[self.outputs[0]] = label_expr
-        self._variables[self.outputs[1]] = prob_expr
+        self._variables[self.outputs[1]] = prob_colgroup
 
     def build_classifier(self, input_expr):
         optimizer = self._optimizer
@@ -109,6 +119,5 @@ class TreeEnsembleClassifierTranslator(Translator):
         prob_dict = {}
         for clslabel in classlabels:
             prob_dict[str(clslabel)] = total_votes[clslabel] / sum_votes
-        prob_expr = ibis.struct(prob_dict)
 
-        return label_expr, prob_expr
+        return label_expr, prob_dict

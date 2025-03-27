@@ -37,13 +37,13 @@ class ZipMapTranslator(Translator):
                 raise ValueError(
                     "ZipMap: The number of labels and columns must match."
                 )
-            result: VariablesGroup = {label: value for label, value in zip(labels, data.values())}
+            result = {label: value for label, value in zip(labels, data.values())}
         elif isinstance(data, ibis.Expr):
             if len(labels) != 1:
                 raise ValueError(
                     "ZipMap: The number of labels and columns must match."
                 )
-            result: VariablesGroup = {label: data for label in labels}
+            result = {label: data for label in labels}
         else:
             raise ValueError(
                 f"ZipMap: expected a column group or a single column. Got {type(data)}"

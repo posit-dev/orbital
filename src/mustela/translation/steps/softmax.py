@@ -30,7 +30,7 @@ class SoftmaxTranslator(Translator):
                 "SoftmaxTranslator supports only axis=-1 or axis=1 for group of columns"
             )
 
-        data: ibis.expr.types.NumericValue | dict[str, ibis.expr.types.NumericValue] = data
+        data = typing.cast(ibis.expr.types.NumericValue | dict[str, ibis.expr.types.NumericValue], data)
         self.set_output(self.compute_softmax(data))
 
     @classmethod

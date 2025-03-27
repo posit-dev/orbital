@@ -28,7 +28,7 @@ class MatMulTranslator(Translator):
                 "Coefficient tensor (second input) not found in initializers."
             )
         coef_shape = list(coef_tensor.dims)
-        if coef_shape not in (1, 2):
+        if len(coef_shape) not in (1, 2):
             raise ValueError(
                 "MatMul with coefficient tensor rank > 2 is not supported."
             )

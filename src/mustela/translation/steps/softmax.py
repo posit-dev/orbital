@@ -35,6 +35,7 @@ class SoftmaxTranslator(Translator):
 
     @classmethod
     def compute_softmax(cls, data: ibis.expr.types.NumericValue | dict[str, ibis.expr.types.NumericValue]) -> ibis.Expr | VariablesGroup:
+        """Computes the actual softmax operation over a column or column group."""
         if isinstance(data, dict):
             # Compute, for each column, the exponent
             exp_dict = {k: typing.cast(ibis.expr.types.NumericValue, v).exp() for k, v in data.items()}

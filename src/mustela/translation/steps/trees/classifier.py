@@ -116,6 +116,7 @@ class TreeEnsembleClassifierTranslator(Translator):
             else:
                 sum_votes = optimizer.fold_operation(sum_votes + total_votes[clslabel])
 
+        # FIXME: Probabilities are currently broken for gradient boosted trees.
         prob_dict = {}
         for clslabel in classlabels:
             prob_dict[str(clslabel)] = total_votes[clslabel] / sum_votes

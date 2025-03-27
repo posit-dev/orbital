@@ -22,13 +22,13 @@ class AddTranslator(Translator):
         first_operand = self._variables.consume(self._inputs[0])
         second_operand = self._variables.get_initializer_value(self._inputs[1])
         if second_operand is None or not isinstance(second_operand, (list, tuple)):
-            raise NotImplementedError("Div: Second input (divisor) must be a constant list.")
+            raise NotImplementedError("Add: Second input (divisor) must be a constant list.")
 
         type_check_var = first_operand
         if isinstance(type_check_var, dict):
             type_check_var = next(iter(type_check_var.values()), None)        
         if not isinstance(type_check_var, ibis.expr.types.NumericValue):
-            raise ValueError("Div: The first operand must be a numeric value.")
+            raise ValueError("Add: The first operand must be a numeric value.")
 
         add_values = list(second_operand)
         if isinstance(first_operand, dict):

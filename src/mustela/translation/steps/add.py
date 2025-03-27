@@ -1,4 +1,7 @@
 """Translate an Add operation to the equivalent query expression."""
+import typing
+
+import ibis
 
 from ..translator import Translator
 
@@ -15,18 +18,25 @@ class AddTranslator(Translator):
     def process(self) -> None:
         """Performs the translation and set the output variable."""
         # https://onnx.ai/onnx/operators/onnx__Add.html
-        if len(self._inputs) != 2:
-            raise ValueError("The Add step must have exactly 2 operands")
 
         first_operand = self._variables.consume(self._inputs[0])
         second_operand = self._variables.get_initializer_value(self._inputs[1])
-        if second_operand is None:
-            raise ValueError("Add currently expects a constants as its second operand")
+        if second_operand is None or not isinstance(second_operand, (list, tuple)):
+            raise NotImplementedError("Div: Second input (divisor) must be a constant list.")
 
-        add_values = second_operand
+        type_check_var = first_operand
+        if isinstance(type_check_var, dict):
+            type_check_var = next(iter(type_check_var.values()), None)        
+        if not isinstance(type_check_var, ibis.expr.types.NumericValue):
+            raise ValueError("Div: The first operand must be a numeric value.")
+
+        add_values = list(second_operand)
         if isinstance(first_operand, dict):
+            first_operand = typing.cast(dict[str, ibis.expr.types.NumericValue], first_operand)
             struct_fields = list(first_operand.keys())
             if len(add_values) != len(struct_fields):
+                # TODO: Implement dividing by a single value,
+                #       see Div implementation.
                 raise ValueError(
                     "When the first operand is a group of columns, the second operand must contain the same number of values"
                 )
@@ -41,6 +51,7 @@ class AddTranslator(Translator):
                 raise ValueError(
                     "When the first operand is a single column, the second operand must contain exactly 1 value"
                 )
+            first_operand = typing.cast(ibis.expr.types.NumericValue, first_operand)
             self._variables[self._output_name] = self._optimizer.fold_operation(
                 first_operand + add_values[0]
             )

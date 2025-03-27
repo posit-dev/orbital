@@ -1,12 +1,15 @@
+"""Implementation of the Where operator."""
+
 import ibis
 
 from ..translator import Translator
 
 
 class WhereTranslator(Translator):
-    # https://onnx.ai/onnx/operators/onnx__Where.html
 
-    def process(self):
+    def process(self) -> None:
+        """Performs the translation and set the output variable."""
+        # https://onnx.ai/onnx/operators/onnx__Where.html
         condition_expr = self._variables.consume(self.inputs[0])
         true_expr = self._variables.consume(self.inputs[1])
         false_expr = self._variables.consume(self.inputs[2])

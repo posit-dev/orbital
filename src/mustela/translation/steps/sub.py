@@ -1,8 +1,12 @@
+"""Implementation of the Sub operator."""
+
 from ..translator import Translator
 
 
 class SubTranslator(Translator):
-    def process(self):
+    def process(self) -> None:
+        """Performs the translation and set the output variable."""
+        # https://onnx.ai/onnx/operators/onnx__Sub.html
         assert len(self._inputs) == 2, "The Sub node must have exactly 2 inputs."
 
         first_operand = self._variables.consume(self._inputs[0])

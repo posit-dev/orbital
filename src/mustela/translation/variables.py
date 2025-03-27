@@ -13,26 +13,27 @@ class GraphVariables:
             init.name: onnx_utils.get_initializer_data(init)
             for init in graph.initializer
         }
-        self._variables: dict[str, ibis.Column] = {
+        self._variables: dict[str, ibis.Expr] = {
             inp.name: table[inp.name] for inp in graph.input
         }
         self._consumed: set[str] = set()
         self._uniqueid: int = 0
 
-    def consume(self, name: str) -> ibis.Expr | onnx_utils.VariableTypes:
-        if name in self._initializers:
-            return self.get_initializer_value(name)
-
+    def consume(self, name: str) -> ibis.Expr | onnx_utils.VariableTypes | dict[str, ibis.Expr]:
+        constant_value = self._initializers_values.get(name)
+        if constant_value is not None:
+            return constant_value
+        
         self._consumed.add(name)
         return self._variables[name]
 
-    def peek_variable(self, name, default=None):
+    def peek_variable(self, name, default=None) -> ibis.Expr | None:
         return self._variables.get(name, default)
 
-    def get_initializer(self, name, default=None):
+    def get_initializer(self, name, default=None) -> onnx.TensorProto | None:
         return self._initializers.get(name, default)
 
-    def get_initializer_value(self, name, default=None):
+    def get_initializer_value(self, name, default=None) -> onnx_utils.VariableTypes | None:
         return self._initializers_values.get(name, default)
 
     def keys(self):

@@ -1,10 +1,13 @@
+"""Implementation of the ZipMap operator."""
+
 from ..translator import Translator
 
 
 class ZipMapTranslator(Translator):
-    # https://onnx.ai/onnx/operators/onnx_aionnxml_ZipMap.html
 
-    def process(self):
+    def process(self) -> None:
+        """Performs the translation and set the output variable."""
+        # https://onnx.ai/onnx/operators/onnx_aionnxml_ZipMap.html
         expr = self._variables.consume(self.inputs[0])
         labels = self._attributes.get("classlabels_strings")
         if labels:

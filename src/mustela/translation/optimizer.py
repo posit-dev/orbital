@@ -48,7 +48,7 @@ class Optimizer:
     reduce query complexity.
     """
 
-    BINARY_OPS: dict[Binary, typing.Callable] = {
+    BINARY_OPS: dict[type[Binary], typing.Callable] = {
         # Mathematical Operators
         Add: operator.add,
         Subtract: operator.sub,
@@ -70,7 +70,7 @@ class Optimizer:
         Xor: operator.xor,
     }
 
-    UNARY_OPS: dict[Unary, typing.Callable] = {
+    UNARY_OPS: dict[type[Unary], typing.Callable] = {
         Negate: operator.neg,
         Abs: operator.abs,
         Ceil: lambda x: float(operator.methodcaller("ceil")(x)),  # Se necessario
@@ -97,8 +97,8 @@ class Optimizer:
         return value
 
     def _fold_associative_op_contiguous(
-        self, lst: list[ibis.Expr], pyop: typing.Callable
-    ) -> list[ibis.Expr]:
+        self, lst: list[ibis.expr.types.NumericValue], pyop: typing.Callable
+    ) -> list[ibis.expr.types.NumericValue]:
         """Precompute an operation applied on multiple elements.
 
         Given a list of expressions and a binary operation,
@@ -123,15 +123,15 @@ class Optimizer:
                 result.extend(group)
         return result
 
-    def fold_contiguous_sum(self, lst: list[ibis.Expr]) -> list[ibis.Expr]:
+    def fold_contiguous_sum(self, lst: list[ibis.expr.types.NumericValue]) -> list[ibis.expr.types.NumericValue]:
         """Precompute constants in a list of sums"""
         return self._fold_associative_op_contiguous(lst, operator.add)
 
-    def fold_contiguous_product(self, lst: list[ibis.Expr]) -> list[ibis.Expr]:
+    def fold_contiguous_product(self, lst: list[ibis.expr.types.NumericValue]) -> list[ibis.expr.types.NumericValue]:
         """Precompute constants in a list of multiplications"""
         return self._fold_associative_op_contiguous(lst, operator.mul)
 
-    def fold_case(self, expr: ibis.Expr) -> ibis.Expr:
+    def fold_case(self, expr: ibis.Value) -> ibis.Value:
         """Apply different folding strategies to CASE WHHEN expressions.
 
         - If the CASE is a constant, it will evalute it immediately.
@@ -176,7 +176,7 @@ class Optimizer:
 
         return expr
 
-    def fold_cast(self, expr: ibis.Expr) -> ibis.Expr:
+    def fold_cast(self, expr: ibis.Value) -> ibis.Value:
         """Given a cast expression, precompute it if possible."""
         if self.ENABLED is False:
             return expr
@@ -282,10 +282,10 @@ class Optimizer:
         if op_class in self.BINARY_OPS:
             left_val = inputs[0].value
             right_val = inputs[1].value
-            result = self.BINARY_OPS[op_class](left_val, right_val)
+            result = self.BINARY_OPS[typing.cast(type[Binary], op_class)](left_val, right_val)
             return self._ensure_expr(result)
         elif op_class in self.UNARY_OPS and len(inputs) == 1:
-            result = self.UNARY_OPS[op_class](inputs[0].value)
+            result = self.UNARY_OPS[typing.cast(type[Unary], op_class)](inputs[0].value)
             return self._ensure_expr(result)
         else:
             # No possible folding

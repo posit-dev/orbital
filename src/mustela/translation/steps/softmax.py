@@ -1,12 +1,15 @@
+"""Implementation of the Softmax operator."""
+
 import ibis
 
 from ..translator import Translator
 
 
 class SoftmaxTranslator(Translator):
-    # https://onnx.ai/onnx/operators/onnx__Softmax.html
 
-    def process(self):
+    def process(self) -> None:
+        """Performs the translation and set the output variable."""
+        # https://onnx.ai/onnx/operators/onnx__Softmax.html
         data = self._variables.consume(self.inputs[0])
         axis = self._attributes.get("axis", -1)
 

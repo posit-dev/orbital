@@ -1,9 +1,45 @@
+import typing
+
 import ibis
 import onnx
 
 from .._utils import onnx as onnx_utils
 
-VariablesGroup = dict[str, ibis.Expr]
+
+class VariablesGroup(dict[str, ibis.Expr]):
+    def __init__(self, vargroup: dict|None = None):
+        if vargroup is not None:
+            for expr in vargroup.values():
+                if not isinstance(expr, ibis.Expr):
+                    raise TypeError(f"Expected numeric value, got {type(expr)}")
+            args = (vargroup, )
+        else:
+            args = ()
+        
+        super().__init__(*args)
+
+    def values_value(self) -> list[ibis.Value]:
+        values = list(self.values())
+        for value in values:
+            if not isinstance(value, ibis.Value):
+                raise TypeError(f"Expected value, got {type(value)}")
+        return typing.cast(list[ibis.Value], values)
+
+
+class NumericVariablesGroup(VariablesGroup):
+    def __init__(self, vargroup: VariablesGroup):
+        for expr in vargroup.values():
+            if not isinstance(expr, ibis.expr.types.NumericValue):
+                raise TypeError(f"Expected numeric value, got {type(expr)}")
+        super().__init__(vargroup)
+
+    def __setitem__(self, key: str, value: ibis.expr.types.NumericValue, /) -> None:
+        if not isinstance(value, ibis.expr.types.NumericValue):
+            raise TypeError(f"Expected numeric value, got {type(value)}")
+        return super().__setitem__(key, value)
+    
+    def __getitem__(self, key: str, /) -> ibis.expr.types.NumericValue:
+        return super().__getitem__(key)
 
 
 class GraphVariables:
@@ -15,7 +51,7 @@ class GraphVariables:
             init.name: onnx_utils.get_initializer_data(init)
             for init in graph.initializer
         }
-        self._variables: dict[str, ibis.Expr] = {
+        self._variables: dict[str, ibis.Expr|VariablesGroup] = {
             inp.name: table[inp.name] for inp in graph.input
         }
         self._consumed: set[str] = set()
@@ -29,7 +65,7 @@ class GraphVariables:
         self._consumed.add(name)
         return self._variables[name]
 
-    def peek_variable(self, name, default=None) -> ibis.Expr | None:
+    def peek_variable(self, name, default=None) -> ibis.Expr|VariablesGroup | None:
         return self._variables.get(name, default)
 
     def get_initializer(self, name, default=None) -> onnx.TensorProto | None:
@@ -51,12 +87,13 @@ class GraphVariables:
     def __len__(self):
         return len(self.keys())
 
-    def nested_len(self):
+    def nested_len(self) -> int:
         total = 0
         for name in self._variables:
             if name not in self._consumed:
-                if isinstance(self._variables[name], dict):
-                    total += len(self._variables[name])
+                var = self._variables[name]
+                if isinstance(var, VariablesGroup):
+                    total += len(var)
                 else:
                     total += 1
         return total

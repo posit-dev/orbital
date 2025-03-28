@@ -12,4 +12,5 @@ for example in ${EXAMPLES_DIR}/pipeline_*.py; do
         cat test_examples.log
         exit 1
     fi
+    tail -n 1 test_examples.log
 done

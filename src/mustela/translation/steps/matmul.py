@@ -1,5 +1,7 @@
 """Implementation of the LabelEncoder operator."""
 
+import typing
+
 import ibis
 
 from ..translator import Translator
@@ -108,7 +110,7 @@ class MatMulTranslator(Translator):
                     "MatMul with coefficient tensor rank > 2 is not supported"
                 )
         else:
-            first_operand: ibis.expr.types.NumericValue = first_operand
+            first_operand = typing.cast(ibis.expr.types.NumericValue, first_operand)
             # Case 2: left operand is a single expression.
             if len(coef_shape) == 1:
                 # Expect a single coefficient.

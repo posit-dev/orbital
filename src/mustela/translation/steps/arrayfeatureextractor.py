@@ -1,5 +1,7 @@
 """"""
 
+import typing
+
 import ibis.expr.types
 
 from ..translator import Translator
@@ -41,21 +43,22 @@ class ArrayFeatureExtractorTranslator(Translator):
 
             # This expects that dictionaries are sorted by insertion order
             # AND that all values of the dictionary are columns.
-            data_keys = list(data.keys())
-            data = list(data.values())
+            data_keys: list[str] = list(data.keys())
+            data_values: list[ibis.Expr] = list(data.values())
 
             if not isinstance(indices, (list, tuple)):
                 raise ValueError(
                     "ArrayFeatureExtractor expects a list of indices as input."
                 )
 
+            indices = typing.cast(list[int], indices)
             if len(indices) > len(data_keys):
                 raise ValueError(
                     "Indices requested are more than the available numer of columns."
                 )
 
             # Pick only the columns that are in the list of indicies.
-            result = VariablesGroup({data_keys[i]: data[i] for i in indices})
+            result = VariablesGroup({data_keys[i]: data_values[i] for i in indices})
         elif isinstance(data, (tuple, list)):
             # We are selecting values out of a list of values
             # This is usually used to select "classes" out of a list of

@@ -28,9 +28,9 @@ class VariablesGroup(dict[str, ibis.Expr]):
             for expr in vargroup.values():
                 if not isinstance(expr, ibis.Expr):
                     raise TypeError(f"Expected numeric value, got {type(expr)}")
-            args = (vargroup,)
+            args = [vargroup]
         else:
-            args = ()
+            args = []
 
         super().__init__(*args)
 

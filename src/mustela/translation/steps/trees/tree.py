@@ -1,6 +1,5 @@
 """Prase tree definitions and return a graph of nodes."""
 
-import itertools
 import typing
 
 import ibis
@@ -43,7 +42,8 @@ def build_tree(translator: Translator) -> dict[int, dict[int, dict]]:
         == len(nodes_featureids)
     )
 
-    weights = {}
+    # Weight could be a float or a dictionary of class labels weights
+    weights: dict[tuple[int, int], dict[str | int, float] | float] = {}
     if node.op_type == "TreeEnsembleClassifier":
         # Weights for classifier, in this case the weights are per-class
         class_nodeids = typing.cast(list[int], translator._attributes["class_nodeids"])
@@ -69,9 +69,10 @@ def build_tree(translator: Translator) -> dict[int, dict[int, dict]]:
         for tree_id, node_id, weight, weight_classid in zip(
             class_treeids, class_nodeids, class_weights, weights_classid
         ):
-            weights.setdefault((tree_id, node_id), {})[classlabels[weight_classid]] = (
-                weight
-            )
+            node_weights = weights.setdefault((tree_id, node_id), {})
+            typing.cast(dict[str | int, float], node_weights)[
+                classlabels[weight_classid]
+            ] = weight
     elif node.op_type == "TreeEnsembleRegressor":
         # Weights for the regressor, in this case leaf nodes have only 1 weight
         target_weights = typing.cast(
@@ -92,7 +93,7 @@ def build_tree(translator: Translator) -> dict[int, dict[int, dict]]:
         raise NotImplementedError(f"Unsupported tree node type: {node.op_type}")
 
     # Create all nodes for the trees
-    trees = {}
+    trees: dict[int, dict[int, dict]] = {}
     for tree_id, node_id, mode, true_id, false_id, threshold, feature_id in zip(
         nodes_treeids,
         nodes_nodeids,
@@ -123,23 +124,22 @@ def build_tree(translator: Translator) -> dict[int, dict[int, dict]]:
         trees[tree_id][node_id] = node_dict
 
     # Link nodes creating a tree structure
-    for tree_id, node_id, true_id, false_id in itertools.zip_longest(
+    for tree_id, node_id, true_id, false_id in zip(
         nodes_treeids,
         nodes_nodeids,
         nodes_truenodeids,
         nodes_falsenodeids,
-        fillvalue=None,
     ):
         if node_id in trees[tree_id]:
-            node = trees[tree_id][node_id]
-            if node["mode"] == "LEAF":
+            node_dict = trees[tree_id][node_id]
+            if node_dict["mode"] == "LEAF":
                 # Leaf nodes have no true or false branches
                 # In the end they are leaves so they don't have branches
                 continue
             if true_id in trees[tree_id]:
-                node["true"] = trees[tree_id][true_id]
+                node_dict["true"] = trees[tree_id][true_id]
             if false_id in trees[tree_id]:
-                node["false"] = trees[tree_id][false_id]
+                node_dict["false"] = trees[tree_id][false_id]
 
     return {tree_id: trees[tree_id][0] for tree_id in trees}
 

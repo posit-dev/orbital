@@ -69,6 +69,7 @@ class TreeEnsembleClassifierTranslator(Translator):
         ) or self._attributes.get("classlabels_int64s")
         if classlabels is None:
             raise ValueError("Unable to detect classlabels for classification")
+        classlabels = typing.cast(list[str] | list[int], classlabels)
 
         if isinstance(input_expr, VariablesGroup):
             ordered_features = input_expr.values_value()
@@ -80,7 +81,7 @@ class TreeEnsembleClassifierTranslator(Translator):
         ]
         ordered_features = self.preserve(*ordered_features)
 
-        def build_tree_case(node: dict) -> dict[str, ibis.Expr]:
+        def build_tree_case(node: dict) -> dict[str | int, ibis.Expr]:
             # Leaf node, return the votes
             if node["mode"] == "LEAF":
                 votes = {}

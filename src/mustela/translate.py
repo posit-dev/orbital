@@ -1,6 +1,7 @@
 """Translate a pipeline into an Ibis expression."""
 
 import logging
+import typing
 
 import ibis
 
@@ -103,12 +104,7 @@ def _projection_results(table: ibis.Table, variables: GraphVariables) -> ibis.Ta
                 colkey = key + "." + field
                 colvalue = value[field]
                 if isinstance(colvalue, ibis.expr.types.StructColumn):
-                    # This happens with tree regressor probabilities
-                    # Probably need to fix. It's a concatenated column
-                    # that containes a concatenated column
-                    # This should never happen
-                    colkey = colkey + "." + field
-                    colvalue = colvalue[field]
+                    raise NotImplementedError(f"StructColumn not supported: {colvalue}")
                 final_projections[colkey] = colvalue
         else:
             final_projections[key] = value
@@ -119,7 +115,7 @@ def _log_debug_start(translator: Translator, variables: GraphVariables) -> None:
     debug_inputs = {}
     node = translator._node
     for inp in translator._inputs:
-        value = None
+        value: typing.Any = None
         if (feature_value := translator._variables.peek_variable(inp)) is not None:
             value = type(feature_value)
         elif initializer := translator._variables.get_initializer_value(inp):

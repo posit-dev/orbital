@@ -36,7 +36,7 @@ def export_sql(
     table_name: str,
     pipeline: ParsedPipeline,
     dialect: str = "duckdb",
-    optimize: bool = False,
+    optimize: bool = True,
 ) -> str:
     """Export SQL for a given pipeline.
 
@@ -61,7 +61,7 @@ def export_sql(
     ibis_expr = translate(unbound_table, pipeline)
     sqlglot_expr = getattr(sc, dialect).compiler.to_sqlglot(ibis_expr)
 
-    if True:
+    if optimize:
         c = Catalog()
         catalog = {
             unbound_table.get_name(): c.to_sqlglot_schema(unbound_table.schema())

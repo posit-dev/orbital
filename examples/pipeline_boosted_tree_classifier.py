@@ -1,3 +1,4 @@
+import os
 import logging
 
 import ibis
@@ -14,9 +15,11 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 import mustela
 import mustela.types
 
-PRINT_SQL = False
+PRINT_SQL = int(os.environ.get("PRINTSQL", "0"))
+ASSERT = int(os.environ.get("ASSERT", "0"))
+
 logging.basicConfig(level=logging.INFO)
-logging.getLogger("mustela").setLevel(logging.DEBUG)
+logging.getLogger("mustela").setLevel(logging.INFO)  # Set DEBUG to see translation process.
 
 # Load Ames Housing for classification
 ames = fetch_openml(name="house_prices", as_frame=True)
@@ -91,7 +94,6 @@ model.fit(X, y)
 
 # Convert types from numpy to mustela types
 features = mustela.types.guess_datatypes(X)
-print("Mustela Features:", features)
 
 # Target only 5 rows, so that it's easier for a human to understand
 data_sample = X.head(5)
@@ -113,4 +115,9 @@ target = model.predict(data_sample)
 print(target)
 
 print("\nPrediction with Ibis")
-print(con.execute(ibis_expression))
+ibis_target = con.execute(ibis_expression)
+print(ibis_target)
+
+if ASSERT:
+    assert np.array_equal(target, ibis_target["output_label"]), "Predictions do not match!"
+    print("\tPredictions match!")

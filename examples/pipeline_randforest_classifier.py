@@ -1,3 +1,4 @@
+import os
 import logging
 import ibis
 import numpy as np
@@ -13,10 +14,11 @@ from sklearn.ensemble import RandomForestClassifier
 import mustela
 import mustela.types
 
-PRINT_SQL = False
+PRINT_SQL = int(os.environ.get("PRINTSQL", "0"))
+ASSERT = int(os.environ.get("ASSERT", "0"))
 
 logging.basicConfig(level=logging.INFO)
-logging.getLogger("mustela").setLevel(logging.DEBUG)
+logging.getLogger("mustela").setLevel(logging.INFO)  # Set DEBUG to see translation process.
 
 iris = load_iris()
 df = pd.DataFrame(iris.data, columns=["sepal_length", "sepal_width", "petal_length", "petal_width"])

@@ -1,41 +1,87 @@
+"""Implement classification based on trees"""
+
+import typing
+
 import ibis
 
 from ...translator import Translator
+from ...variables import VariablesGroup
+from ..softmax import SoftmaxTranslator
 from .tree import build_tree, mode_to_condition
 
 
 class TreeEnsembleClassifierTranslator(Translator):
-    # https://onnx.ai/onnx/operators/onnx_aionnxml_TreeEnsembleClassifier.html
-    # This is deprecated in ONNX but it's what skl2onnx uses.
+    """Processes a TreeEnsembleClassifier node and updates the variables with the output expression.
 
-    def process(self):
+    This node is foundational for most tree based models:
+    - Random Forest
+    - Gradient Boosted Trees
+    - Decision Trees
+
+    The parsing of the tree is done by the :func:`build_tree` function,
+    which results in a dictionary of trees.
+
+    The class parses the trees to generate a set of `CASE WHEN THEN ELSE`
+    expressions that are used to compute the votes for each class.
+
+    The class also computes the probability of each class by dividing
+    the votes by the sum of all votes.
+    """
+
+    def process(self) -> None:
+        """Performs the translation and set the output variable."""
+        # https://onnx.ai/onnx/operators/onnx_aionnxml_TreeEnsembleClassifier.html
+        # This is deprecated in ONNX but it's what skl2onnx uses.
+
         input_exr = self._variables.consume(self.inputs[0])
-        label_expr, prob_expr = self.build_classifier(input_exr)
-        
-        self._variables[self.outputs[0]] = label_expr
-        self._variables[self.outputs[1]] = prob_expr
+        if not isinstance(input_exr, (ibis.Expr, VariablesGroup)):
+            raise ValueError(
+                "TreeEnsembleClassifier: The first operand must be a column or a column group."
+            )
 
-    def build_classifier(self, input_expr):
+        label_expr, prob_colgroup = self.build_classifier(input_exr)
+        post_transform = self._attributes.get("post_transform", "NONE")
+
+        if post_transform != "NONE":
+            if post_transform == "SOFTMAX":
+                prob_colgroup = SoftmaxTranslator.compute_softmax(prob_colgroup)
+            else:
+                raise NotImplementedError(
+                    f"Post transform {post_transform} not implemented."
+                )
+
+        self._variables[self.outputs[0]] = label_expr
+        self._variables[self.outputs[1]] = prob_colgroup
+
+    def build_classifier(
+        self, input_expr: ibis.Expr | VariablesGroup
+    ) -> tuple[ibis.Expr, VariablesGroup]:
+        """Build the classification expression and the probabilities expressions
+
+        Return the classification expression as the first argument and a group of
+        variables (one for each category) for the probability expressions.
+        """
         optimizer = self._optimizer
         ensemble_trees = build_tree(self)
 
-        classlabels = self._attributes.get("classlabels_strings") or self._attributes.get(
-            "classlabels_int64s"
-        )
+        classlabels = self._attributes.get(
+            "classlabels_strings"
+        ) or self._attributes.get("classlabels_int64s")
         if classlabels is None:
             raise ValueError("Unable to detect classlabels for classification")
+        classlabels = typing.cast(list[str] | list[int], classlabels)
 
-        if isinstance(input_expr, dict):
-            ordered_features = list(input_expr.values())
+        if isinstance(input_expr, VariablesGroup):
+            ordered_features = input_expr.values_value()
         else:
-            ordered_features = [input_expr]
+            ordered_features = typing.cast(list[ibis.Value], [input_expr])
         ordered_features = [
             feature.name(self.variable_unique_short_alias("tclass"))
             for feature in ordered_features
         ]
         ordered_features = self.preserve(*ordered_features)
 
-        def build_tree_case(tree, node):
+        def build_tree_case(node: dict) -> dict[str | int, ibis.Expr]:
             # Leaf node, return the votes
             if node["mode"] == "LEAF":
                 votes = {}
@@ -49,8 +95,8 @@ class TreeEnsembleClassifierTranslator(Translator):
             feature_expr = ordered_features[node["feature_id"]]
             condition = mode_to_condition(node, feature_expr)
 
-            true_votes = build_tree_case(tree, node["true"])
-            false_votes = build_tree_case(tree, node["false"])
+            true_votes = build_tree_case(node["true"])
+            false_votes = build_tree_case(node["false"])
 
             votes = {}
             for clslabel in classlabels:
@@ -63,8 +109,8 @@ class TreeEnsembleClassifierTranslator(Translator):
 
         # Genera voti per ogni albero
         tree_votes = []
-        for treeid, tree in ensemble_trees.items():
-            tree_votes.append(build_tree_case(tree, tree))
+        for tree in ensemble_trees.values():
+            tree_votes.append(build_tree_case(tree))
 
         # Aggregate votes from all trees.
         total_votes = {}
@@ -106,9 +152,9 @@ class TreeEnsembleClassifierTranslator(Translator):
             else:
                 sum_votes = optimizer.fold_operation(sum_votes + total_votes[clslabel])
 
-        prob_dict = {}
+        # FIXME: Probabilities are currently broken for gradient boosted trees.
+        prob_dict = VariablesGroup()
         for clslabel in classlabels:
             prob_dict[str(clslabel)] = total_votes[clslabel] / sum_votes
-        prob_expr = ibis.struct(prob_dict)
 
-        return label_expr, prob_expr
+        return label_expr, prob_dict

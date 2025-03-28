@@ -1,16 +1,33 @@
-import itertools
+"""Prase tree definitions and return a graph of nodes."""
+
+import typing
+
+import ibis
+
+from ...translator import Translator
 
 
-def build_tree(translator):
-    # Estrarre gli attributi del nodo
-    nodes_treeids = translator._attributes["nodes_treeids"]
-    nodes_nodeids = translator._attributes["nodes_nodeids"]
-    nodes_modes = translator._attributes["nodes_modes"]
-    nodes_truenodeids = translator._attributes["nodes_truenodeids"]
-    nodes_falsenodeids = translator._attributes["nodes_falsenodeids"]
-    nodes_thresholds = translator._attributes["nodes_values"]
-    nodes_featureids = translator._attributes["nodes_featureids"]
-    nodes_missing_value_tracks_true = translator._attributes["nodes_missing_value_tracks_true"]
+def build_tree(translator: Translator) -> dict[int, dict[int, dict]]:
+    """Build a tree based on nested dictionaries of nodes.
+
+    The tree is built based on the node and attributes of the translator.
+    """
+    nodes_treeids = typing.cast(list[int], translator._attributes["nodes_treeids"])
+    nodes_nodeids = typing.cast(list[int], translator._attributes["nodes_nodeids"])
+    nodes_modes = typing.cast(list[str], translator._attributes["nodes_modes"])
+    nodes_truenodeids = typing.cast(
+        list[int], translator._attributes["nodes_truenodeids"]
+    )
+    nodes_falsenodeids = typing.cast(
+        list[int], translator._attributes["nodes_falsenodeids"]
+    )
+    nodes_thresholds = typing.cast(list[float], translator._attributes["nodes_values"])
+    nodes_featureids = typing.cast(
+        list[int], translator._attributes["nodes_featureids"]
+    )
+    nodes_missing_value_tracks_true = typing.cast(
+        list[int], translator._attributes["nodes_missing_value_tracks_true"]
+    )
     node = translator._node
 
     # Assert a few things to ensure we don't ed up genearting a tree with wrong data
@@ -25,36 +42,48 @@ def build_tree(translator):
         == len(nodes_featureids)
     )
 
-    weights = {}
+    # Weight could be a float or a dictionary of class labels weights
+    weights: dict[tuple[int, int], dict[str | int, float] | float] = {}
     if node.op_type == "TreeEnsembleClassifier":
         # Weights for classifier, in this case the weights are per-class
-        class_nodeids = translator._attributes["class_nodeids"]
-        class_treeids = translator._attributes["class_treeids"]
-        class_weights = translator._attributes["class_weights"]
-        weights_classid = translator._attributes["class_ids"]
+        class_nodeids = typing.cast(list[int], translator._attributes["class_nodeids"])
+        class_treeids = typing.cast(list[int], translator._attributes["class_treeids"])
+        class_weights = typing.cast(
+            list[float], translator._attributes["class_weights"]
+        )
+        weights_classid = typing.cast(list[int], translator._attributes["class_ids"])
         assert (
             len(class_treeids)
             == len(class_nodeids)
             == len(class_weights)
             == len(weights_classid)
         )
-        classlabels = translator._attributes.get("classlabels_strings") or translator._attributes.get(
-            "classlabels_int64s"
+        classlabels = typing.cast(
+            None | list[str | int],
+            translator._attributes.get("classlabels_strings")
+            or translator._attributes.get("classlabels_int64s"),
         )
         if not classlabels:
             raise ValueError("Missing class labels when building tree")
-        
+
         for tree_id, node_id, weight, weight_classid in zip(
             class_treeids, class_nodeids, class_weights, weights_classid
         ):
-            weights.setdefault((tree_id, node_id), {})[classlabels[weight_classid]] = (
-                weight
-            )
+            node_weights = weights.setdefault((tree_id, node_id), {})
+            typing.cast(dict[str | int, float], node_weights)[
+                classlabels[weight_classid]
+            ] = weight
     elif node.op_type == "TreeEnsembleRegressor":
         # Weights for the regressor, in this case leaf nodes have only 1 weight
-        target_weights = translator._attributes["target_weights"]
-        target_nodeids = translator._attributes["target_nodeids"]
-        target_treeids = translator._attributes["target_treeids"]
+        target_weights = typing.cast(
+            list[float], translator._attributes["target_weights"]
+        )
+        target_nodeids = typing.cast(
+            list[int], translator._attributes["target_nodeids"]
+        )
+        target_treeids = typing.cast(
+            list[int], translator._attributes["target_treeids"]
+        )
         assert len(target_treeids) == len(target_nodeids) == len(target_weights)
         for tree_id, node_id, weight in zip(
             target_treeids, target_nodeids, target_weights
@@ -64,7 +93,7 @@ def build_tree(translator):
         raise NotImplementedError(f"Unsupported tree node type: {node.op_type}")
 
     # Create all nodes for the trees
-    trees = {}
+    trees: dict[int, dict[int, dict]] = {}
     for tree_id, node_id, mode, true_id, false_id, threshold, feature_id in zip(
         nodes_treeids,
         nodes_nodeids,
@@ -95,28 +124,33 @@ def build_tree(translator):
         trees[tree_id][node_id] = node_dict
 
     # Link nodes creating a tree structure
-    for tree_id, node_id, true_id, false_id in itertools.zip_longest(
+    for tree_id, node_id, true_id, false_id in zip(
         nodes_treeids,
         nodes_nodeids,
         nodes_truenodeids,
         nodes_falsenodeids,
-        fillvalue=None,
     ):
         if node_id in trees[tree_id]:
-            node = trees[tree_id][node_id]
-            if node["mode"] == "LEAF":
+            node_dict = trees[tree_id][node_id]
+            if node_dict["mode"] == "LEAF":
                 # Leaf nodes have no true or false branches
                 # In the end they are leaves so they don't have branches
                 continue
             if true_id in trees[tree_id]:
-                node["true"] = trees[tree_id][true_id]
+                node_dict["true"] = trees[tree_id][true_id]
             if false_id in trees[tree_id]:
-                node["false"] = trees[tree_id][false_id]
+                node_dict["false"] = trees[tree_id][false_id]
 
     return {tree_id: trees[tree_id][0] for tree_id in trees}
 
 
-def mode_to_condition(node, feature_expr):
+def mode_to_condition(node: dict, feature_expr: ibis.Expr) -> ibis.Expr:
+    """Build a comparison expression for a branch node.
+
+    The comparison is based on the mode of the node and the threshold
+    for that noode. The feature will be compared to the threshold
+    using the operator defined by the mode.
+    """
     threshold = node["treshold"]
     if node["mode"] == "BRANCH_LEQ":
         condition = feature_expr <= threshold

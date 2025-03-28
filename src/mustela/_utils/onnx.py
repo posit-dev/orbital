@@ -1,12 +1,12 @@
 import onnx
 import onnx.helper
-import onnx.numpy_helper
+
+ListVariableTypes = list[int] | list[float] | list[str]
+VariableTypes = float | int | str | ListVariableTypes
 
 
-def get_initializer_data(var):
-    if var is None:
-        raise ValueError("Expected a variable, got None")
-    
+def get_initializer_data(var: onnx.TensorProto) -> VariableTypes:
+    """Given a constant initializer, return its value"""
     attr_name = onnx.helper.tensor_dtype_to_field(var.data_type)
     values = list(getattr(var, attr_name))
     dimensions = getattr(var, "dims", None)
@@ -18,7 +18,8 @@ def get_initializer_data(var):
     return values
 
 
-def get_attr_value(attr):
+def get_attr_value(attr: onnx.AttributeProto) -> VariableTypes:
+    """Given an attribute, return its value"""
     # TODO: Check if it can be replaced with onnx.helper.get_attribute_value
     if attr.type == attr.INTS:
         return list(attr.ints)
@@ -32,11 +33,5 @@ def get_attr_value(attr):
         return attr.f
     elif attr.type == attr.STRING:
         return attr.s.decode("utf-8") if isinstance(attr.s, bytes) else attr.s
-    elif attr.type == attr.TENSOR:
-        return onnx.numpy_helper.to_array(attr.t)
-    elif attr.type == attr.GRAPH:
-        return attr.g
-    elif attr.type == attr.SPARSE_TENSOR:
-        return onnx.numpy_helper.to_array(attr.sparse_tensor)
     else:
         raise ValueError(f"Unsupported attribute type: {attr.type}")

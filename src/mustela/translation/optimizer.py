@@ -3,9 +3,11 @@
 Primarily it takes care of folding constant expressions
 and removing unnecessary casts.
 """
+
 import functools
 import itertools
 import operator
+import typing
 
 import ibis
 import ibis.expr.datatypes as dt
@@ -13,6 +15,7 @@ from ibis.expr.operations import (
     Abs,
     Add,
     And,
+    Binary,
     Ceil,
     Divide,
     Equals,
@@ -31,6 +34,7 @@ from ibis.expr.operations import (
     NotEquals,
     Or,
     Subtract,
+    Unary,
     Xor,
 )
 from ibis.expr.types import NumericScalar
@@ -39,12 +43,12 @@ from ibis.expr.types import NumericScalar
 class Optimizer:
     """Optimizer for Ibis expressions.
 
-    This class is responsible for applying a set
-    of optimization processes to Ibis expressions
-    to remove unecessary operations and reduce
-    query complexity.
+    This class is responsible for applying a set of optimization
+    processes to Ibis expressionsto remove unecessary operations and
+    reduce query complexity.
     """
-    BINARY_OPS = {
+
+    BINARY_OPS: dict[type[Binary], typing.Callable] = {
         # Mathematical Operators
         Add: operator.add,
         Subtract: operator.sub,
@@ -66,7 +70,7 @@ class Optimizer:
         Xor: operator.xor,
     }
 
-    UNARY_OPS = {
+    UNARY_OPS: dict[type[Unary], typing.Callable] = {
         Negate: operator.neg,
         Abs: operator.abs,
         Ceil: lambda x: float(operator.methodcaller("ceil")(x)),  # Se necessario
@@ -74,30 +78,15 @@ class Optimizer:
         Not: operator.not_,
     }
 
-    def __init__(self, enabled=True):
+    def __init__(self, enabled: bool = True) -> None:
+        """
+        :param enabled: Whether to enable the optimizer.
+                        When disabled, the optimizer will
+                        return the expression unchanged.
+        """
         self.ENABLED = enabled
 
-    def debug_folding(self, expr):
-        def _recurse(_expr):
-            if isinstance(_expr, dict):
-                return {k: _recurse(v) for k, v in _expr.items() if _recurse(v)}
-
-            if hasattr(expr, "op"):
-                expr_op = _expr.op()
-                if isinstance(expr_op, Literal):
-                    # Avoid printing literals, there is no folding necessary
-                    return ""
-                return self._debug(_expr.op())
-            if isinstance(_expr, NumericScalar):
-                return repr(_expr)
-            else:
-                return ""  # f"Unknown folding: {type(_expr)}"
-
-        res = _recurse(expr)
-        if res:
-            print("Possible folding", res)
-
-    def _ensure_expr(self, value):
+    def _ensure_expr(self, value: ibis.Expr) -> ibis.Expr:
         """Ensure that the value is an Ibis expression.
 
         Literal objects need to be converted back to an
@@ -107,7 +96,16 @@ class Optimizer:
             return ibis.literal(value.value)
         return value
 
-    def _fold_associative_op_contiguous(self, lst, pyop):
+    def _fold_associative_op_contiguous(
+        self, lst: list[ibis.expr.types.NumericValue], pyop: typing.Callable
+    ) -> list[ibis.expr.types.NumericValue]:
+        """Precompute an operation applied on multiple elements.
+
+        Given a list of expressions and a binary operation,
+        this function will precompute the operation on all
+        constant expressions in the list returning a new list
+        of expressions with the folded constants.
+        """
         if self.ENABLED is False:
             return list(lst)
 
@@ -125,13 +123,30 @@ class Optimizer:
                 result.extend(group)
         return result
 
-    def fold_contiguous_sum(self, lst):
+    def fold_contiguous_sum(
+        self, lst: list[ibis.expr.types.NumericValue]
+    ) -> list[ibis.expr.types.NumericValue]:
+        """Precompute constants in a list of sums"""
         return self._fold_associative_op_contiguous(lst, operator.add)
 
-    def fold_contiguous_product(self, lst):
+    def fold_contiguous_product(
+        self, lst: list[ibis.expr.types.NumericValue]
+    ) -> list[ibis.expr.types.NumericValue]:
+        """Precompute constants in a list of multiplications"""
         return self._fold_associative_op_contiguous(lst, operator.mul)
 
-    def fold_case(self, expr):
+    def fold_case(self, expr: ibis.Value | ibis.Deferred) -> ibis.Value:
+        """Apply different folding strategies to CASE WHHEN expressions.
+
+        - If the CASE is a constant, it will evalute it immediately.
+        - If the CASE is a IF ELSE statement returning 1 or 0,
+          it will be converted to a boolean expression.
+        - When the results and the default are the same, just return
+          the default value.
+        """
+        if not isinstance(expr, ibis.Value):
+            raise NotImplementedError("Deferred case expressions are not supported")
+
         if self.ENABLED is False:
             return expr
 
@@ -168,7 +183,8 @@ class Optimizer:
 
         return expr
 
-    def fold_cast(self, expr):
+    def fold_cast(self, expr: ibis.Value) -> ibis.Value:
+        """Given a cast expression, precompute it if possible."""
         if self.ENABLED is False:
             return expr
 
@@ -204,7 +220,12 @@ class Optimizer:
 
         return expr
 
-    def fold_zeros(self, expr):
+    def fold_zeros(self, expr: ibis.Expr) -> ibis.Expr:
+        """Given a binary expression, precompute the result if it contains zeros.
+
+        Operations like x + 0, x * 0, x - 0 etc can be folded in just x or 0
+        without the need to compute the operation.
+        """
         if self.ENABLED is False:
             return expr
 
@@ -234,7 +255,7 @@ class Optimizer:
 
         return expr
 
-    def fold_operation(self, expr):
+    def fold_operation(self, expr: ibis.Expr) -> ibis.Expr:
         """Given a node (an Ibis expression) fold constant expressions.
 
         If all node immediate children are constant (i.e. NumericScalar),
@@ -268,16 +289,19 @@ class Optimizer:
         if op_class in self.BINARY_OPS:
             left_val = inputs[0].value
             right_val = inputs[1].value
-            result = self.BINARY_OPS[op_class](left_val, right_val)
+            result = self.BINARY_OPS[typing.cast(type[Binary], op_class)](
+                left_val, right_val
+            )
             return self._ensure_expr(result)
         elif op_class in self.UNARY_OPS and len(inputs) == 1:
-            result = self.UNARY_OPS[op_class](inputs[0].value)
+            result = self.UNARY_OPS[typing.cast(type[Unary], op_class)](inputs[0].value)
             return self._ensure_expr(result)
         else:
             # No possible folding
             return expr
 
-    def _debug(self, expr, show_args=True):
+    def _debug(self, expr: ibis.Expr, show_args: bool = True) -> str:
+        """Given an expression, return a string representation for debugging."""
         if isinstance(expr, Literal):
             return repr(expr.value)
         elif show_args is False:

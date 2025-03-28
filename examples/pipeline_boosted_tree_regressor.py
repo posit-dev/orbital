@@ -1,3 +1,4 @@
+import os
 import logging
 
 import ibis
@@ -14,10 +15,11 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 import mustela
 import mustela.types
 
-PRINT_SQL = False
+PRINT_SQL = int(os.environ.get("PRINTSQL", "0"))
+ASSERT = int(os.environ.get("ASSERT", "0"))
 
 logging.basicConfig(level=logging.INFO)
-logging.getLogger("mustela").setLevel(logging.DEBUG)
+logging.getLogger("mustela").setLevel(logging.INFO)  # Set DEBUG to see translation process.
 
 ames = fetch_openml(name="house_prices", as_frame=True)
 ames = ames.frame
@@ -81,13 +83,11 @@ model = Pipeline(
 )
 model.fit(X, y)
 
-features = mustela.types.guess_datatypes(X)
-print("Mustela Features:", features)
-
 # Create a small set of data for the prediction
 # It's easier to understand if it's small
 data_sample = X.head(5)
 
+features = mustela.types.guess_datatypes(X)
 mustela_pipeline = mustela.parse_pipeline(model, features=features)
 print(mustela_pipeline)
 

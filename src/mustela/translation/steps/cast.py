@@ -1,9 +1,8 @@
 """Translators for Cast and CastLike operations"""
 import typing
 
-import onnx
-
 import ibis
+import onnx
 
 from ..translator import Translator
 from ..variables import VariablesGroup

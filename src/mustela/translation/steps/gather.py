@@ -1,8 +1,8 @@
 """Defines the translation step for the Gather operation."""
 
-from ibis.common.egraph import Variable
 
 from mustela.translation.variables import VariablesGroup
+
 from ..translator import Translator
 
 

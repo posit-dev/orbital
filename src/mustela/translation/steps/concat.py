@@ -1,8 +1,8 @@
 """Translator for Concat and FeatureVectorizer operations."""
 
-import ibis
-
 import typing
+
+import ibis
 
 from ..translator import Translator
 from ..variables import VariablesGroup

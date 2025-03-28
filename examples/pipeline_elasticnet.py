@@ -1,6 +1,7 @@
 import os
 import logging
 import ibis
+import numpy as np
 import pyarrow as pa
 from sklearn.compose import ColumnTransformer
 from sklearn.datasets import load_iris
@@ -61,10 +62,10 @@ example_data = pa.table(
 )
 
 # Generate a query expression using Mustela
-ibis_expression = mustela.translate(ibis.memtable(example_data), mustela_pipeline)
+ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
+ibis_expression = mustela.translate(ibis_table, mustela_pipeline)
 
 con = ibis.duckdb.connect()
-
 if PRINT_SQL:
     sql = mustela.export_sql("DATA_TABLE", mustela_pipeline, dialect="duckdb")
     print("\nGenerated Query for DuckDB:")
@@ -75,8 +76,13 @@ if PRINT_SQL:
     print(con.raw_sql(sql).df())
 
 print("\nPrediction with Ibis")
-print(ibis_expression.execute())
+ibis_target = ibis_expression.execute()["variable"].to_numpy()
+print(ibis_target)
 
 print("\nPrediction with SKLearn")
-predictions = pipeline.predict(example_data.to_pandas())
-print(predictions)
+target = pipeline.predict(example_data.to_pandas())
+print(target)
+
+if ASSERT:
+    assert np.allclose(target, ibis_target), "Predictions do not match!"
+    print("\nPredictions match!")

@@ -2,6 +2,7 @@
 import ibis
 
 from ..translator import Translator
+from ..variables import VariablesGroup
 
 
 class MatMulTranslator(Translator):
@@ -86,9 +87,9 @@ class MatMulTranslator(Translator):
                     result = result_list[0]
                 else:
                     # Return a dict of output expressions if there are multiple output columns.
-                    result = {
+                    result = VariablesGroup({
                         f"out_{j}": result_list[j] for j in range(output_dim)
-                    }
+                    })
                 self.set_output(result)
             else:
                 raise NotImplementedError(
@@ -118,9 +119,9 @@ class MatMulTranslator(Translator):
                         result = result_list[0]
                         self._variables[self._output_name] = result_list[0]
                     else:
-                        result = {
+                        result = VariablesGroup({
                             f"out_{j}": result_list[j] for j in range(output_dim)
-                        }
+                        })
                     self.set_output(result)
                 elif coef_shape[1] == 1:
                     # This case implies the left operand is a vector of length matching coef_shape[0],

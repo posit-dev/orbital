@@ -3,6 +3,8 @@ import typing
 
 import ibis
 
+from mustela.translation.variables import VariablesGroup
+
 from ..translator import Translator
 
 
@@ -42,14 +44,14 @@ class DivTranslator(Translator):
                 if not isinstance(second_arg, (int, float)):
                     raise ValueError("Div: The second operand must be a numeric value.")
                 self.set_output(
-                    {
+                    VariablesGroup({
                         field: (
                             self._optimizer.fold_operation(
                                 first_operand[field] / ibis.literal(second_arg)
                             )
                         )
                         for field in struct_fields
-                    }
+                    })
                 )
             else:
                 if len(second_arg) != len(first_operand):
@@ -57,14 +59,14 @@ class DivTranslator(Translator):
                         "The number of elements in the second operand must match the number of columns in the first operand."
                     )
                 self.set_output(
-                    {
+                    VariablesGroup({
                         field: (
                             self._optimizer.fold_operation(
                                 first_operand[field] / second_arg[i]
                             )
                         )
                         for i, field in enumerate(struct_fields)
-                    }
+                    })
                 )
         else:
             if not isinstance(first_operand, ibis.expr.types.NumericValue):

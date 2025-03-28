@@ -3,6 +3,7 @@
 import ibis.expr.types
 
 from ..translator import Translator
+from ..variables import VariablesGroup
 
 
 class ArrayFeatureExtractorTranslator(Translator):
@@ -34,7 +35,7 @@ class ArrayFeatureExtractorTranslator(Translator):
         data = self._variables.consume(self.inputs[0])
         indices = self._variables.consume(self.inputs[1])
 
-        if isinstance(data, dict):
+        if isinstance(data, VariablesGroup):
             # We are selecting a set of columns out of a column group
 
             # This expects that dictionaries are sorted by insertion order
@@ -49,7 +50,7 @@ class ArrayFeatureExtractorTranslator(Translator):
                 raise ValueError("Indices requested are more than the available numer of columns.")
             
             # Pick only the columns that are in the list of indicies.
-            result = {data_keys[i]: data[i] for i in indices}
+            result = VariablesGroup({data_keys[i]: data[i] for i in indices})
         elif isinstance(data, (tuple, list)):
             # We are selecting values out of a list of values
             # This is usually used to select "classes" out of a list of

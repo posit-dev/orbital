@@ -4,6 +4,7 @@ import typing
 import ibis
 
 from ..translator import Translator
+from ..variables import NumericVariablesGroup, VariablesGroup
 
 
 class AddTranslator(Translator):
@@ -25,14 +26,14 @@ class AddTranslator(Translator):
             raise NotImplementedError("Add: Second input (divisor) must be a constant list.")
 
         type_check_var = first_operand
-        if isinstance(type_check_var, dict):
+        if isinstance(type_check_var, VariablesGroup):
             type_check_var = next(iter(type_check_var.values()), None)        
         if not isinstance(type_check_var, ibis.expr.types.NumericValue):
             raise ValueError("Add: The first operand must be a numeric value.")
 
         add_values = list(second_operand)
-        if isinstance(first_operand, dict):
-            first_operand = typing.cast(dict[str, ibis.expr.types.NumericValue], first_operand)
+        if isinstance(first_operand, VariablesGroup):
+            first_operand = NumericVariablesGroup(first_operand)
             struct_fields = list(first_operand.keys())
             if len(add_values) != len(struct_fields):
                 # TODO: Implement dividing by a single value,
@@ -40,18 +41,18 @@ class AddTranslator(Translator):
                 raise ValueError(
                     "When the first operand is a group of columns, the second operand must contain the same number of values"
                 )
-            self._variables[self._output_name] = {
+            self.set_output(VariablesGroup({
                 field: (
                     self._optimizer.fold_operation(first_operand[field] + add_values[i])
                 )
                 for i, field in enumerate(struct_fields)
-            }
+            }))
         else:
             if len(add_values) != 1:
                 raise ValueError(
                     "When the first operand is a single column, the second operand must contain exactly 1 value"
                 )
             first_operand = typing.cast(ibis.expr.types.NumericValue, first_operand)
-            self._variables[self._output_name] = self._optimizer.fold_operation(
+            self.set_output(self._optimizer.fold_operation(
                 first_operand + add_values[0]
-            )
+            ))

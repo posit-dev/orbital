@@ -1,6 +1,11 @@
 """Translator for Concat and FeatureVectorizer operations."""
 
+import ibis
+
+import typing
+
 from ..translator import Translator
+from ..variables import VariablesGroup
 
 
 class ConcatTranslator(Translator):
@@ -30,13 +35,13 @@ class ConcatTranslator(Translator):
         self.set_output(self._concatenate_columns(self))
 
     @classmethod
-    def _concatenate_columns(cls, translator: Translator) -> dict:
+    def _concatenate_columns(cls, translator: Translator) -> VariablesGroup:
         """Implement actual operation of concatenating columns.
 
         This is used by both Concat and FeatureVectorizer translators,
         as they both need to concatenate columns.
         """
-        result = {}
+        result = VariablesGroup()
         for col in translator.inputs:
             feature = translator._variables.consume(col)
             if isinstance(feature, dict):
@@ -47,8 +52,12 @@ class ConcatTranslator(Translator):
                 for key in feature:
                     varname = col + "." + key
                     result[varname] = feature[key]
-            else:
+            elif isinstance(feature, ibis.Expr):
                 result[col] = feature
+            else:
+                raise ValueError(
+                    f"Concat: expected a column group or a single column. Got {type(feature)}"
+                )
 
         return result
 
@@ -68,7 +77,7 @@ class FeatureVectorizerTranslator(Translator):
 
         # We can support this by doing the same as Concat,
         # in most cases it's sufficient
-        ninputdimensions = self._attributes["inputdimensions"]
+        ninputdimensions = typing.cast(list[int], self._attributes["inputdimensions"])
 
         if len(ninputdimensions) != len(self._inputs):
             raise ValueError("Number of input dimensions should be equal to number of inputs.")

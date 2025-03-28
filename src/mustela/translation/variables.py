@@ -18,6 +18,12 @@ class VariablesGroup(dict[str, ibis.Expr]):
         
         super().__init__(*args)
 
+    def as_value(self, name:str) -> ibis.Value:
+        value = self[name]
+        if not isinstance(value, ibis.Value):
+            raise TypeError(f"Expected value, got {type(value)}")
+        return value
+
     def values_value(self) -> list[ibis.Value]:
         values = list(self.values())
         for value in values:

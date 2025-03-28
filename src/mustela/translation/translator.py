@@ -49,10 +49,10 @@ class Translator(abc.ABC):
     def mutated_table(self):
         return self._table
 
-    def set_output(self, value: ibis.Expr | VariablesGroup | onnx_utils.VariableTypes) -> None:
+    def set_output(self, value: ibis.Deferred | ibis.Expr | VariablesGroup | onnx_utils.VariableTypes) -> None:
         if len(self.outputs) > 1:
             raise ValueError("Translator has more than one output")
-        if not isinstance(value, (ibis.Expr, dict)):
+        if not isinstance(value, (ibis.Expr, VariablesGroup)):
             value = ibis.literal(value)
         self._variables[self._output_name] = value
 

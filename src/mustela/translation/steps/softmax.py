@@ -46,7 +46,7 @@ class SoftmaxTranslator(Translator):
                 sum_exp = expr if sum_exp is None else sum_exp + expr
 
             # Multi columns case: softmax = exp(column_exp) / (exponents_sum)
-            softmax_result = {k: exp_dict[k] / sum_exp for k in data.keys()}
+            softmax_result = VariablesGroup({k: exp_dict[k] / sum_exp for k in data.keys()})
         else:
             # Single column case: softmax(x) = exp(x) / exp(x) = 1
             softmax_result = ibis.literal(1.0)

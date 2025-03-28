@@ -3,7 +3,8 @@ import typing
 
 import ibis
 
-from ..translator import Translator, VariablesGroup
+from ..translator import Translator
+from ..variables import VariablesGroup
 
 
 class ZipMapTranslator(Translator):
@@ -32,18 +33,18 @@ class ZipMapTranslator(Translator):
                 "ZipMap: required mapping attributes not found."
             )
 
-        if isinstance(data, dict):
+        if isinstance(data, VariablesGroup):
             if len(labels) != len(data):
                 raise ValueError(
                     "ZipMap: The number of labels and columns must match."
                 )
-            result = {label: value for label, value in zip(labels, data.values())}
+            result = VariablesGroup({label: value for label, value in zip(labels, data.values())})
         elif isinstance(data, ibis.Expr):
             if len(labels) != 1:
                 raise ValueError(
                     "ZipMap: The number of labels and columns must match."
                 )
-            result = {label: data for label in labels}
+            result = VariablesGroup({label: data for label in labels})
         else:
             raise ValueError(
                 f"ZipMap: expected a column group or a single column. Got {type(data)}"

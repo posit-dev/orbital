@@ -1,5 +1,8 @@
 """Defines the translation step for the Gather operation."""
 
+from ibis.common.egraph import Variable
+
+from mustela.translation.variables import VariablesGroup
 from ..translator import Translator
 
 
@@ -38,7 +41,7 @@ class GatherTranslator(Translator):
         if not isinstance(idx, int):
             raise ValueError("Gather: index must be an integer constant")
 
-        if isinstance(expr, dict):
+        if isinstance(expr, VariablesGroup):
             keys = list(expr.keys())
             if idx < 0 or idx >= len(keys):
                 raise IndexError("Gather: index out of bounds")
@@ -48,6 +51,6 @@ class GatherTranslator(Translator):
             # support axis=1, then the index must be 0.
             if idx != 0:
                 raise NotImplementedError(
-                    f"Gather: index {idx} not supported for non-dict expression of type {type(expr)}"
+                    f"Gather: index {idx} not supported for single columns"
                 )
             self.set_output(expr)

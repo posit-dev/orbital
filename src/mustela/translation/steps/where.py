@@ -3,6 +3,8 @@ import itertools
 
 import ibis
 
+from mustela.translation.variables import VariablesGroup
+
 from ..translator import Translator
 
 
@@ -29,31 +31,31 @@ class WhereTranslator(Translator):
         true_expr = self._variables.consume(self.inputs[1])
         false_expr = self._variables.consume(self.inputs[2])
 
-        if isinstance(condition_expr, dict):
+        if isinstance(condition_expr, VariablesGroup):
             raise NotImplementedError(
                 "Where: The condition expression can't be a group of columns. Must be a single column."
             )
 
-        if isinstance(true_expr, dict) and isinstance(false_expr, dict):
+        if isinstance(true_expr, VariablesGroup) and isinstance(false_expr, VariablesGroup):
             true_values = list(true_expr.values())
             false_values = list(false_expr.values())
             if len(true_values) != len(false_values):
                 raise ValueError(
                     "Where: The number of values in the true and false expressions must match."
                 )
-            result = {}
+            result = VariablesGroup()
             for true_val, false_val, idx in zip(true_values, false_values, itertools.count()):
                 result[f"c{idx}"] = self._optimizer.fold_case(
                     ibis.case().when(condition_expr, true_val).else_(false_val).end()
                 )
-        elif isinstance(true_expr, dict) and not isinstance(false_expr, dict):
-            result = {}
+        elif isinstance(true_expr, VariablesGroup) and not isinstance(false_expr, VariablesGroup):
+            result = VariablesGroup()
             for idx, true_val in enumerate(true_expr.values()):
                 result[f"c{idx}"] = self._optimizer.fold_case(
                     ibis.case().when(condition_expr, true_val).else_(false_expr).end()
                 )
-        elif not isinstance(true_expr, dict) and isinstance(false_expr, dict):
-            result = {}
+        elif not isinstance(true_expr, VariablesGroup) and isinstance(false_expr, VariablesGroup):
+            result = VariablesGroup()
             for idx, false_val in enumerate(false_expr.values()):
                 result[f"c{idx}"] = self._optimizer.fold_case(
                     ibis.case().when(condition_expr, true_expr).else_(false_val).end()

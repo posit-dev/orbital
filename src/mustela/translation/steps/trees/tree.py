@@ -1,16 +1,23 @@
 import itertools
 
+import ibis
 
-def build_tree(translator):
-    # Estrarre gli attributi del nodo
-    nodes_treeids = translator._attributes["nodes_treeids"]
-    nodes_nodeids = translator._attributes["nodes_nodeids"]
-    nodes_modes = translator._attributes["nodes_modes"]
-    nodes_truenodeids = translator._attributes["nodes_truenodeids"]
-    nodes_falsenodeids = translator._attributes["nodes_falsenodeids"]
-    nodes_thresholds = translator._attributes["nodes_values"]
-    nodes_featureids = translator._attributes["nodes_featureids"]
-    nodes_missing_value_tracks_true = translator._attributes[
+from ...translator import Translator
+
+
+def build_tree(translator: Translator) -> dict[int, dict[int, dict]]:
+    """Build a tree based on nested dictionaries of nodes.
+    
+    The tree is built based on the node and attributes of the translator.
+    """
+    nodes_treeids: list[int] = translator._attributes["nodes_treeids"]
+    nodes_nodeids: list[int] = translator._attributes["nodes_nodeids"]
+    nodes_modes: list[str] = translator._attributes["nodes_modes"]
+    nodes_truenodeids: list[int] = translator._attributes["nodes_truenodeids"]
+    nodes_falsenodeids: list[int] = translator._attributes["nodes_falsenodeids"]
+    nodes_thresholds: list[float] = translator._attributes["nodes_values"]
+    nodes_featureids: list[int] = translator._attributes["nodes_featureids"]
+    nodes_missing_value_tracks_true: list[int] = translator._attributes[
         "nodes_missing_value_tracks_true"
     ]
     node = translator._node
@@ -30,17 +37,17 @@ def build_tree(translator):
     weights = {}
     if node.op_type == "TreeEnsembleClassifier":
         # Weights for classifier, in this case the weights are per-class
-        class_nodeids = translator._attributes["class_nodeids"]
-        class_treeids = translator._attributes["class_treeids"]
-        class_weights = translator._attributes["class_weights"]
-        weights_classid = translator._attributes["class_ids"]
+        class_nodeids: list[int] = translator._attributes["class_nodeids"]
+        class_treeids: list[int] = translator._attributes["class_treeids"]
+        class_weights: list[float] = translator._attributes["class_weights"]
+        weights_classid: list[int] = translator._attributes["class_ids"]
         assert (
             len(class_treeids)
             == len(class_nodeids)
             == len(class_weights)
             == len(weights_classid)
         )
-        classlabels = translator._attributes.get(
+        classlabels: None|list[str|int] = translator._attributes.get(
             "classlabels_strings"
         ) or translator._attributes.get("classlabels_int64s")
         if not classlabels:
@@ -54,9 +61,9 @@ def build_tree(translator):
             )
     elif node.op_type == "TreeEnsembleRegressor":
         # Weights for the regressor, in this case leaf nodes have only 1 weight
-        target_weights = translator._attributes["target_weights"]
-        target_nodeids = translator._attributes["target_nodeids"]
-        target_treeids = translator._attributes["target_treeids"]
+        target_weights: list[float] = translator._attributes["target_weights"]
+        target_nodeids: list[int] = translator._attributes["target_nodeids"]
+        target_treeids: list[int] = translator._attributes["target_treeids"]
         assert len(target_treeids) == len(target_nodeids) == len(target_weights)
         for tree_id, node_id, weight in zip(
             target_treeids, target_nodeids, target_weights
@@ -118,7 +125,7 @@ def build_tree(translator):
     return {tree_id: trees[tree_id][0] for tree_id in trees}
 
 
-def mode_to_condition(node, feature_expr):
+def mode_to_condition(node, feature_expr: ibis.Expr) -> ibis.Expr:
     threshold = node["treshold"]
     if node["mode"] == "BRANCH_LEQ":
         condition = feature_expr <= threshold

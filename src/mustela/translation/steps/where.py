@@ -1,4 +1,5 @@
 """Implementation of the Where operator."""
+
 import itertools
 
 import ibis
@@ -36,7 +37,9 @@ class WhereTranslator(Translator):
                 "Where: The condition expression can't be a group of columns. Must be a single column."
             )
 
-        if isinstance(true_expr, VariablesGroup) and isinstance(false_expr, VariablesGroup):
+        if isinstance(true_expr, VariablesGroup) and isinstance(
+            false_expr, VariablesGroup
+        ):
             true_values = list(true_expr.values())
             false_values = list(false_expr.values())
             if len(true_values) != len(false_values):
@@ -44,17 +47,23 @@ class WhereTranslator(Translator):
                     "Where: The number of values in the true and false expressions must match."
                 )
             result = VariablesGroup()
-            for true_val, false_val, idx in zip(true_values, false_values, itertools.count()):
+            for true_val, false_val, idx in zip(
+                true_values, false_values, itertools.count()
+            ):
                 result[f"c{idx}"] = self._optimizer.fold_case(
                     ibis.case().when(condition_expr, true_val).else_(false_val).end()
                 )
-        elif isinstance(true_expr, VariablesGroup) and not isinstance(false_expr, VariablesGroup):
+        elif isinstance(true_expr, VariablesGroup) and not isinstance(
+            false_expr, VariablesGroup
+        ):
             result = VariablesGroup()
             for idx, true_val in enumerate(true_expr.values()):
                 result[f"c{idx}"] = self._optimizer.fold_case(
                     ibis.case().when(condition_expr, true_val).else_(false_expr).end()
                 )
-        elif not isinstance(true_expr, VariablesGroup) and isinstance(false_expr, VariablesGroup):
+        elif not isinstance(true_expr, VariablesGroup) and isinstance(
+            false_expr, VariablesGroup
+        ):
             result = VariablesGroup()
             for idx, false_val in enumerate(false_expr.values()):
                 result[f"c{idx}"] = self._optimizer.fold_case(

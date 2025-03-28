@@ -1,4 +1,5 @@
 """Implementation of the Reshape operator."""
+
 from ..translator import Translator
 
 
@@ -11,6 +12,7 @@ class ReshapeTranslator(Translator):
     the same expressions/table so we can't really change the shape of a column
     as it implies changing its length.
     """
+
     def process(self) -> None:
         """Performs the translation and set the output variable."""
 
@@ -25,7 +27,6 @@ class ReshapeTranslator(Translator):
         if not isinstance(shape, list) or not isinstance(shape[0], int):
             # Reshape explicitly requires ints.
             raise NotImplementedError("Reshape: requires integer values for the shape.")
-
 
         if shape[0] != -1:
             # We don't support changing the numer of rows

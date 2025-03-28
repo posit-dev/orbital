@@ -1,4 +1,5 @@
 """Implementation of the Imputer operator."""
+
 import ibis
 
 from ..translator import Translator
@@ -19,9 +20,7 @@ class ImputerTranslator(Translator):
 
         imputed_values = self._attributes["imputed_value_floats"]
         if not isinstance(imputed_values, (tuple, list)):
-            raise ValueError(
-                "Imputer: imputed_value must be a list or tuple of floats"
-            )
+            raise ValueError("Imputer: imputed_value must be a list or tuple of floats")
 
         expr = self._variables.consume(self.inputs[0])
         if isinstance(expr, VariablesGroup):

@@ -1,4 +1,5 @@
 """Implementation of the OneHotEncoder operator."""
+
 import typing
 
 import ibis
@@ -31,13 +32,17 @@ class OneHotEncoderTranslator(Translator):
             raise ValueError("OneHotEncoder: input expression not found")
 
         casted_variables = [
-            self._optimizer.fold_cast(typing.cast(ibis.expr.types.BooleanValue, (input_expr == cat)).cast("float64")).name(
-                self.variable_unique_short_alias("onehot")
-            )
+            self._optimizer.fold_cast(
+                typing.cast(ibis.expr.types.BooleanValue, (input_expr == cat)).cast(
+                    "float64"
+                )
+            ).name(self.variable_unique_short_alias("onehot"))
             for cat in cats
         ]
 
         # OneHot encoded features are usually consumed multiple times
         # by subsequent operations, so preserving them makes sense.
         casted_variables = self.preserve(*casted_variables)
-        self.set_output(VariablesGroup({cat: casted_variables[i] for i, cat in enumerate(cats)}))
+        self.set_output(
+            VariablesGroup({cat: casted_variables[i] for i, cat in enumerate(cats)})
+        )

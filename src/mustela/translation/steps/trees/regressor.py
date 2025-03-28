@@ -1,4 +1,5 @@
 """Implement regression based on trees"""
+
 import typing
 
 import ibis
@@ -14,7 +15,7 @@ class TreeEnsembleRegressorTranslator(Translator):
     This node is foundational for most tree based models:
     - Gradient Boosted Trees
     - Decision Trees
-    
+
     The parsing of the tree is done by the :func:`build_tree` function,
     which results in a dictionary of trees.
 
@@ -35,7 +36,7 @@ class TreeEnsembleRegressorTranslator(Translator):
         prediction_expr = self.build_regressor(input_exr)
         self.set_output(prediction_expr)
 
-    def build_regressor(self, input_expr: VariablesGroup|ibis.Expr)-> ibis.Expr:
+    def build_regressor(self, input_expr: VariablesGroup | ibis.Expr) -> ibis.Expr:
         """Build the regression expression"""
         optimizer = self._optimizer
         ensemble_trees = build_tree(self)
@@ -78,7 +79,9 @@ class TreeEnsembleRegressorTranslator(Translator):
             total_value = optimizer.fold_operation(total_value + val)
 
         # According to ONNX doc: can be left unassigned (assumed 0)
-        base_values = typing.cast(list[float], self._attributes.get("base_values", [0.0]))
+        base_values = typing.cast(
+            list[float], self._attributes.get("base_values", [0.0])
+        )
         if len(base_values) != 1:
             raise NotImplementedError("Base values with length != 1 not supported")
         total_value = optimizer.fold_operation(

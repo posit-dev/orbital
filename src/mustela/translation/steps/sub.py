@@ -1,4 +1,5 @@
 """Implementation of the Sub operator."""
+
 import typing
 
 import ibis
@@ -14,6 +15,7 @@ class SubTranslator(Translator):
     the input variables and produces a new output variable that computes
     based on the Sub operation.
     """
+
     def process(self) -> None:
         """Performs the translation and set the output variable."""
         # https://onnx.ai/onnx/operators/onnx__Sub.html
@@ -22,17 +24,21 @@ class SubTranslator(Translator):
         first_operand = self._variables.consume(self._inputs[0])
         second_operand = self._variables.get_initializer_value(self._inputs[1])
         if second_operand is None or not isinstance(second_operand, (list, tuple)):
-            raise NotImplementedError("Sub: Second input (divisor) must be a constant list.")
+            raise NotImplementedError(
+                "Sub: Second input (divisor) must be a constant list."
+            )
 
         type_check_var = first_operand
         if isinstance(type_check_var, dict):
-            type_check_var = next(iter(type_check_var.values()), None)        
+            type_check_var = next(iter(type_check_var.values()), None)
         if not isinstance(type_check_var, ibis.expr.types.NumericValue):
             raise ValueError("Sub: The first operand must be a numeric value.")
 
         sub_values = list(second_operand)
         if isinstance(first_operand, dict):
-            first_operand = typing.cast(dict[str, ibis.expr.types.NumericValue], first_operand)
+            first_operand = typing.cast(
+                dict[str, ibis.expr.types.NumericValue], first_operand
+            )
             struct_fields = list(first_operand.keys())
             assert len(sub_values) == len(struct_fields), (
                 f"The number of values in the initializer ({len(sub_values)}) must match the number of fields ({len(struct_fields)}"

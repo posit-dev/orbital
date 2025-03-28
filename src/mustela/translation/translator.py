@@ -1,4 +1,5 @@
 """Base class for the translators of each pipeline step."""
+
 import abc
 
 import ibis
@@ -14,6 +15,7 @@ class Translator(abc.ABC):
 
     This class is responsible for translating pipeline steps into Ibis expressions.
     """
+
     def __init__(
         self,
         table: ibis.Table,
@@ -63,7 +65,7 @@ class Translator(abc.ABC):
     @property
     def mutated_table(self) -> ibis.Table:
         """The table as it is being mutated by the translator.
-        
+
         This is required for the translator to be able too set
         temporary variables that are not part of the final output.
 
@@ -74,9 +76,12 @@ class Translator(abc.ABC):
         """
         return self._table
 
-    def set_output(self, value: ibis.Deferred | ibis.Expr | VariablesGroup | onnx_utils.VariableTypes) -> None:
+    def set_output(
+        self,
+        value: ibis.Deferred | ibis.Expr | VariablesGroup | onnx_utils.VariableTypes,
+    ) -> None:
         """Set the output variable for the translator.
-        
+
         This is only allowed if the translator has a single output.
         Otherwise the node is expected to explicitly set every variable.
         """
@@ -88,7 +93,7 @@ class Translator(abc.ABC):
 
     def preserve(self, *variables) -> list[ibis.Expr]:
         """Preserve the given variables in the table.
-        
+
         This causes the variables to be projected in the table,
         so that future expressions can use them instead of
         repeating the expression.
@@ -109,9 +114,9 @@ class Translator(abc.ABC):
         # so we'll leave it for now.
         return [self._table[cname] for cname in mutate_args]
 
-    def variable_unique_short_alias(self, prefix: str|None = None) -> str:
+    def variable_unique_short_alias(self, prefix: str | None = None) -> str:
         """Generate a unique short name for a variable.
-        
+
         This is generally used to generate names for temporary variables
         that are used in the translation process.
 

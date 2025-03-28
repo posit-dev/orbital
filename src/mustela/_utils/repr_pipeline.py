@@ -66,7 +66,9 @@ class ParsedPipelineStr:
             return self._shorten(str(get_attr_value(attr)))
 
         indent = "\n        "
-        return indent + indent.join((f"{attr.name}={_attr_value(attr)}" for attr in attributes))
+        return indent + indent.join(
+            (f"{attr.name}={_attr_value(attr)}" for attr in attributes)
+        )
 
     def _shorten(self, value: str) -> str:
         """Shorten a string to maxlen characters."""

@@ -1,5 +1,5 @@
-
 """Implementation of the LabelEncoder operator."""
+
 import ibis
 
 from ..translator import Translator
@@ -48,9 +48,7 @@ class LabelEncoderTranslator(Translator):
         if not isinstance(mapping_values, (tuple, list)) or not isinstance(
             mapping_keys, (tuple, list)
         ):
-            raise ValueError(
-                "LabelEncoder: mapping must be a list of keys and values"
-            )
+            raise ValueError("LabelEncoder: mapping must be a list of keys and values")
 
         if default is None:
             value_sample = mapping_values[0]
@@ -69,7 +67,7 @@ class LabelEncoderTranslator(Translator):
         for k, v in zip(mapping_keys, mapping_values):
             case_expr = case_expr.when(input_values == k, v)
         case_expr = case_expr.else_(default).end()
-        
+
         if not isinstance(case_expr, ibis.Value):
             raise NotImplementedError("Deferred case expression not supported")
         case_expr = self._optimizer.fold_case(case_expr)

@@ -1,6 +1,5 @@
 """Defines the translation step for the Gather operation."""
 
-
 from mustela.translation.variables import VariablesGroup
 
 from ..translator import Translator
@@ -31,11 +30,13 @@ class GatherTranslator(Translator):
             raise NotImplementedError(
                 f"Gather: axis {axis} not supported, only selecting columns (axis=1) is supported"
             )
-        
+
         expr = self._variables.consume(self.inputs[0])
         idx = self._variables.get_initializer_value(self.inputs[1])
         if not isinstance(idx, (tuple, list)) or len(idx) != 1:
-            raise NotImplementedError("Gather second operand must a list of one element")
+            raise NotImplementedError(
+                "Gather second operand must a list of one element"
+            )
 
         idx = idx[0]  # TODO: Support gathering multiple columns
         if not isinstance(idx, int):

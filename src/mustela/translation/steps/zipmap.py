@@ -1,4 +1,5 @@
 """Implementation of the ZipMap operator."""
+
 import typing
 
 import ibis
@@ -22,28 +23,28 @@ class ZipMapTranslator(Translator):
         # https://onnx.ai/onnx/operators/onnx_aionnxml_ZipMap.html
         data = self._variables.consume(self.inputs[0])
 
-        int_labels = typing.cast(list[int]|None, self._attributes.get("classlabels_int64s"))
-        string_labels = typing.cast(list[str]|None, self._attributes.get("classlabels_strings"))
+        int_labels = typing.cast(
+            list[int] | None, self._attributes.get("classlabels_int64s")
+        )
+        string_labels = typing.cast(
+            list[str] | None, self._attributes.get("classlabels_strings")
+        )
         if string_labels is not None:
             labels = string_labels
         elif int_labels is not None:
             labels = [str(i) for i in int_labels]
         else:
-            raise ValueError(
-                "ZipMap: required mapping attributes not found."
-            )
+            raise ValueError("ZipMap: required mapping attributes not found.")
 
         if isinstance(data, VariablesGroup):
             if len(labels) != len(data):
-                raise ValueError(
-                    "ZipMap: The number of labels and columns must match."
-                )
-            result = VariablesGroup({label: value for label, value in zip(labels, data.values())})
+                raise ValueError("ZipMap: The number of labels and columns must match.")
+            result = VariablesGroup(
+                {label: value for label, value in zip(labels, data.values())}
+            )
         elif isinstance(data, ibis.Expr):
             if len(labels) != 1:
-                raise ValueError(
-                    "ZipMap: The number of labels and columns must match."
-                )
+                raise ValueError("ZipMap: The number of labels and columns must match.")
             result = VariablesGroup({label: data for label in labels})
         else:
             raise ValueError(

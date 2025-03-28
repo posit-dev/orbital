@@ -1,4 +1,5 @@
 """Prase tree definitions and return a graph of nodes."""
+
 import itertools
 import typing
 
@@ -9,19 +10,25 @@ from ...translator import Translator
 
 def build_tree(translator: Translator) -> dict[int, dict[int, dict]]:
     """Build a tree based on nested dictionaries of nodes.
-    
+
     The tree is built based on the node and attributes of the translator.
     """
     nodes_treeids = typing.cast(list[int], translator._attributes["nodes_treeids"])
     nodes_nodeids = typing.cast(list[int], translator._attributes["nodes_nodeids"])
     nodes_modes = typing.cast(list[str], translator._attributes["nodes_modes"])
-    nodes_truenodeids = typing.cast(list[int], translator._attributes["nodes_truenodeids"])
-    nodes_falsenodeids = typing.cast(list[int], translator._attributes["nodes_falsenodeids"])
+    nodes_truenodeids = typing.cast(
+        list[int], translator._attributes["nodes_truenodeids"]
+    )
+    nodes_falsenodeids = typing.cast(
+        list[int], translator._attributes["nodes_falsenodeids"]
+    )
     nodes_thresholds = typing.cast(list[float], translator._attributes["nodes_values"])
-    nodes_featureids = typing.cast(list[int], translator._attributes["nodes_featureids"])
-    nodes_missing_value_tracks_true = typing.cast(list[int], translator._attributes[
-        "nodes_missing_value_tracks_true"
-    ])
+    nodes_featureids = typing.cast(
+        list[int], translator._attributes["nodes_featureids"]
+    )
+    nodes_missing_value_tracks_true = typing.cast(
+        list[int], translator._attributes["nodes_missing_value_tracks_true"]
+    )
     node = translator._node
 
     # Assert a few things to ensure we don't ed up genearting a tree with wrong data
@@ -41,7 +48,9 @@ def build_tree(translator: Translator) -> dict[int, dict[int, dict]]:
         # Weights for classifier, in this case the weights are per-class
         class_nodeids = typing.cast(list[int], translator._attributes["class_nodeids"])
         class_treeids = typing.cast(list[int], translator._attributes["class_treeids"])
-        class_weights = typing.cast(list[float], translator._attributes["class_weights"])
+        class_weights = typing.cast(
+            list[float], translator._attributes["class_weights"]
+        )
         weights_classid = typing.cast(list[int], translator._attributes["class_ids"])
         assert (
             len(class_treeids)
@@ -49,9 +58,11 @@ def build_tree(translator: Translator) -> dict[int, dict[int, dict]]:
             == len(class_weights)
             == len(weights_classid)
         )
-        classlabels = typing.cast(None|list[str|int], translator._attributes.get(
-            "classlabels_strings"
-        ) or translator._attributes.get("classlabels_int64s"))
+        classlabels = typing.cast(
+            None | list[str | int],
+            translator._attributes.get("classlabels_strings")
+            or translator._attributes.get("classlabels_int64s"),
+        )
         if not classlabels:
             raise ValueError("Missing class labels when building tree")
 
@@ -63,9 +74,15 @@ def build_tree(translator: Translator) -> dict[int, dict[int, dict]]:
             )
     elif node.op_type == "TreeEnsembleRegressor":
         # Weights for the regressor, in this case leaf nodes have only 1 weight
-        target_weights = typing.cast(list[float], translator._attributes["target_weights"])
-        target_nodeids = typing.cast(list[int], translator._attributes["target_nodeids"])
-        target_treeids = typing.cast(list[int], translator._attributes["target_treeids"])
+        target_weights = typing.cast(
+            list[float], translator._attributes["target_weights"]
+        )
+        target_nodeids = typing.cast(
+            list[int], translator._attributes["target_nodeids"]
+        )
+        target_treeids = typing.cast(
+            list[int], translator._attributes["target_treeids"]
+        )
         assert len(target_treeids) == len(target_nodeids) == len(target_weights)
         for tree_id, node_id, weight in zip(
             target_treeids, target_nodeids, target_weights

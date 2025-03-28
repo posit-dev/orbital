@@ -123,11 +123,15 @@ class Optimizer:
                 result.extend(group)
         return result
 
-    def fold_contiguous_sum(self, lst: list[ibis.expr.types.NumericValue]) -> list[ibis.expr.types.NumericValue]:
+    def fold_contiguous_sum(
+        self, lst: list[ibis.expr.types.NumericValue]
+    ) -> list[ibis.expr.types.NumericValue]:
         """Precompute constants in a list of sums"""
         return self._fold_associative_op_contiguous(lst, operator.add)
 
-    def fold_contiguous_product(self, lst: list[ibis.expr.types.NumericValue]) -> list[ibis.expr.types.NumericValue]:
+    def fold_contiguous_product(
+        self, lst: list[ibis.expr.types.NumericValue]
+    ) -> list[ibis.expr.types.NumericValue]:
         """Precompute constants in a list of multiplications"""
         return self._fold_associative_op_contiguous(lst, operator.mul)
 
@@ -285,7 +289,9 @@ class Optimizer:
         if op_class in self.BINARY_OPS:
             left_val = inputs[0].value
             right_val = inputs[1].value
-            result = self.BINARY_OPS[typing.cast(type[Binary], op_class)](left_val, right_val)
+            result = self.BINARY_OPS[typing.cast(type[Binary], op_class)](
+                left_val, right_val
+            )
             return self._ensure_expr(result)
         elif op_class in self.UNARY_OPS and len(inputs) == 1:
             result = self.UNARY_OPS[typing.cast(type[Unary], op_class)](inputs[0].value)

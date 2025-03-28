@@ -1,4 +1,5 @@
 """Implement classification based on trees"""
+
 import typing
 
 import ibis
@@ -16,7 +17,7 @@ class TreeEnsembleClassifierTranslator(Translator):
     - Random Forest
     - Gradient Boosted Trees
     - Decision Trees
-    
+
     The parsing of the tree is done by the :func:`build_tree` function,
     which results in a dictionary of trees.
 
@@ -31,7 +32,7 @@ class TreeEnsembleClassifierTranslator(Translator):
         """Performs the translation and set the output variable."""
         # https://onnx.ai/onnx/operators/onnx_aionnxml_TreeEnsembleClassifier.html
         # This is deprecated in ONNX but it's what skl2onnx uses.
-        
+
         input_exr = self._variables.consume(self.inputs[0])
         if not isinstance(input_exr, (ibis.Expr, VariablesGroup)):
             raise ValueError(
@@ -47,14 +48,16 @@ class TreeEnsembleClassifierTranslator(Translator):
             else:
                 raise NotImplementedError(
                     f"Post transform {post_transform} not implemented."
-                ) 
+                )
 
         self._variables[self.outputs[0]] = label_expr
         self._variables[self.outputs[1]] = prob_colgroup
 
-    def build_classifier(self, input_expr: ibis.Expr|VariablesGroup) -> tuple[ibis.Expr, VariablesGroup]:
+    def build_classifier(
+        self, input_expr: ibis.Expr | VariablesGroup
+    ) -> tuple[ibis.Expr, VariablesGroup]:
         """Build the classification expression and the probabilities expressions
-        
+
         Return the classification expression as the first argument and a group of
         variables (one for each category) for the probability expressions.
         """

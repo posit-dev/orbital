@@ -8,7 +8,7 @@ from ..variables import VariablesGroup
 
 class ArrayFeatureExtractorTranslator(Translator):
     """Processes an ArrayFeatureExtractor node and updates the variables with the output expression.
-    
+
     ArrayFeatureExtractor can be considered the opposit of :class:`ConactTranslator`, as
     in most cases it will be used to pick one or more features out of a group of column
     previously concatenated, or to pick a specific feature out of the result of an ArgMax operation.
@@ -28,6 +28,7 @@ class ArrayFeatureExtractorTranslator(Translator):
     the last index would be the column index. In case of single columns,
     instead the index is the index of a row like it would be with a 1D tensor.
     """
+
     def process(self) -> None:
         """Performs the translation and set the output variable."""
         # https://onnx.ai/onnx/operators/onnx_aionnxml_ArrayFeatureExtractor.html
@@ -44,25 +45,33 @@ class ArrayFeatureExtractorTranslator(Translator):
             data = list(data.values())
 
             if not isinstance(indices, (list, tuple)):
-                raise ValueError("ArrayFeatureExtractor expects a list of indices as input.")
+                raise ValueError(
+                    "ArrayFeatureExtractor expects a list of indices as input."
+                )
 
             if len(indices) > len(data_keys):
-                raise ValueError("Indices requested are more than the available numer of columns.")
-            
+                raise ValueError(
+                    "Indices requested are more than the available numer of columns."
+                )
+
             # Pick only the columns that are in the list of indicies.
             result = VariablesGroup({data_keys[i]: data[i] for i in indices})
         elif isinstance(data, (tuple, list)):
-            # We are selecting values out of a list of values
-            # This is usually used to select "classes" out of a list of
+            # We are selecting values out of a list of values
+            # This is usually used to select "classes" out of a list of
             # possible values based on the variables that represents those classes.
             if not isinstance(indices, ibis.expr.types.Column):
-                raise ValueError("ArrayFeatureExtractor expects a column as indices when picking from a group of values.")
+                raise ValueError(
+                    "ArrayFeatureExtractor expects a column as indices when picking from a group of values."
+                )
 
             case_expr = ibis.case()
             for i, col in enumerate(data):
                 case_expr = case_expr.when(indices == i, col)
             result = case_expr.else_(ibis.null()).end()
         else:
-            raise NotImplementedError("ArrayFeatureExtractor only supports column groups or lists of constants as input.")
+            raise NotImplementedError(
+                "ArrayFeatureExtractor only supports column groups or lists of constants as input."
+            )
 
         self.set_output(result)

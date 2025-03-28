@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 EXAMPLES_DIR=$(dirname "${BASH_SOURCE[0]}")
 
+export ASSERT=1  # Enable assertions in the examples
+
 for example in ${EXAMPLES_DIR}/pipeline_*.py; do
     echo "Running example: ${example}"
     time python ${example} > test_examples.log 2>&1

@@ -1,3 +1,4 @@
+import os
 import logging
 
 import ibis
@@ -14,7 +15,9 @@ from sklearn.tree import DecisionTreeRegressor
 import mustela
 import mustela.types
 
-PRINT_SQL = False
+PRINT_SQL = int(os.environ.get("PRINTSQL", "0"))
+ASSERT = int(os.environ.get("ASSERT", "0"))
+
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("mustela").setLevel(logging.INFO)  # Set DEBUG to see translation process.
 

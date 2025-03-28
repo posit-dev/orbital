@@ -1,7 +1,9 @@
+import os
 import logging
 
 import ibis
 import pyarrow as pa
+import numpy as np
 from sklearn.compose import ColumnTransformer
 from sklearn.datasets import load_iris
 from sklearn.linear_model import LinearRegression
@@ -11,7 +13,8 @@ from sklearn.preprocessing import StandardScaler
 import mustela
 import mustela.types
 
-PRINT_SQL = True
+PRINT_SQL = int(os.environ.get("PRINTSQL", "0"))
+ASSERT = int(os.environ.get("ASSERT", "0"))
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("mustela").setLevel(logging.INFO)  # Set DEBUG to see translation process.
@@ -70,8 +73,13 @@ if PRINT_SQL:
     print(con.raw_sql(sql).df())
 
 print("\nPrediction with Ibis")
-print(ibis_expression.execute())
+ibis_predictions = ibis_expression.execute()
+print(ibis_predictions)
 
 print("\nPrediction with SKLearn")
 predictions = pipeline.predict(example_data.to_pandas())
 print(predictions)
+
+if ASSERT:
+    assert np.allclose(ibis_predictions["variable"], predictions), "Predictions do not match!"
+    print("\nPredictions match!")

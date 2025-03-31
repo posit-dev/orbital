@@ -8,7 +8,8 @@ BASIC_FEATURES = {
     "W": types.FloatColumnType(),
     "B": types.FloatColumnType(),
 }
-BASIC_MODEL = onnx.helper.make_model(onnx.parser.parse_graph("""
+BASIC_MODEL = onnx.helper.make_model(
+    onnx.parser.parse_graph("""
     agraph 
     (float[N, 128] X, float[128,10] W, float[10] B) => (float[N] C) < float Z = {123.0}, float[1] Q = {456.0} >
     {
@@ -16,13 +17,16 @@ BASIC_MODEL = onnx.helper.make_model(onnx.parser.parse_graph("""
         S = Add(T, Z)
         C = Softmax(S)
     }
-"""))
+""")
+)
 
 
 class TestParsedPipelineRepr:
     def test_repr(self):
         parsed_pipeline = ParsedPipeline._from_onnx_model(BASIC_MODEL, BASIC_FEATURES)
-        assert str(parsed_pipeline) == """\
+        assert (
+            str(parsed_pipeline)
+            == """\
 ParsedPipeline(
   features={
     X: FloatColumnType()
@@ -46,3 +50,4 @@ ParsedPipeline(
   ],
 )
 """
+        )

@@ -21,7 +21,7 @@ class TestPipelineParsing:
     DATA_TYPES = {
         "feature1": types.DoubleColumnType(),
         "feature2": types.DoubleColumnType(),
-        "feature3": types.DoubleColumnType()
+        "feature3": types.DoubleColumnType(),
     }
 
     def test_need_to_parse(self):
@@ -44,8 +44,18 @@ class TestPipelineParsing:
         assert parsed._model is not None
 
         model_graph = MessageToDict(parsed._model.graph)
-        assert {i["name"] for i in model_graph["input"]} == {"feature1", "feature2", "feature3"}
-        assert {n["name"] for n in model_graph["node"]} == {"Di_Div", "FeatureVectorizer", "Imputer", "N1", "Su_Sub"}
+        assert {i["name"] for i in model_graph["input"]} == {
+            "feature1",
+            "feature2",
+            "feature3",
+        }
+        assert {n["name"] for n in model_graph["node"]} == {
+            "Di_Div",
+            "FeatureVectorizer",
+            "Imputer",
+            "N1",
+            "Su_Sub",
+        }
 
     def test_dump_load_pipeline(self, tmp_path):
         df = pd.DataFrame(self.DF_DATA)
@@ -69,6 +79,7 @@ class TestPipelineParsing:
 
     def test_load_incompatible_version(self, tmp_path):
         import pickle
+
         header = {"version": 2, "features": {}}
         header_data = pickle.dumps(header)
         header_len = len(header_data).to_bytes(4, "big")
@@ -77,6 +88,6 @@ class TestPipelineParsing:
         with open(filename, "wb") as f:
             f.write(header_len)
             f.write(header_data)
-        
+
         with pytest.raises(ast.UnsupportedFormatVersion):
             ast.ParsedPipeline.load(filename)

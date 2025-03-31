@@ -30,7 +30,9 @@ class LinearRegressorTranslator(Translator):
             raise NotImplementedError("Post transform is not implemented.")
 
         if len(intercepts) not in [0, targets]:
-            raise ValueError("LinearRegressor: intercepts length must match targets or be empty.")
+            raise ValueError(
+                "LinearRegressor: intercepts length must match targets or be empty."
+            )
 
         if len(self._inputs) != 1:
             raise ValueError("LinearRegressor node must have exactly 1 input.")
@@ -38,11 +40,15 @@ class LinearRegressorTranslator(Translator):
         input_operand = self._variables.consume(self._inputs[0])
 
         if isinstance(input_operand, dict):
-            input_operand = typing.cast(dict[str, ibis.expr.types.NumericValue], input_operand)
+            input_operand = typing.cast(
+                dict[str, ibis.expr.types.NumericValue], input_operand
+            )
             num_features = len(input_operand)
 
             if len(coefficients) != targets * num_features:
-                raise ValueError("Coefficients length must equal targets number of input fields.")
+                raise ValueError(
+                    "Coefficients length must equal targets number of input fields."
+                )
 
             results = {}
             fields = list(input_operand.values())
@@ -60,7 +66,9 @@ class LinearRegressorTranslator(Translator):
 
                 # TODO: apply post_transform here if needed
 
-                results[f"target_{target_idx}"] = self._optimizer.fold_operation(prediction)
+                results[f"target_{target_idx}"] = self._optimizer.fold_operation(
+                    prediction
+                )
 
             self.set_output(VariablesGroup(results))
 
@@ -68,7 +76,9 @@ class LinearRegressorTranslator(Translator):
             input_operand = typing.cast(ibis.expr.types.NumericValue, input_operand)
 
             if targets != 1 or len(coefficients) != 1:
-                raise ValueError("Single column input expects exactly one target and one coefficient.")
+                raise ValueError(
+                    "Single column input expects exactly one target and one coefficient."
+                )
 
             intercept = intercepts[0] if intercepts else 0.0
             prediction = (input_operand * coefficients[0]) + intercept

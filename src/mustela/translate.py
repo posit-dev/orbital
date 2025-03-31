@@ -17,14 +17,14 @@ from .translation.steps.gather import GatherTranslator
 from .translation.steps.identity import IdentityTranslator
 from .translation.steps.imputer import ImputerTranslator
 from .translation.steps.labelencoder import LabelEncoderTranslator
+from .translation.steps.linearclass import LinearClassifierTranslator
+from .translation.steps.linearreg import LinearRegressorTranslator
 from .translation.steps.matmul import MatMulTranslator
 from .translation.steps.onehotencoder import OneHotEncoderTranslator
 from .translation.steps.reshape import ReshapeTranslator
 from .translation.steps.scaler import ScalerTranslator
 from .translation.steps.softmax import SoftmaxTranslator
 from .translation.steps.sub import SubTranslator
-from .translation.steps.linearreg import LinearRegressorTranslator
-from .translation.steps.linearclass import LinearClassifierTranslator
 from .translation.steps.trees import (
     TreeEnsembleClassifierTranslator,
     TreeEnsembleRegressorTranslator,

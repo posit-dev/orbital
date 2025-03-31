@@ -76,7 +76,7 @@ class Translator(abc.ABC):
     def set_output(
         self,
         value: ibis.Deferred | ibis.Expr | VariablesGroup | onnx_utils.VariableTypes,
-        index: int = 0
+        index: int = 0,
     ) -> None:
         """Set the output variable for the translator.
 

@@ -41,7 +41,7 @@ class ScalerTranslator(Translator):
                 dict[str, ibis.expr.types.NumericValue], input_operand
             )
 
-            # If the attributes are len=1, 
+            # If the attributes are len=1,
             # it means to apply the same value to all inputs.
             num_fields = len(input_operand)
             if len(offset) == 1:
@@ -54,14 +54,20 @@ class ScalerTranslator(Translator):
                     "Scaler: offset and scale lists must match the number of input fields."
                 )
 
-            self.set_output(VariablesGroup({
-                field: self._optimizer.fold_operation((val - offset[i]) * scale[i])
-                for i, (field, val) in enumerate(input_operand.items())
-            }))
+            self.set_output(
+                VariablesGroup(
+                    {
+                        field: self._optimizer.fold_operation(
+                            (val - offset[i]) * scale[i]
+                        )
+                        for i, (field, val) in enumerate(input_operand.items())
+                    }
+                )
+            )
         else:
             input_operand = typing.cast(ibis.expr.types.NumericValue, input_operand)
             offset = offset[0]
             scale = scale[0]
-            self.set_output(self._optimizer.fold_operation(
-                (input_operand - offset) * scale
-            ))
+            self.set_output(
+                self._optimizer.fold_operation((input_operand - offset) * scale)
+            )

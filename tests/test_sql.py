@@ -1,19 +1,20 @@
+import sqlite3
+
+import duckdb
+import numpy as np
 import onnx
+import pandas as pd
+import pytest
+from sklearn.compose import ColumnTransformer
+from sklearn.datasets import load_diabetes, load_iris
+from sklearn.feature_selection import SelectKBest, f_regression
+from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 import mustela
 from mustela import types
 from mustela.ast import ParsedPipeline
-import pytest
-import numpy as np
-import pandas as pd
-from sklearn.datasets import load_iris, load_diabetes
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
-from sklearn.feature_selection import SelectKBest, f_regression
-import sqlite3
-import duckdb
 
 BASIC_FEATURES = {
     "sepal_length": types.FloatColumnType(),

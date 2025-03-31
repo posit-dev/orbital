@@ -1,0 +1,32 @@
+name: Run tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+      
+      - name: Install uv
+        run: |
+          pip install uv
+      
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+
+      - name: Run Test Suite
+        run: |
+          uv run pytest -v --tb=short --disable-warnings --maxfail=1 --cov=mustela

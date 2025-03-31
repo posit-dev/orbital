@@ -69,5 +69,7 @@ class ScalerTranslator(Translator):
             first_offset = offset[0]
             first_scale = scale[0]
             self.set_output(
-                self._optimizer.fold_operation((input_operand - first_offset) * first_scale)
+                self._optimizer.fold_operation(
+                    (input_operand - first_offset) * first_scale
+                )
             )

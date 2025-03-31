@@ -21,7 +21,7 @@ BASIC_MODEL = onnx.parser.parse_graph("""
 
 
 class FakeTranslator(Translator):
-    def translate(self):
+    def process(self):
         pass
 
 
@@ -30,11 +30,11 @@ class TestGraphVariables:
         variables = GraphVariables(BASIC_TABLE, BASIC_MODEL)
         assert set(variables._variables.keys()) == {"X", "W", "B"}
         assert variables._consumed == set()
-        assert variables._initializers == {'Q': [456.0], 'Z': 123.0}
+        assert variables._initializers_values == {'Q': [456.0], 'Z': 123.0}
 
 
 class TestTranslator:
     def test_creation(self):
         variables = GraphVariables(BASIC_TABLE, BASIC_MODEL)
-        translator = FakeTranslator(BASIC_MODEL.node[0], variables)
+        translator = FakeTranslator(None, BASIC_MODEL.node[0], variables, None)
         assert translator._attributes == {'alpha': 0.5}

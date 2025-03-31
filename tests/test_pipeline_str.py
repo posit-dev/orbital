@@ -32,7 +32,8 @@ ParsedPipeline(
   steps=[
     T=MatMul(
       inputs: X, W,
-      attributes: alpha=0.5
+      attributes: 
+        alpha=0.5
     )
     S=Add(
       inputs: T, Z=123.0,

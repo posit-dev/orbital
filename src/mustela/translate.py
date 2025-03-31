@@ -20,8 +20,11 @@ from .translation.steps.labelencoder import LabelEncoderTranslator
 from .translation.steps.matmul import MatMulTranslator
 from .translation.steps.onehotencoder import OneHotEncoderTranslator
 from .translation.steps.reshape import ReshapeTranslator
+from .translation.steps.scaler import ScalerTranslator
 from .translation.steps.softmax import SoftmaxTranslator
 from .translation.steps.sub import SubTranslator
+from .translation.steps.linearreg import LinearRegressorTranslator
+from .translation.steps.linearclass import LinearClassifierTranslator
 from .translation.steps.trees import (
     TreeEnsembleClassifierTranslator,
     TreeEnsembleRegressorTranslator,
@@ -45,6 +48,7 @@ TRANSLATORS: dict[str, type[Translator]] = {
     "Add": AddTranslator,
     "Div": DivTranslator,
     "Reshape": ReshapeTranslator,
+    "Scaler": ScalerTranslator,
     "Gather": GatherTranslator,
     "ArrayFeatureExtractor": ArrayFeatureExtractorTranslator,
     "Identity": IdentityTranslator,
@@ -57,6 +61,8 @@ TRANSLATORS: dict[str, type[Translator]] = {
     "Softmax": SoftmaxTranslator,
     "TreeEnsembleClassifier": TreeEnsembleClassifierTranslator,
     "TreeEnsembleRegressor": TreeEnsembleRegressorTranslator,
+    "LinearRegressor": LinearRegressorTranslator,
+    "LinearClassifier": LinearClassifierTranslator,
 }
 
 log = logging.getLogger(__name__)

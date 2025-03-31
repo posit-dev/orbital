@@ -35,9 +35,6 @@ class Translator(abc.ABC):
         self._optimizer = optimizer
         self._inputs = node.input
         self._outputs = node.output
-        self._output_name = node.output[
-            0
-        ]  # most nodes have a single output, this is convenient.
         self._attributes = {
             attr.name: onnx_utils.get_attr_value(attr) for attr in node.attribute
         }
@@ -79,17 +76,16 @@ class Translator(abc.ABC):
     def set_output(
         self,
         value: ibis.Deferred | ibis.Expr | VariablesGroup | onnx_utils.VariableTypes,
+        index: int = 0
     ) -> None:
         """Set the output variable for the translator.
 
         This is only allowed if the translator has a single output.
         Otherwise the node is expected to explicitly set every variable.
         """
-        if len(self.outputs) > 1:
-            raise ValueError("Translator has more than one output")
         if not isinstance(value, (ibis.Expr, VariablesGroup)):
             value = ibis.literal(value)
-        self._variables[self._output_name] = value
+        self._variables[self.outputs[index]] = value
 
     def preserve(self, *variables) -> list[ibis.Expr]:
         """Preserve the given variables in the table.

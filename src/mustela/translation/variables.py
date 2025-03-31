@@ -54,7 +54,7 @@ class VariablesGroup(dict[str, ibis.Expr]):
         return typing.cast(list[ibis.Value], values)
 
 
-class NumericVariablesGroup(VariablesGroup):
+class NumericVariablesGroup(dict[str, ibis.expr.types.NumericValue]):
     """A group of numeric variables that can be used to represent a set of expressions.
 
     This is used to represent a group of numeric columns in a table,
@@ -76,9 +76,6 @@ class NumericVariablesGroup(VariablesGroup):
         if not isinstance(value, ibis.expr.types.NumericValue):
             raise TypeError(f"Expected numeric value, got {type(value)}")
         return super().__setitem__(key, value)
-
-    def __getitem__(self, key: str, /) -> ibis.expr.types.NumericValue:
-        return super().__getitem__(key)
 
 
 class GraphVariables:

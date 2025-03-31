@@ -4,6 +4,8 @@ import typing
 
 import ibis
 
+from mustela.translation.variables import VariablesGroup
+
 from ..translator import Translator
 
 
@@ -43,18 +45,18 @@ class SubTranslator(Translator):
             assert len(sub_values) == len(struct_fields), (
                 f"The number of values in the initializer ({len(sub_values)}) must match the number of fields ({len(struct_fields)}"
             )
-            self._variables[self._output_name] = {
+            self.set_output(VariablesGroup({
                 field: (
                     self._optimizer.fold_operation(first_operand[field] - sub_values[i])
                 )
                 for i, field in enumerate(struct_fields)
-            }
+            }))
         else:
             if len(sub_values) != 1:
                 raise ValueError(
                     "When the first operand is a single column, the second operand must contain exactly 1 value"
                 )
             first_operand = typing.cast(ibis.expr.types.NumericValue, first_operand)
-            self._variables[self._output_name] = self._optimizer.fold_operation(
+            self.set_output(self._optimizer.fold_operation(
                 first_operand - sub_values[0]
-            )
+            ))

@@ -66,8 +66,8 @@ class ScalerTranslator(Translator):
             )
         else:
             input_operand = typing.cast(ibis.expr.types.NumericValue, input_operand)
-            offset = offset[0]
-            scale = scale[0]
+            first_offset = offset[0]
+            first_scale = scale[0]
             self.set_output(
-                self._optimizer.fold_operation((input_operand - offset) * scale)
+                self._optimizer.fold_operation((input_operand - first_offset) * first_scale)
             )

@@ -1,7 +1,8 @@
 Mustela
 =======
 
-Turns SKLearn predictions into SQL queries.
+Convert SKLearn pipelines into SQL queries for execution in a database
+without the need for a Python environment.
 
 See `examples` directory for example pipelines.
 

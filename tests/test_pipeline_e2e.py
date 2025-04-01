@@ -297,7 +297,6 @@ class TestEndToEndPipelines:
         X = df[feature_names + ["quality"]]
         y = df["target"]
         sklearn_pipeline.fit(X, y)
-        sklearn_proba = sklearn_pipeline.predict_proba(X)
         sklearn_class = sklearn_pipeline.predict(X)
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
@@ -311,15 +310,19 @@ class TestEndToEndPipelines:
             sql_results["output_label"].to_numpy(), sklearn_class
         )
 
-        if False:
+        pd.set_option("display.max_columns", 7)
+        pd.set_option("display.width", 200)
+        print(sql_results.head())
+        if True:
             # FIXME: Probabilities are currently known to be broken for gradient boosted trees
+            sklearn_proba = sklearn_pipeline.predict_proba(X)
             sklearn_proba_df = pd.DataFrame(
                 sklearn_proba, columns=sklearn_pipeline.classes_, index=df.index
             )
             for class_label in sklearn_pipeline.classes_:
                 np.testing.assert_allclose(
-                    sql_results[f"output_probability.{class_label}"].values.flatten(),
-                    sklearn_proba_df[class_label].values.flatten(),
+                    sql_results[f"output_probability.{class_label}"].to_numpy()[:5],
+                    sklearn_proba_df[class_label].values.flatten()[:5],
                     rtol=1e-4,
                     atol=1e-4,
                 )

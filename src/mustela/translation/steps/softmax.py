@@ -4,6 +4,8 @@ import typing
 
 import ibis
 
+from mustela.translation.variables import NumericVariablesGroup
+
 from ..translator import Translator, VariablesGroup
 
 
@@ -34,28 +36,33 @@ class SoftmaxTranslator(Translator):
                 "SoftmaxTranslator supports only axis=-1 or axis=1 for group of columns"
             )
 
-        data = typing.cast(
-            ibis.expr.types.NumericValue | dict[str, ibis.expr.types.NumericValue], data
-        )
-        self.set_output(self.compute_softmax(data))
+        if isinstance(data, VariablesGroup):
+            data = NumericVariablesGroup(data)
+        else:
+            data = typing.cast(
+                ibis.expr.types.NumericValue, ibis.expr.types.NumericValue
+            )
+        self.set_output(self.compute_softmax(self, data))
 
     @classmethod
     def compute_softmax(
         cls,
-        data: ibis.expr.types.NumericValue | dict[str, ibis.expr.types.NumericValue],
+        translator: Translator,
+        data: ibis.expr.types.NumericValue | VariablesGroup,
     ) -> ibis.Expr | VariablesGroup:
         """Computes the actual softmax operation over a column or column group."""
-        if isinstance(data, dict):
+        if isinstance(data, VariablesGroup):
+            data = NumericVariablesGroup(data)
+            max_value = ibis.greatest(*data.values()).name(
+                translator.variable_unique_short_alias("sfmmax")
+            )
+            translator.preserve(max_value)
+
             # Compute, for each column, the exponent
-            exp_dict = {
-                k: typing.cast(ibis.expr.types.NumericValue, v).exp()
-                for k, v in data.items()
-            }
+            exp_dict = {k: (v - max_value).exp() for k, v in data.items()}
 
             # Sum all column exponents
-            sum_exp = None
-            for expr in exp_dict.values():
-                sum_exp = expr if sum_exp is None else sum_exp + expr
+            sum_exp = sum(exp_dict.values())
 
             # Multi columns case: softmax = exp(column_exp) / (exponents_sum)
             softmax_result = VariablesGroup(

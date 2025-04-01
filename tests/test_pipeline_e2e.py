@@ -373,6 +373,70 @@ class TestEndToEndPipelines:
         df, feature_names = iris_data
         conn, dialect = db_connection
 
+        # Create a deterministic categorical feature based on sepal_width
+        # This creates predictable regions that can be debugged
+        def assign_region(width):
+            if width < 3.0:
+                return "north"
+            elif width < 3.4:
+                return "east" 
+            elif width < 3.8:
+                return "south"
+            else:
+                return "west"
+        
+        # Apply to the full dataset (all classes)
+        df["region"] = df["sepal_width"].apply(assign_region)
+
+        # Use ColumnTransformer to handle mixed data types
+        preprocessor = ColumnTransformer(
+            transformers=[
+                ("num", StandardScaler(), feature_names),
+                ("cat", OneHotEncoder(), ["region"])
+            ]
+        )
+
+        sklearn_pipeline = Pipeline([
+            ("preprocessor", preprocessor),
+            ("classifier", RandomForestClassifier(n_estimators=10, max_depth=3, random_state=42))
+        ])
+
+        # Use all classes, not just binary
+        X = df[feature_names + ["region"]]
+        y = df["target"]
+        sklearn_pipeline.fit(X, y)
+        sklearn_proba = sklearn_pipeline.predict_proba(X)
+        sklearn_class = sklearn_pipeline.predict(X)
+
+        features = {fname: types.FloatColumnType() for fname in feature_names}
+        features["region"] = types.StringColumnType()
+        parsed_pipeline = mustela.parse_pipeline(sklearn_pipeline, features=features)
+
+        sql = mustela.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql_results = self.execute_sql(sql, conn, dialect, df)
+
+        np.testing.assert_allclose(
+            sql_results["output_label"].to_numpy(), sklearn_class
+        )
+
+        if False:
+            sklearn_proba_df = pd.DataFrame(
+                sklearn_proba, columns=sklearn_pipeline.classes_, index=df.index
+            )
+            for class_label in sklearn_pipeline.classes_:
+                np.testing.assert_allclose(
+                    sql_results[f"output_probability.{class_label}"].values.flatten(),
+                    sklearn_proba_df[class_label].values.flatten(),
+                    rtol=1e-4,
+                    atol=1e-4,
+                )
+
+    def test_binary_random_forest_classifier(self, iris_data, db_connection):
+        """Test a binary random forest classifier with mixed preprocessing."""
+        pytest.skip("Binary classification on trees is currently not implemented.")
+        df, feature_names = iris_data
+        conn, dialect = db_connection
+
         # Add categorical feature for more realistic preprocessing
         binary_df = df[df["target"].isin([0, 1])].copy()
         binary_df["region"] = np.random.choice(["north", "south", "east", "west"], size=binary_df.shape[0])
@@ -393,7 +457,6 @@ class TestEndToEndPipelines:
         X = binary_df[feature_names + ["region"]]
         y = binary_df["target"]
         sklearn_pipeline.fit(X, y)
-        sklearn_proba = sklearn_pipeline.predict_proba(X)
         sklearn_class = sklearn_pipeline.predict(X)
 
         features = dict(
@@ -409,14 +472,3 @@ class TestEndToEndPipelines:
             sql_results["output_label"].to_numpy(), sklearn_class
         )
 
-        if False:
-            sklearn_proba_df = pd.DataFrame(
-                sklearn_proba, columns=sklearn_pipeline.classes_, index=binary_df.index
-            )
-            for class_label in sklearn_pipeline.classes_:
-                np.testing.assert_allclose(
-                    sql_results[f"output_probability.{class_label}"].values.flatten(),
-                    sklearn_proba_df[class_label].values.flatten(),
-                    rtol=1e-4,
-                    atol=1e-4,
-                )

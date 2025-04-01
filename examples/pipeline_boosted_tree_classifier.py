@@ -103,12 +103,18 @@ mustela_pipeline = mustela.parse_pipeline(model, features=features)
 print(mustela_pipeline)
 
 # Translate the pipeline to a query
-ibis_expression = mustela.translate(ibis.memtable(data_sample), mustela_pipeline)
-con = ibis.duckdb.connect()
+ibis_table = ibis.memtable(data_sample, name="DATA_TABLE")
+ibis_expression = mustela.translate(ibis_table, mustela_pipeline)
 
+con = ibis.duckdb.connect()
 if PRINT_SQL:
+    sql = mustela.export_sql("DATA_TABLE", mustela_pipeline, dialect="duckdb")
     print("\nGenerated Query for DuckDB:")
-    print(con.compile(ibis_expression))
+    print(sql)
+    print("\nPrediction with SQL")
+    # We need to create the table for the SQL to query it.
+    con.create_table(ibis_table.get_name(), obj=ibis_table)
+    print(con.raw_sql(sql).df())
 
 print("\nPrediction with SKLearn")
 target = model.predict(data_sample)
@@ -120,4 +126,4 @@ print(ibis_target)
 
 if ASSERT:
     assert np.array_equal(target, ibis_target["output_label"]), "Predictions do not match!"
-    print("\tPredictions match!")
+    print("\nPredictions match!")

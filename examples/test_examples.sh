@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 EXAMPLES_DIR=$(dirname "${BASH_SOURCE[0]}")
 
+export PRINTSQL=1 # Test that SQL generation runs.
 export ASSERT=1  # Enable assertions in the examples
 
 for example in ${EXAMPLES_DIR}/pipeline_*.py; do
@@ -11,4 +12,5 @@ for example in ${EXAMPLES_DIR}/pipeline_*.py; do
         cat test_examples.log
         exit 1
     fi
+    tail -n 1 test_examples.log
 done

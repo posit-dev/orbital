@@ -59,10 +59,9 @@ example_data = pa.table(
     }
 )
 ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
-
 ibis_expression = mustela.translate(ibis_table, mustela_pipeline)
-con = ibis.duckdb.connect()
 
+con = ibis.duckdb.connect()
 if PRINT_SQL:
     sql = mustela.export_sql("DATA_TABLE", mustela_pipeline, dialect="duckdb")
     print("\nGenerated Query for DuckDB:")

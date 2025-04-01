@@ -1,9 +1,9 @@
 from unittest import mock
-import pytest
 
 import pandas as pd
 import polars as pl
 import pyarrow as pa
+import pytest
 
 from mustela import types
 
@@ -34,13 +34,13 @@ class TestDataTypesGuessing:
 
     def test_invalid_datatype(self):
         with pytest.raises(ValueError) as exc:
-            types.guess_datatypes({
-                "column": 5
-            })
+            types.guess_datatypes({"column": 5})
         assert exc.match("Unable to guess types of dataframe")
 
     def test_invalid_datatype_conversion(self):
-        with mock.patch.object(types._sl2o_types, "guess_data_type", return_value=[("somecol", "invalid")]):
+        with mock.patch.object(
+            types._sl2o_types, "guess_data_type", return_value=[("somecol", "invalid")]
+        ):
             with pytest.raises(ValueError) as exc:
                 types.guess_datatypes("Doesn't matter")
             assert exc.match("Unsupported datatype for column somecol")
@@ -59,15 +59,17 @@ class TestDataTypesGuessing:
             types.UInt16ColumnType,
             types.Int8ColumnType,
             types.UInt8ColumnType,
-            types.BooleanColumnType
+            types.BooleanColumnType,
         ]:
             onxtype = t()._to_onnxtype()
             assert isinstance(onxtype, types._sl2o_types.DataType)
             assert t._from_onnxtype(onxtype) == t()
-        
+
     def test_only_support_column_types(self):
         with pytest.raises(ValueError) as exc:
-            types.ColumnType._from_onnxtype(types._sl2o_types.FloatTensorType(shape=[1, 1]))
+            types.ColumnType._from_onnxtype(
+                types._sl2o_types.FloatTensorType(shape=[1, 1])
+            )
         assert exc.match("Only columnar data is supported")
 
     def test_invalid_datatype_shape(self):

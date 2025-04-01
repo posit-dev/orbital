@@ -8,10 +8,28 @@ without the need for a python runtime environment.
 import ibis
 import ibis.backends.sql.compilers as sc
 import sqlglot.optimizer
+import sqlglot.optimizer.optimizer
 from ibis.expr.sql import Catalog
 
 from .ast import ParsedPipeline
 from .translate import translate
+
+OPTIMIZER_RULES = (
+    sqlglot.optimizer.optimizer.qualify,
+    sqlglot.optimizer.optimizer.pushdown_projections,
+    sqlglot.optimizer.optimizer.normalize,
+    sqlglot.optimizer.optimizer.unnest_subqueries,
+    sqlglot.optimizer.optimizer.pushdown_predicates,
+    sqlglot.optimizer.optimizer.optimize_joins,
+    sqlglot.optimizer.optimizer.eliminate_subqueries,
+    # sqlglot.optimizer.optimizer.merge_subqueries,  # This makes the SQLGlot optimizer choke with OOMs
+    sqlglot.optimizer.optimizer.eliminate_joins,
+    sqlglot.optimizer.optimizer.eliminate_ctes,
+    sqlglot.optimizer.optimizer.quote_identifiers,
+    sqlglot.optimizer.optimizer.canonicalize,
+    # sqlglot.optimizer.optimizer.annotate_types,  # This makes the SQLGlot optimizer choke with maximum recursion
+    sqlglot.optimizer.optimizer.simplify,
+)
 
 
 def export_sql(
@@ -30,7 +48,8 @@ def export_sql(
     see :class:`sqlglot.dialects.DIALECTS`` for a complete list of supported dialects.
 
     If `optimize` is set to True, the SQL query will be optimized using
-    sqlglot's optimizer.
+    sqlglot's optimizer. This can improve performance, but may fail if
+    the query is complex.
     """
     unbound_table = ibis.table(
         schema={
@@ -40,10 +59,15 @@ def export_sql(
     )
 
     ibis_expr = translate(unbound_table, pipeline)
-    sqlglot_expr = sc.duckdb.compiler.to_sqlglot(ibis_expr)
+    sqlglot_expr = getattr(sc, dialect).compiler.to_sqlglot(ibis_expr)
 
     if optimize:
-        catalog = Catalog({unbound_table.get_name(): unbound_table}).to_sqlglot()
-        sqlglot_expr = sqlglot.optimizer.optimize(sqlglot_expr, schema=catalog)
+        c = Catalog()
+        catalog = {
+            unbound_table.get_name(): c.to_sqlglot_schema(unbound_table.schema())
+        }
+        sqlglot_expr = sqlglot.optimizer.optimize(
+            sqlglot_expr, schema=catalog, rules=OPTIMIZER_RULES
+        )
 
     return sqlglot_expr.sql(dialect=dialect)

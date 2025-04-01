@@ -82,17 +82,29 @@ example_data = pa.table(
 )
 
 # Genera la query SQL con Mustela
-ibis_expression = mustela.translate(ibis.memtable(example_data), mustela_pipeline)
+ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
+ibis_expression = mustela.translate(ibis_table, mustela_pipeline)
 
+con = ibis.duckdb.connect()
 if PRINT_SQL:
-    print("\nGenerated Query:")
-    con = ibis.duckdb.connect()
-    print(con.compile(ibis_expression))
+    sql = mustela.export_sql("DATA_TABLE", mustela_pipeline, dialect="duckdb")
+    print("\nGenerated Query for DuckDB:")
+    print(sql)
+    print("\nPrediction with SQL")
+    # We need to create the table for the SQL to query it.
+    con.create_table(ibis_table.get_name(), obj=ibis_table)
+    print(con.raw_sql(sql).df())
 
-print("\nPrediction with Ibis")
-print(ibis_expression.execute())
 
 print("\nPrediction with SKLearn")
 test_df = example_data.to_pandas()
-pred = pipeline.predict(test_df)
-print(pred)
+target = pipeline.predict(test_df)
+print(target)
+
+print("\nPrediction with Ibis")
+ibis_target = con.execute(ibis_expression)["variable"].to_numpy()
+print(ibis_target)
+
+if ASSERT:
+    assert np.allclose(target, ibis_target), "Predictions do not match!"
+    print("\nPredictions match!")

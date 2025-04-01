@@ -129,7 +129,7 @@ class MatMulTranslator(Translator):
                     ]
                     if output_dim == 1:
                         result = result_list[0]
-                        self._variables[self._output_name] = result_list[0]
+                        self.set_output(result_list[0])
                     else:
                         result = VariablesGroup(
                             {f"out_{j}": result_list[j] for j in range(output_dim)}

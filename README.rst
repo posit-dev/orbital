@@ -5,6 +5,16 @@ Turns SKLearn predictions into SQL queries.
 
 See `examples` directory for example pipelines.
 
+.. warn::
+
+    This is a work in progress.
+    You might encounter bugs or missing features.
+
+.. note::
+
+    Not all transformations and models can be represented as SQL queries,
+    so Mustela might not be able to implement the specific pipeline you are using.
+
 Getting Started
 ----------------
 

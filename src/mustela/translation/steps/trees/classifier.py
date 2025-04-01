@@ -7,6 +7,7 @@ import ibis
 from ...translator import Translator
 from ...variables import VariablesGroup
 from ..softmax import SoftmaxTranslator
+from ..linearclass import LinearClassifierTranslator
 from .tree import build_tree, mode_to_condition
 
 
@@ -40,11 +41,16 @@ class TreeEnsembleClassifierTranslator(Translator):
             )
 
         label_expr, prob_colgroup = self.build_classifier(input_exr)
-        post_transform = self._attributes.get("post_transform", "NONE")
+        post_transform = typing.cast(str, self._attributes.get("post_transform", "NONE"))
 
         if post_transform != "NONE":
             if post_transform == "SOFTMAX":
                 prob_colgroup = SoftmaxTranslator.compute_softmax(prob_colgroup)
+            elif post_transform == "LOGISTIC":
+                prob_colgroup = VariablesGroup({
+                    lbl: LinearClassifierTranslator._apply_post_transform(prob_col, post_transform)
+                    for lbl, prob_col in prob_colgroup.items()
+                })
             else:
                 raise NotImplementedError(
                     f"Post transform {post_transform} not implemented."

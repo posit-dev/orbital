@@ -43,7 +43,7 @@ def build_tree(translator: Translator) -> dict[int, dict[int, dict]]:
     )
 
     # Weight could be a float or a dictionary of class labels weights
-    weights = {}
+    weights: dict = {}
     if node.op_type == "TreeEnsembleClassifier":
         weights = typing.cast(dict[tuple[int, int], dict[str | int, float]], weights)
         # Weights for classifier, in this case the weights are per-class

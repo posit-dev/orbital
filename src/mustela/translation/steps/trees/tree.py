@@ -67,7 +67,6 @@ def build_tree(translator: Translator) -> dict[int, dict[int, dict]]:
         if not classlabels:
             raise ValueError("Missing class labels when building tree")
 
-        is_binary = len(classlabels) == 2 and len(set(weights_classid)) == 1
         for tree_id, node_id, weight, weight_classid in zip(
             class_treeids, class_nodeids, class_weights, weights_classid
         ):
@@ -75,23 +74,6 @@ def build_tree(translator: Translator) -> dict[int, dict[int, dict]]:
                 dict[str | int, float], weights.setdefault((tree_id, node_id), {})
             )
             node_weights[classlabels[weight_classid]] = weight
-
-        if is_binary:
-            # ONNX treats binary classification as a special case:
-            # https://github.com/microsoft/onnxruntime/blob/5982430af66f52a288cb8b2181e0b5b2e09118c8/onnxruntime/core/providers/cpu/ml/tree_ensemble_common.h#L854C1-L871C4
-            # https://github.com/microsoft/onnxruntime/blob/5982430af66f52a288cb8b2181e0b5b2e09118c8/onnxruntime/core/providers/cpu/ml/tree_ensemble_aggregator.h#L469-L494
-            # In this case there is only one weight and it's the probability of the positive class.
-            for node_weights in weights.values():
-                assert len(node_weights) == 1, (
-                    f"Binary classification expected to have only one class, got: {node_weights}"
-                )
-                score = list(node_weights.values())[0]
-                if score > 0.5:
-                    node_weights[classlabels[1]] = 1.0
-                    node_weights[classlabels[0]] = 0.0
-                else:
-                    node_weights[classlabels[1]] = 0.0
-                    node_weights[classlabels[0]] = 1.0
 
     elif node.op_type == "TreeEnsembleRegressor":
         # Weights for the regressor, in this case leaf nodes have only 1 weight

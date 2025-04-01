@@ -149,7 +149,7 @@ Mustela currently supports the following models:
 - Elastic Net
 - Decision Tree Regressor
 - Decision Tree Classifier
-- Random Forest Regressor
+- Random Forest Classifier
 - Gradient Boosting Regressor
 - Gradient Boosting Classifier
 

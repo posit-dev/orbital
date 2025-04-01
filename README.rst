@@ -82,25 +82,25 @@ You can print the pipeline to see the result::
         },
         steps=[
             merged_columns=Concat(
-            inputs: sepal_length, sepal_width, petal_length, petal_width,
-            attributes: 
-                axis=1
+                inputs: sepal_length, sepal_width, petal_length, petal_width,
+                attributes: 
+                 axis=1
             )
             variable1=Sub(
-            inputs: merged_columns, Su_Subcst=[5.809166666666666, 3.0616666666666665, 3.7266666666666666, 1.18333333...,
-            attributes: 
+                inputs: merged_columns, Su_Subcst=[5.809166666666666, 3.0616666666666665, 3.7266666666666666, 1.18333333...,
+                attributes: 
             )
             multiplied=MatMul(
-            inputs: variable1, coef=[-0.11633479416518255, -0.05977785171980231, 0.25491374699772246, 0.5475959...,
-            attributes: 
+                inputs: variable1, coef=[-0.11633479416518255, -0.05977785171980231, 0.25491374699772246, 0.5475959...,
+                attributes: 
             )
             resh=Add(
-            inputs: multiplied, intercept=[0.9916666666666668],
-            attributes: 
+                inputs: multiplied, intercept=[0.9916666666666668],
+                attributes: 
             )
             variable=Reshape(
-            inputs: resh, shape_tensor=[-1, 1],
-            attributes: 
+                inputs: resh, shape_tensor=[-1, 1],
+                attributes: 
             )
         ],
     )

@@ -1,9 +1,9 @@
 from unittest import mock
-import pytest
 
 import pandas as pd
 import polars as pl
 import pyarrow as pa
+import pytest
 
 from mustela import types
 

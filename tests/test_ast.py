@@ -1,13 +1,10 @@
-import pytest
-
-import pandas as pd
 import numpy as np
-
-from sklearn.pipeline import Pipeline
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler
-
+import pandas as pd
+import pytest
 from google.protobuf.json_format import MessageToDict
+from sklearn.impute import SimpleImputer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 from mustela import ast, types
 

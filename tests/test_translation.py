@@ -1,5 +1,5 @@
-import onnx
 import ibis
+import onnx
 
 from mustela.translation.translator import Translator
 from mustela.translation.variables import GraphVariables

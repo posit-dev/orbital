@@ -81,7 +81,22 @@ class TreeEnsembleClassifierTranslator(Translator):
         ) or self._attributes.get("classlabels_int64s")
         if classlabels is None:
             raise ValueError("Unable to detect classlabels for classification")
-        classlabels = typing.cast(list[str] | list[int], classlabels)
+        output_classlabels = classlabels = typing.cast(
+            list[str] | list[int], classlabels
+        )
+
+        # ONNX treats binary classification as a special case:
+        # https://github.com/microsoft/onnxruntime/blob/5982430af66f52a288cb8b2181e0b5b2e09118c8/onnxruntime/core/providers/cpu/ml/tree_ensemble_common.h#L854C1-L871C4
+        # https://github.com/microsoft/onnxruntime/blob/5982430af66f52a288cb8b2181e0b5b2e09118c8/onnxruntime/core/providers/cpu/ml/tree_ensemble_aggregator.h#L469-L494
+        # In this case there is only one weight and it's the probability of the positive class.
+        # So we need to check if we are in a binary classification case.
+        weights_classid = typing.cast(list[int], self._attributes["class_ids"])
+        is_binary = len(classlabels) == 2 and len(set(weights_classid)) == 1
+        if is_binary:
+            # In this case there is only one label, the first one
+            # which actually acts as the score of the prediction.
+            # When > 0.5 then class 1, when < 0.5 then class 0
+            classlabels = typing.cast(list[str] | list[int], [classlabels[0]])
 
         if isinstance(input_expr, VariablesGroup):
             ordered_features = input_expr.values_value()
@@ -134,39 +149,53 @@ class TreeEnsembleClassifierTranslator(Translator):
                 )
 
         # Compute prediction of class itself.
-        candidate_cls = classlabels[0]
-        candidate_vote = total_votes[candidate_cls]
-        for clslabel in classlabels[1:]:
-            candidate_cls = optimizer.fold_case(
+        if is_binary:
+            total_score = total_votes[classlabels[0]]
+            label_expr = optimizer.fold_case(
                 ibis.case()
-                .when(total_votes[clslabel] > candidate_vote, clslabel)
-                .else_(candidate_cls)
+                .when(total_score > 0.5, output_classlabels[1])
+                .else_(output_classlabels[0])
                 .end()
             )
-            candidate_vote = optimizer.fold_case(
-                ibis.case()
-                .when(total_votes[clslabel] > candidate_vote, total_votes[clslabel])
-                .else_(candidate_vote)
-                .end()
+            # The order matters, for ONNX the VariableGroup is a list of subvariables
+            # the names are not important.
+            prob_dict = VariablesGroup(
+                {
+                    str(output_classlabels[0]): 1.0 - total_score,
+                    str(output_classlabels[1]): total_score,
+                }
             )
+        else:
+            candidate_cls = classlabels[0]
+            candidate_vote = total_votes[candidate_cls]
+            for clslabel in classlabels[1:]:
+                candidate_cls = optimizer.fold_case(
+                    ibis.case()
+                    .when(total_votes[clslabel] > candidate_vote, clslabel)
+                    .else_(candidate_cls)
+                    .end()
+                )
+                candidate_vote = optimizer.fold_case(
+                    ibis.case()
+                    .when(total_votes[clslabel] > candidate_vote, total_votes[clslabel])
+                    .else_(candidate_vote)
+                    .end()
+                )
 
-        label_expr = ibis.case()
-        for clslabel in classlabels:
-            label_expr = label_expr.when(candidate_cls == clslabel, clslabel)
-        label_expr = label_expr.else_(ibis.null()).end()
-        label_expr = optimizer.fold_case(label_expr)
+            label_expr = ibis.case()
+            for clslabel in classlabels:
+                label_expr = label_expr.when(candidate_cls == clslabel, clslabel)
+            label_expr = label_expr.else_(ibis.null()).end()
+            label_expr = optimizer.fold_case(label_expr)
 
-        # Compute probability to return it too.
-        sum_votes = None
-        for clslabel in classlabels:
-            if sum_votes is None:
-                sum_votes = total_votes[clslabel]
-            else:
+            # Compute probability to return it too.
+            sum_votes = ibis.literal(0.0)
+            for clslabel in classlabels:
                 sum_votes = optimizer.fold_operation(sum_votes + total_votes[clslabel])
 
-        # FIXME: Probabilities are currently broken for gradient boosted trees.
-        prob_dict = VariablesGroup()
-        for clslabel in classlabels:
-            prob_dict[str(clslabel)] = total_votes[clslabel] / sum_votes
+            # FIXME: Probabilities are currently broken for gradient boosted trees.
+            prob_dict = VariablesGroup()
+            for clslabel in classlabels:
+                prob_dict[str(clslabel)] = total_votes[clslabel] / sum_votes
 
         return label_expr, prob_dict

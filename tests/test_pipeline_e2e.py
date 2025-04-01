@@ -463,7 +463,6 @@ class TestEndToEndPipelines:
 
     def test_binary_random_forest_classifier(self, iris_data, db_connection):
         """Test a binary random forest classifier with mixed preprocessing."""
-        pytest.skip("Binary classification on trees is currently not implemented.")
         df, feature_names = iris_data
         conn, dialect = db_connection
 
@@ -504,9 +503,22 @@ class TestEndToEndPipelines:
         )
         parsed_pipeline = mustela.parse_pipeline(sklearn_pipeline, features=features)
 
+        # Test prediction
         sql = mustela.export_sql("data", parsed_pipeline, dialect=dialect)
         sql_results = self.execute_sql(sql, conn, dialect, binary_df)
-
         np.testing.assert_allclose(
             sql_results["output_label"].to_numpy(), sklearn_class
         )
+
+        # Test probabilities
+        sklearn_proba = sklearn_pipeline.predict_proba(X)
+        sklearn_proba_df = pd.DataFrame(
+            sklearn_proba, columns=sklearn_pipeline.classes_
+        )
+        for class_label in sklearn_pipeline.classes_:
+            np.testing.assert_allclose(
+                sql_results[f"output_probability.{class_label}"].to_numpy(),
+                sklearn_proba_df[class_label].values.flatten(),
+                rtol=1e-4,
+                atol=1e-4,
+            )

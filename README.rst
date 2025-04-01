@@ -142,6 +142,7 @@ Supported Models
 -----------------
 
 Mustela currently supports the following models:
+
 - Linear Regression
 - Logistic Regression
 - Lasso Regression

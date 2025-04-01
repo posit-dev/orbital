@@ -21,8 +21,8 @@ class ArrayFeatureExtractorTranslator(Translator):
     last axis is the row axis. So an index of ``0`` would mean the first row.
 
     This could be confusing because axis are inverted between tensors and mustela column groups.
-    In the case of Tensors, axis=0 means row=0, while instead of mustela
-    column groups (by virtue of being a group of columns), axis=0 means
+    In the case of Tensors, index=0 means row=0, while instead in mustela
+    column groups (by virtue of being a group of columns), index=0 means
     the first column.
 
     We have to consider that the indices we receive, in case of column groups,

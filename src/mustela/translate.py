@@ -20,6 +20,7 @@ from .translation.steps.labelencoder import LabelEncoderTranslator
 from .translation.steps.linearclass import LinearClassifierTranslator
 from .translation.steps.linearreg import LinearRegressorTranslator
 from .translation.steps.matmul import MatMulTranslator
+from .translation.steps.mul import MulTranslator
 from .translation.steps.onehotencoder import OneHotEncoderTranslator
 from .translation.steps.reshape import ReshapeTranslator
 from .translation.steps.scaler import ScalerTranslator
@@ -47,6 +48,7 @@ TRANSLATORS: dict[str, type[Translator]] = {
     "MatMul": MatMulTranslator,
     "Add": AddTranslator,
     "Div": DivTranslator,
+    "Mul": MulTranslator,
     "Reshape": ReshapeTranslator,
     "Scaler": ScalerTranslator,
     "Gather": GatherTranslator,

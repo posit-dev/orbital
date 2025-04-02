@@ -32,11 +32,9 @@ class OneHotEncoderTranslator(Translator):
             raise ValueError("OneHotEncoder: input expression not found")
 
         casted_variables = [
-            self._optimizer.fold_cast(
-                typing.cast(ibis.expr.types.BooleanValue, (input_expr == cat)).cast(
-                    "float64"
-                )
-            ).name(self.variable_unique_short_alias("onehot"))
+            ibis.ifelse(input_expr == cat, 1, 0)
+            .cast("float64")
+            .name(self.variable_unique_short_alias("oh"))
             for cat in cats
         ]
 

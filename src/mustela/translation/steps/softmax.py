@@ -53,7 +53,7 @@ class SoftmaxTranslator(Translator):
         if isinstance(data, VariablesGroup):
             data = NumericVariablesGroup(data)
             max_value = ibis.greatest(*data.values()).name(
-                translator.variable_unique_short_alias("sfmmax")
+                translator.variable_unique_short_alias("sfmx")
             )
             translator.preserve(max_value)
 

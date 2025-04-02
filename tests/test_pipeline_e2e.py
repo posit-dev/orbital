@@ -1,6 +1,7 @@
 import sqlite3
 
 import duckdb
+import sqlalchemy
 import numpy as np
 import pandas as pd
 import pytest
@@ -41,7 +42,7 @@ class TestEndToEndPipelines:
         df = pd.concat([X, y], axis=1)
         return df, feature_names
 
-    @pytest.fixture(params=["duckdb", "sqlite"])
+    @pytest.fixture(params=["duckdb", "sqlite", "postgres"])
     def db_connection(self, request):
         dialect = request.param
         if dialect == "duckdb":
@@ -52,13 +53,19 @@ class TestEndToEndPipelines:
             conn = sqlite3.connect(":memory:")
             yield conn, dialect
             conn.close()
+        elif dialect == "postgres":
+            try:
+                conn = sqlalchemy.create_engine("postgresql://mustelatestuser:mustelatestpassword@localhost:5432/mustelatestdb")
+            except (sqlalchemy.exc.OperationalError, ImportError):
+                pytest.skip("Postgres database not available")
+            yield conn, dialect
+            conn.dispose()
 
     def execute_sql(self, sql, conn, dialect, data):
         if dialect == "duckdb":
             conn.execute("CREATE TABLE data AS SELECT * FROM data")
-            # print(conn.execute("SELECT * FROM data").fetchdf())
             result = conn.execute(sql).fetchdf()
-        elif dialect == "sqlite":
+        elif dialect in ("sqlite", "postgres"):
             data.to_sql("data", conn, index=False, if_exists="replace")
             result = pd.read_sql(sql, conn)
         return result

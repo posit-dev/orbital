@@ -29,9 +29,10 @@ jobs:
 
       - name: Set up PostgreSQL
         uses: harmon758/postgresql-action@v1
-        postgresql db: mustelatestdb
-        postgresql user: mustelatestuser
-        postgresql password: mustelatestpassword
+        with:
+          postgresql db: mustelatestdb
+          postgresql user: mustelatestuser
+          postgresql password: mustelatestpassword
 
       - name: Run Test Suite
         run: |

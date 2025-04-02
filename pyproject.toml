@@ -43,6 +43,7 @@ test = [
   "pytest-cov>=5.0.0",
   "pytest>=8.3.2",
   "sqlalchemy",
+  "psycopg2",
   "duckdb",
 ]
 
@@ -68,6 +69,7 @@ dev-dependencies = [
     "onnxruntime",
     "onnxscript",
     "sqlalchemy",
+    "psycopg2",
     "duckdb",
 ]
 

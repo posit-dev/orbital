@@ -54,7 +54,7 @@ class TestEndToEndPipelines:
             yield conn, dialect
             conn.close()
         elif dialect == "postgres":
-            conn = sqlalchemy.create_engine("postgresql:///testdb")
+            conn = sqlalchemy.create_engine("postgresql://localhost:5432/testdb")
             yield conn, dialect
             conn.dispose()
 

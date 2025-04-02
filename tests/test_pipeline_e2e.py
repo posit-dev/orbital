@@ -1,7 +1,7 @@
 import sqlite3
 
 import duckdb
-import psycopg2
+import sqlalchemy
 import numpy as np
 import pandas as pd
 import pytest
@@ -54,16 +54,15 @@ class TestEndToEndPipelines:
             yield conn, dialect
             conn.close()
         elif dialect == "postgres":
-            conn = psycopg2.connect()
+            conn = sqlalchemy.connect("postgresql:///testdb")
             yield conn, dialect
             conn.close()
 
     def execute_sql(self, sql, conn, dialect, data):
         if dialect == "duckdb":
             conn.execute("CREATE TABLE data AS SELECT * FROM data")
-            # print(conn.execute("SELECT * FROM data").fetchdf())
             result = conn.execute(sql).fetchdf()
-        elif dialect == "sqlite":
+        elif dialect in ("sqlite", "postgres"):
             data.to_sql("data", conn, index=False, if_exists="replace")
             result = pd.read_sql(sql, conn)
         return result

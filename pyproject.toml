@@ -42,7 +42,7 @@ test = [
   "ibis-framework[duckdb]>=5.1.0",
   "pytest-cov>=5.0.0",
   "pytest>=8.3.2",
-  "psycopg2",
+  "sqlalchemy",
   "duckdb",
 ]
 
@@ -67,7 +67,7 @@ dev-dependencies = [
     "pydot",
     "onnxruntime",
     "onnxscript",
-    "psycopg2",
+    "sqlalchemy",
     "duckdb",
 ]
 

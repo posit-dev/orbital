@@ -34,7 +34,7 @@ class OneHotEncoderTranslator(Translator):
         casted_variables = [
             self._optimizer.fold_cast(
                 typing.cast(ibis.expr.types.BooleanValue, (input_expr == cat)).cast(
-                    "float64"
+                    "int"
                 )
             ).name(self.variable_unique_short_alias("onehot"))
             for cat in cats

@@ -54,7 +54,10 @@ class TestEndToEndPipelines:
             yield conn, dialect
             conn.close()
         elif dialect == "postgres":
-            conn = sqlalchemy.create_engine("postgresql://mustelatestuser:mustelatestpassword@localhost:5432/mustelatestdb")
+            try:
+                conn = sqlalchemy.create_engine("postgresql://mustelatestuser:mustelatestpassword@localhost:5432/mustelatestdb")
+            except (sqlalchemy.exc.OperationalError, ImportError):
+                pytest.skip("Postgres database not available")
             yield conn, dialect
             conn.dispose()
 

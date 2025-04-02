@@ -8,12 +8,10 @@ import onnx
 from .._utils import onnx as onnx_utils
 from .._utils.onnx import VariableTypes
 
-VariablesGroupVarType = typing.TypeVar("VariablesGroupVarType", bound=ibis.Expr)
+VariablesGroupVarT = typing.TypeVar("VariablesGroupVarT", bound=ibis.Expr)
 
 
-class VariablesGroup(
-    dict[str, VariablesGroupVarType], typing.Generic[VariablesGroupVarType]
-):
+class VariablesGroup(dict[str, VariablesGroupVarT], typing.Generic[VariablesGroupVarT]):
     """A group of variables that can be used to represent a set of expressions.
 
     This is used to represent a group of columns in a table,
@@ -24,19 +22,26 @@ class VariablesGroup(
     columns in the group.
     """
 
+    VAR_TYPE = ibis.Expr
+
     def __init__(self, vargroup: dict | None = None) -> None:
         """
         :param vargroup: A dictionary of names and expressions that are part of the group.
         """
         if vargroup is not None:
             for expr in vargroup.values():
-                if not isinstance(expr, ibis.Expr):
-                    raise TypeError(f"Expected numeric value, got {type(expr)}")
+                if not isinstance(expr, self.VAR_TYPE):
+                    raise TypeError(f"Expected {self.VAR_TYPE} value, got {type(expr)}")
             args = [vargroup]
         else:
             args = []
 
         super().__init__(*args)
+
+    def __setitem__(self, key: str, value: VariablesGroupVarT, /) -> None:
+        if not isinstance(value, self.VAR_TYPE):
+            raise TypeError(f"Expected {self.VAR_TYPE} value, got {type(value)}")
+        return super().__setitem__(key, value)
 
     def as_value(self, name: str) -> ibis.Value:
         """Return a subvariable as a Value.
@@ -67,19 +72,7 @@ class NumericVariablesGroup(VariablesGroup[ibis.expr.types.NumericValue]):
     from it, so that it is guaranteed that all subvariables are numeric.
     """
 
-    def __init__(self, vargroup: VariablesGroup) -> None:
-        """
-        :param vargroup: The :class:`VariablesGroup` to be converted to a numeric group.
-        """
-        for expr in vargroup.values():
-            if not isinstance(expr, ibis.expr.types.NumericValue):
-                raise TypeError(f"Expected numeric value, got {type(expr)}")
-        super().__init__(vargroup)
-
-    def __setitem__(self, key: str, value: ibis.expr.types.NumericValue, /) -> None:
-        if not isinstance(value, ibis.expr.types.NumericValue):
-            raise TypeError(f"Expected numeric value, got {type(value)}")
-        return super().__setitem__(key, value)
+    VAR_TYPE = ibis.expr.types.NumericValue
 
 
 class GraphVariables:

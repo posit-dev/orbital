@@ -5,7 +5,7 @@ import typing
 import ibis
 
 from ..translator import Translator
-from ..variables import NumericVariablesGroup, VariablesGroup
+from ..variables import NumericVariablesGroup, ValueVariablesGroup, VariablesGroup
 
 
 class AddTranslator(Translator):
@@ -45,7 +45,7 @@ class AddTranslator(Translator):
                     "When the first operand is a group of columns, the second operand must contain the same number of values"
                 )
             self.set_output(
-                VariablesGroup(
+                ValueVariablesGroup(
                     {
                         field: (
                             self._optimizer.fold_operation(

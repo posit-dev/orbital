@@ -4,9 +4,8 @@ import itertools
 
 import ibis
 
-from mustela.translation.variables import VariablesGroup
-
 from ..translator import Translator
+from ..variables import ValueVariablesGroup, VariablesGroup
 
 
 class WhereTranslator(Translator):
@@ -46,7 +45,7 @@ class WhereTranslator(Translator):
                 raise ValueError(
                     "Where: The number of values in the true and false expressions must match."
                 )
-            result = VariablesGroup()
+            result = ValueVariablesGroup()
             for true_val, false_val, idx in zip(
                 true_values, false_values, itertools.count()
             ):
@@ -56,7 +55,7 @@ class WhereTranslator(Translator):
         elif isinstance(true_expr, VariablesGroup) and not isinstance(
             false_expr, VariablesGroup
         ):
-            result = VariablesGroup()
+            result = ValueVariablesGroup()
             for idx, true_val in enumerate(true_expr.values()):
                 result[f"c{idx}"] = self._optimizer.fold_case(
                     ibis.case().when(condition_expr, true_val).else_(false_expr).end()
@@ -64,7 +63,7 @@ class WhereTranslator(Translator):
         elif not isinstance(true_expr, VariablesGroup) and isinstance(
             false_expr, VariablesGroup
         ):
-            result = VariablesGroup()
+            result = ValueVariablesGroup()
             for idx, false_val in enumerate(false_expr.values()):
                 result[f"c{idx}"] = self._optimizer.fold_case(
                     ibis.case().when(condition_expr, true_expr).else_(false_val).end()

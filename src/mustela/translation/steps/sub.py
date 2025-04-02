@@ -4,7 +4,11 @@ import typing
 
 import ibis
 
-from mustela.translation.variables import VariablesGroup
+from mustela.translation.variables import (
+    NumericVariablesGroup,
+    ValueVariablesGroup,
+    VariablesGroup,
+)
 
 from ..translator import Translator
 
@@ -37,16 +41,14 @@ class SubTranslator(Translator):
             raise ValueError("Sub: The first operand must be a numeric value.")
 
         sub_values = list(second_operand)
-        if isinstance(first_operand, dict):
-            first_operand = typing.cast(
-                dict[str, ibis.expr.types.NumericValue], first_operand
-            )
+        if isinstance(first_operand, VariablesGroup):
+            first_operand = NumericVariablesGroup(first_operand)
             struct_fields = list(first_operand.keys())
             assert len(sub_values) == len(struct_fields), (
                 f"The number of values in the initializer ({len(sub_values)}) must match the number of fields ({len(struct_fields)}"
             )
             self.set_output(
-                VariablesGroup(
+                ValueVariablesGroup(
                     {
                         field: (
                             self._optimizer.fold_operation(

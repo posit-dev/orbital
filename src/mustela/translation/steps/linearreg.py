@@ -5,7 +5,7 @@ import typing
 import ibis
 
 from ..translator import Translator
-from ..variables import VariablesGroup
+from ..variables import NumericVariablesGroup, ValueVariablesGroup, VariablesGroup
 
 
 class LinearRegressorTranslator(Translator):
@@ -39,10 +39,8 @@ class LinearRegressorTranslator(Translator):
 
         input_operand = self._variables.consume(self._inputs[0])
 
-        if isinstance(input_operand, dict):
-            input_operand = typing.cast(
-                dict[str, ibis.expr.types.NumericValue], input_operand
-            )
+        if isinstance(input_operand, VariablesGroup):
+            input_operand = NumericVariablesGroup(input_operand)
             num_features = len(input_operand)
 
             if len(coefficients) != targets * num_features:
@@ -70,7 +68,7 @@ class LinearRegressorTranslator(Translator):
                     prediction
                 )
 
-            self.set_output(VariablesGroup(results))
+            self.set_output(ValueVariablesGroup(results))
 
         else:
             input_operand = typing.cast(ibis.expr.types.NumericValue, input_operand)

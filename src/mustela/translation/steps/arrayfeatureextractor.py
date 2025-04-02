@@ -5,7 +5,7 @@ import typing
 import ibis.expr.types
 
 from ..translator import Translator
-from ..variables import VariablesGroup
+from ..variables import ValueVariablesGroup, VariablesGroup
 
 
 class ArrayFeatureExtractorTranslator(Translator):
@@ -58,7 +58,9 @@ class ArrayFeatureExtractorTranslator(Translator):
                 )
 
             # Pick only the columns that are in the list of indicies.
-            result = VariablesGroup({data_keys[i]: data_values[i] for i in indices})
+            result = ValueVariablesGroup(
+                {data_keys[i]: data_values[i] for i in indices}
+            )
         elif isinstance(data, (tuple, list)):
             # We are selecting values out of a list of values
             # This is usually used to select "classes" out of a list of

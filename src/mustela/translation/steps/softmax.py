@@ -5,7 +5,7 @@ import typing
 import ibis
 
 from ..translator import Translator
-from ..variables import NumericVariablesGroup, VariablesGroup
+from ..variables import NumericVariablesGroup, ValueVariablesGroup, VariablesGroup
 
 
 class SoftmaxTranslator(Translator):
@@ -64,7 +64,7 @@ class SoftmaxTranslator(Translator):
             sum_exp = sum(exp_dict.values())
 
             # Multi columns case: softmax = exp(column_exp) / (exponents_sum)
-            return VariablesGroup({k: exp_dict[k] / sum_exp for k in data.keys()})
+            return ValueVariablesGroup({k: exp_dict[k] / sum_exp for k in data.keys()})
         elif isinstance(data, ibis.Expr):
             # Single column case: softmax(x) = exp(x) / exp(x) = 1
             return ibis.literal(1.0)

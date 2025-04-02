@@ -5,7 +5,7 @@ import typing
 import ibis
 
 from ..translator import Translator
-from ..variables import VariablesGroup
+from ..variables import ValueVariablesGroup
 
 
 class OneHotEncoderTranslator(Translator):
@@ -44,5 +44,7 @@ class OneHotEncoderTranslator(Translator):
         # by subsequent operations, so preserving them makes sense.
         casted_variables = self.preserve(*casted_variables)
         self.set_output(
-            VariablesGroup({cat: casted_variables[i] for i, cat in enumerate(cats)})
+            ValueVariablesGroup(
+                {cat: casted_variables[i] for i, cat in enumerate(cats)}
+            )
         )

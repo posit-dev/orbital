@@ -6,7 +6,7 @@ import ibis
 import onnx
 
 from ..translator import Translator
-from ..variables import VariablesGroup
+from ..variables import ValueVariablesGroup, VariablesGroup
 
 ONNX_TYPES_TO_IBIS: dict[int, ibis.expr.datatypes.DataType] = {
     onnx.TensorProto.FLOAT: ibis.expr.datatypes.float32,  # 1: FLOAT
@@ -34,7 +34,7 @@ class CastTranslator(Translator):
 
         target_type = ONNX_TYPES_TO_IBIS[to_type]
         if isinstance(expr, VariablesGroup):
-            casted = VariablesGroup(
+            casted = ValueVariablesGroup(
                 {
                     k: self._optimizer.fold_cast(expr.as_value(k).cast(target_type))
                     for k in expr
@@ -91,7 +91,7 @@ class CastLikeTranslator(Translator):
         target_type: ibis.DataType = like_expr.type()
 
         # Now cast each field in the dictionary to the target type.
-        casted = VariablesGroup(
+        casted = ValueVariablesGroup(
             {
                 key: self._optimizer.fold_cast(expr.as_value(key).cast(target_type))
                 for key in expr

@@ -63,8 +63,22 @@ class VariablesGroup(dict[str, VariablesGroupVarT], typing.Generic[VariablesGrou
         return typing.cast(list[ibis.Value], values)
 
 
+class ValueVariablesGroup(VariablesGroup[ibis.expr.types.Value]):
+    """A group of value variables that can be used to represent a set of values.
+
+    This is used to represent a group of columns in a table,
+    the group will act as a single entity on which expressions will
+    be applied.
+
+    If an expression is applied to the group, it will be applied to all
+    columns in the group.
+    """
+
+    VAR_TYPE = ibis.expr.types.Value
+
+
 class NumericVariablesGroup(VariablesGroup[ibis.expr.types.NumericValue]):
-    """A group of numeric variables that can be used to represent a set of expressions.
+    """A group of numeric variables that can be used to represent a set of numeric values.
 
     This is used to represent a group of numeric columns in a table,
     steps that expect to be able to perform mathematical operations

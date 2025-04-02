@@ -3,7 +3,7 @@
 import ibis
 
 from ..translator import Translator
-from ..variables import VariablesGroup
+from ..variables import ValueVariablesGroup, VariablesGroup
 
 
 class ImputerTranslator(Translator):
@@ -29,7 +29,7 @@ class ImputerTranslator(Translator):
                 raise ValueError(
                     "Imputer: number of imputed values does not match number of columns"
                 )
-            new_expr = VariablesGroup()
+            new_expr = ValueVariablesGroup()
             for i, key in enumerate(keys):
                 new_expr[key] = ibis.coalesce(expr[key], imputed_values[i])
             self.set_output(new_expr)

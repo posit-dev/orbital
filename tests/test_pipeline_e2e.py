@@ -455,7 +455,7 @@ class TestEndToEndPipelines:
                 sql_results[f"output_probability.{class_label}"].to_numpy(),
                 sklearn_proba_df[class_label].values.flatten(),
                 rtol=1e-4,
-                atol=1e-4,
+                atol=1e-7,
             )
 
     def test_binary_random_forest_classifier(self, iris_data, db_connection):

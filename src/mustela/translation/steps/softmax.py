@@ -4,9 +4,8 @@ import typing
 
 import ibis
 
-from mustela.translation.variables import NumericVariablesGroup
-
-from ..translator import Translator, VariablesGroup
+from ..translator import Translator
+from ..variables import NumericVariablesGroup, VariablesGroup
 
 
 class SoftmaxTranslator(Translator):
@@ -65,11 +64,11 @@ class SoftmaxTranslator(Translator):
             sum_exp = sum(exp_dict.values())
 
             # Multi columns case: softmax = exp(column_exp) / (exponents_sum)
-            softmax_result = VariablesGroup(
-                {k: exp_dict[k] / sum_exp for k in data.keys()}
-            )
-        else:
+            return VariablesGroup({k: exp_dict[k] / sum_exp for k in data.keys()})
+        elif isinstance(data, ibis.Expr):
             # Single column case: softmax(x) = exp(x) / exp(x) = 1
-            softmax_result = ibis.literal(1.0)
-
-        return softmax_result
+            return ibis.literal(1.0)
+        else:
+            raise TypeError(
+                f"Softmax: expected a column group or a single column. Got {type(data)}"
+            )

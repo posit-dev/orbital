@@ -174,8 +174,9 @@ class Optimizer:
             else:
                 return op.default.to_expr()
         elif len(op.cases) == 1 and results_are_literals and possible_values == {1, 0}:
-            # results are 1 or 0, we can fold it to a boolean
-            # expression.
+            # results are 1 or 0, we can fold it to a boolean expression.
+            # FIXME: This doesn't work on postgresql so we need to disable it for the moment.
+            return expr
             if op.results[0].value == 1:
                 return (op.cases[0].to_expr()).cast("float64")
             else:

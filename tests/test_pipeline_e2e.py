@@ -56,7 +56,7 @@ class TestEndToEndPipelines:
         elif dialect == "postgres":
             conn = sqlalchemy.create_engine("postgresql:///testdb")
             yield conn, dialect
-            conn.close()
+            conn.dispose()
 
     def execute_sql(self, sql, conn, dialect, data):
         if dialect == "duckdb":

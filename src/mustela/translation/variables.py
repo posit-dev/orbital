@@ -8,8 +8,12 @@ import onnx
 from .._utils import onnx as onnx_utils
 from .._utils.onnx import VariableTypes
 
+VariablesGroupVarType = typing.TypeVar("VariablesGroupVarType", bound=ibis.Expr)
 
-class VariablesGroup(dict[str, ibis.Expr]):
+
+class VariablesGroup(
+    dict[str, VariablesGroupVarType], typing.Generic[VariablesGroupVarType]
+):
     """A group of variables that can be used to represent a set of expressions.
 
     This is used to represent a group of columns in a table,
@@ -54,7 +58,7 @@ class VariablesGroup(dict[str, ibis.Expr]):
         return typing.cast(list[ibis.Value], values)
 
 
-class NumericVariablesGroup(dict[str, ibis.expr.types.NumericValue]):
+class NumericVariablesGroup(VariablesGroup[ibis.expr.types.NumericValue]):
     """A group of numeric variables that can be used to represent a set of expressions.
 
     This is used to represent a group of numeric columns in a table,

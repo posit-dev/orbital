@@ -297,7 +297,6 @@ class TestEndToEndPipelines:
         X = df[feature_names + ["quality"]]
         y = df["target"]
         sklearn_pipeline.fit(X, y)
-        sklearn_proba = sklearn_pipeline.predict_proba(X)
         sklearn_class = sklearn_pipeline.predict(X)
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
@@ -311,18 +310,17 @@ class TestEndToEndPipelines:
             sql_results["output_label"].to_numpy(), sklearn_class
         )
 
-        if False:
-            # FIXME: Probabilities are currently known to be broken for gradient boosted trees
-            sklearn_proba_df = pd.DataFrame(
-                sklearn_proba, columns=sklearn_pipeline.classes_, index=df.index
+        sklearn_proba = sklearn_pipeline.predict_proba(X)
+        sklearn_proba_df = pd.DataFrame(
+            sklearn_proba, columns=sklearn_pipeline.classes_, index=df.index
+        )
+        for class_label in sklearn_pipeline.classes_:
+            np.testing.assert_allclose(
+                sql_results[f"output_probability.{class_label}"].to_numpy(),
+                sklearn_proba_df[class_label].values.flatten(),
+                rtol=1e-4,
+                atol=1e-4,
             )
-            for class_label in sklearn_pipeline.classes_:
-                np.testing.assert_allclose(
-                    sql_results[f"output_probability.{class_label}"].values.flatten(),
-                    sklearn_proba_df[class_label].values.flatten(),
-                    rtol=1e-4,
-                    atol=1e-4,
-                )
 
     def test_gradient_boosting_regressor(self, iris_data, db_connection):
         """Test a gradient boosting regressor with standardization."""
@@ -435,7 +433,6 @@ class TestEndToEndPipelines:
         X = df[feature_names + ["region"]]
         y = df["target"]
         sklearn_pipeline.fit(X, y)
-        sklearn_proba = sklearn_pipeline.predict_proba(X)
         sklearn_class = sklearn_pipeline.predict(X)
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
@@ -449,17 +446,17 @@ class TestEndToEndPipelines:
             sql_results["output_label"].to_numpy(), sklearn_class
         )
 
-        if False:
-            sklearn_proba_df = pd.DataFrame(
-                sklearn_proba, columns=sklearn_pipeline.classes_, index=df.index
+        sklearn_proba = sklearn_pipeline.predict_proba(X)
+        sklearn_proba_df = pd.DataFrame(
+            sklearn_proba, columns=sklearn_pipeline.classes_, index=df.index
+        )
+        for class_label in sklearn_pipeline.classes_:
+            np.testing.assert_allclose(
+                sql_results[f"output_probability.{class_label}"].to_numpy(),
+                sklearn_proba_df[class_label].values.flatten(),
+                rtol=1e-3,
+                atol=1e-6,
             )
-            for class_label in sklearn_pipeline.classes_:
-                np.testing.assert_allclose(
-                    sql_results[f"output_probability.{class_label}"].values.flatten(),
-                    sklearn_proba_df[class_label].values.flatten(),
-                    rtol=1e-4,
-                    atol=1e-4,
-                )
 
     def test_binary_random_forest_classifier(self, iris_data, db_connection):
         """Test a binary random forest classifier with mixed preprocessing."""

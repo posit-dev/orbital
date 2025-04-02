@@ -5,7 +5,7 @@ import typing
 import ibis
 
 from ..translator import Translator
-from ..variables import VariablesGroup
+from ..variables import NumericVariablesGroup, ValueVariablesGroup, VariablesGroup
 
 
 class ScalerTranslator(Translator):
@@ -36,10 +36,8 @@ class ScalerTranslator(Translator):
         if not isinstance(type_check_var, ibis.expr.types.NumericValue):
             raise ValueError("Scaler: The input operand must be numeric.")
 
-        if isinstance(input_operand, dict):
-            input_operand = typing.cast(
-                dict[str, ibis.expr.types.NumericValue], input_operand
-            )
+        if isinstance(input_operand, VariablesGroup):
+            input_operand = NumericVariablesGroup(input_operand)
 
             # If the attributes are len=1,
             # it means to apply the same value to all inputs.
@@ -55,7 +53,7 @@ class ScalerTranslator(Translator):
                 )
 
             self.set_output(
-                VariablesGroup(
+                ValueVariablesGroup(
                     {
                         field: self._optimizer.fold_operation(
                             (val - offset[i]) * scale[i]

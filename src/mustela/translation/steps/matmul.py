@@ -5,7 +5,7 @@ import typing
 import ibis
 
 from ..translator import Translator
-from ..variables import VariablesGroup
+from ..variables import ValueVariablesGroup
 
 
 class MatMulTranslator(Translator):
@@ -101,7 +101,7 @@ class MatMulTranslator(Translator):
                     result = result_list[0]
                 else:
                     # Return a dict of output expressions if there are multiple output columns.
-                    result = VariablesGroup(
+                    result = ValueVariablesGroup(
                         {f"out_{j}": result_list[j] for j in range(output_dim)}
                     )
                 self.set_output(result)
@@ -131,7 +131,7 @@ class MatMulTranslator(Translator):
                         result = result_list[0]
                         self.set_output(result_list[0])
                     else:
-                        result = VariablesGroup(
+                        result = ValueVariablesGroup(
                             {f"out_{j}": result_list[j] for j in range(output_dim)}
                         )
                     self.set_output(result)

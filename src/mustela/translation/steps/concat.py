@@ -5,7 +5,7 @@ import typing
 import ibis
 
 from ..translator import Translator
-from ..variables import VariablesGroup
+from ..variables import ValueVariablesGroup, VariablesGroup
 
 
 class ConcatTranslator(Translator):
@@ -42,7 +42,8 @@ class ConcatTranslator(Translator):
         This is used by both Concat and FeatureVectorizer translators,
         as they both need to concatenate columns.
         """
-        result = VariablesGroup()
+        result = ValueVariablesGroup()
+
         for col in translator.inputs:
             feature = translator._variables.consume(col)
             if isinstance(feature, dict):

@@ -5,7 +5,7 @@ import typing
 import ibis
 
 from ...translator import Translator
-from ...variables import VariablesGroup
+from ...variables import ValueVariablesGroup, VariablesGroup
 from ..linearclass import LinearClassifierTranslator
 from ..softmax import SoftmaxTranslator
 from .tree import build_tree, mode_to_condition
@@ -47,9 +47,9 @@ class TreeEnsembleClassifierTranslator(Translator):
 
         if post_transform != "NONE":
             if post_transform == "SOFTMAX":
-                prob_colgroup = SoftmaxTranslator.compute_softmax(prob_colgroup)
+                prob_colgroup = SoftmaxTranslator.compute_softmax(self, prob_colgroup)
             elif post_transform == "LOGISTIC":
-                prob_colgroup = VariablesGroup(
+                prob_colgroup = ValueVariablesGroup(
                     {
                         lbl: LinearClassifierTranslator._apply_post_transform(
                             prob_col, post_transform
@@ -159,7 +159,7 @@ class TreeEnsembleClassifierTranslator(Translator):
             )
             # The order matters, for ONNX the VariableGroup is a list of subvariables
             # the names are not important.
-            prob_dict = VariablesGroup(
+            prob_dict = ValueVariablesGroup(
                 {
                     str(output_classlabels[0]): 1.0 - total_score,
                     str(output_classlabels[1]): total_score,
@@ -188,14 +188,23 @@ class TreeEnsembleClassifierTranslator(Translator):
             label_expr = label_expr.else_(ibis.null()).end()
             label_expr = optimizer.fold_case(label_expr)
 
-            # Compute probability to return it too.
-            sum_votes = ibis.literal(0.0)
-            for clslabel in classlabels:
-                sum_votes = optimizer.fold_operation(sum_votes + total_votes[clslabel])
-
-            # FIXME: Probabilities are currently broken for gradient boosted trees.
-            prob_dict = VariablesGroup()
-            for clslabel in classlabels:
-                prob_dict[str(clslabel)] = total_votes[clslabel] / sum_votes
+            post_transform = typing.cast(
+                str, self._attributes.get("post_transform", "NONE")
+            )
+            if post_transform == "SOFTMAX":
+                # Use softmax as an hint that we are doing a gradient boosted tree,
+                # thus the probability is the same as the score and should not be normalized
+                prob_dict = ValueVariablesGroup(
+                    {str(clslabel): total_votes[clslabel] for clslabel in classlabels}
+                )
+            else:
+                # Compute probability to return it too.
+                sum_votes = sum(total_votes[clslabel] for clslabel in classlabels)
+                prob_dict = ValueVariablesGroup(
+                    {
+                        str(clslabel): total_votes[clslabel] / sum_votes
+                        for clslabel in classlabels
+                    }
+                )
 
         return label_expr, prob_dict

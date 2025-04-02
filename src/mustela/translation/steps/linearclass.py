@@ -5,7 +5,7 @@ import typing
 import ibis
 
 from ..translator import Translator
-from ..variables import NumericVariablesGroup, VariablesGroup
+from ..variables import NumericVariablesGroup, ValueVariablesGroup, VariablesGroup
 
 
 class LinearClassifierTranslator(Translator):
@@ -48,7 +48,7 @@ class LinearClassifierTranslator(Translator):
         # Standardize input_operand to a columns group,
         # so that we can reuse a single implementation.
         if not isinstance(input_operand, VariablesGroup):
-            input_operand = VariablesGroup({"feature": input_operand})
+            input_operand = ValueVariablesGroup({"feature": input_operand})
 
         num_features = len(input_operand)
         num_classes = len(classlabels)
@@ -75,7 +75,7 @@ class LinearClassifierTranslator(Translator):
             score = self._apply_post_transform(score, post_transform)
             scores.append(self._optimizer.fold_operation(score))
 
-        scores_struct = VariablesGroup(
+        scores_struct = ValueVariablesGroup(
             {str(label): score for label, score in zip(classlabels, scores)}
         )
 

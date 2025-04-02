@@ -4,9 +4,8 @@ import typing
 
 import ibis
 
-from mustela.translation.variables import VariablesGroup
-
 from ..translator import Translator
+from ..variables import NumericVariablesGroup, ValueVariablesGroup, VariablesGroup
 
 
 class DivTranslator(Translator):
@@ -36,7 +35,8 @@ class DivTranslator(Translator):
                 "Div: Second input (divisor) must be a constant list."
             )
 
-        if isinstance(first_operand, dict):
+        if isinstance(first_operand, VariablesGroup):
+            first_operand = NumericVariablesGroup(first_operand)
             struct_fields = list(first_operand.keys())
             for value in first_operand.values():
                 if not isinstance(value, ibis.expr.types.NumericValue):
@@ -50,7 +50,7 @@ class DivTranslator(Translator):
                 if not isinstance(second_arg, (int, float)):
                     raise ValueError("Div: The second operand must be a numeric value.")
                 self.set_output(
-                    VariablesGroup(
+                    ValueVariablesGroup(
                         {
                             field: (
                                 self._optimizer.fold_operation(
@@ -67,7 +67,7 @@ class DivTranslator(Translator):
                         "The number of elements in the second operand must match the number of columns in the first operand."
                     )
                 self.set_output(
-                    VariablesGroup(
+                    ValueVariablesGroup(
                         {
                             field: (
                                 self._optimizer.fold_operation(

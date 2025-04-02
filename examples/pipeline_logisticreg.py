@@ -51,10 +51,8 @@ pipeline = Pipeline([
 pipeline.fit(X, y)
 
 features = mustela.types.guess_datatypes(X)
-print("Mustela Features:", features)
-
 mustela_pipeline = mustela.parse_pipeline(pipeline, features=features)
-print(mustela_pipeline._model)
+print(mustela_pipeline)
 
 # Dati di test
 example_data = pa.table({

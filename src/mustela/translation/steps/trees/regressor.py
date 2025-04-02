@@ -46,7 +46,7 @@ class TreeEnsembleRegressorTranslator(Translator):
         else:
             ordered_features = typing.cast(list[ibis.Value], [input_expr])
         ordered_features = [
-            feature.name(self.variable_unique_short_alias("tclass"))
+            feature.name(self.variable_unique_short_alias("tcl"))
             for feature in ordered_features
         ]
         ordered_features = self.preserve(*ordered_features)

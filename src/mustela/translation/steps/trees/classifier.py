@@ -103,7 +103,7 @@ class TreeEnsembleClassifierTranslator(Translator):
         else:
             ordered_features = typing.cast(list[ibis.Value], [input_expr])
         ordered_features = [
-            feature.name(self.variable_unique_short_alias("tclass"))
+            feature.name(self.variable_unique_short_alias("tcl"))
             for feature in ordered_features
         ]
         ordered_features = self.preserve(*ordered_features)
@@ -111,12 +111,12 @@ class TreeEnsembleClassifierTranslator(Translator):
         def build_tree_case(node: dict) -> dict[str | int, ibis.Expr]:
             # Leaf node, return the votes
             if node["mode"] == "LEAF":
-                votes = {}
-                for clslabel in classlabels:
-                    # We can assume missing class = weight 0
-                    # The optimizer will remove this if both true and false have 0.
-                    votes[clslabel] = ibis.literal(node["weight"].get(clslabel, 0))
-                return votes
+                # We can assume missing class = weight 0
+                # The optimizer will remove this if both true and false have 0.
+                return {
+                    clslabel: ibis.literal(node["weight"].get(clslabel, 0.0))
+                    for clslabel in classlabels
+                }
 
             # Branch node, build a CASE statement
             feature_expr = ordered_features[node["feature_id"]]

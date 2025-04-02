@@ -27,6 +27,9 @@ jobs:
         run: |
           uv sync --dev
 
+      - name: Set up PostgreSQL
+        uses: harmon758/postgresql-action@v1
+
       - name: Run Test Suite
         run: |
           uv run pytest -v --tb=short --disable-warnings --maxfail=1 --cov=mustela

@@ -1,6 +1,7 @@
 import sqlite3
 
 import duckdb
+import psycopg2
 import numpy as np
 import pandas as pd
 import pytest
@@ -41,7 +42,7 @@ class TestEndToEndPipelines:
         df = pd.concat([X, y], axis=1)
         return df, feature_names
 
-    @pytest.fixture(params=["duckdb", "sqlite"])
+    @pytest.fixture(params=["duckdb", "sqlite", "postgres"])
     def db_connection(self, request):
         dialect = request.param
         if dialect == "duckdb":
@@ -50,6 +51,10 @@ class TestEndToEndPipelines:
             conn.close()
         elif dialect == "sqlite":
             conn = sqlite3.connect(":memory:")
+            yield conn, dialect
+            conn.close()
+        elif dialect == "postgres":
+            conn = psycopg2.connect()
             yield conn, dialect
             conn.close()
 

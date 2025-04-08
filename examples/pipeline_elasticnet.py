@@ -22,7 +22,7 @@ logging.getLogger("orbitalml").setLevel(logging.INFO)  # Set DEBUG to see transl
 iris = load_iris(as_frame=True)
 iris_x = iris.data
 
-# SQL and Mustela don't like dots in column names, replace them with underscores
+# SQL and OrbitalML don't like dots in column names, replace them with underscores
 iris_x.columns = [cname.replace(".", "_") for cname in iris_x.columns]
 
 numeric_cols = ["sepal_length", "sepal_width", "petal_length", "petal_width"]
@@ -61,7 +61,7 @@ example_data = pa.table(
     }
 )
 
-# Generate a query expression using Mustela
+# Generate a query expression using OrbitalML
 ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
 ibis_expression = orbitalml.translate(ibis_table, orbitalml_pipeline)
 

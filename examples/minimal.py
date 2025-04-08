@@ -15,7 +15,7 @@ COLUMNS = ["sepal.length", "sepal.width", "petal.length", "petal.width"]
 iris = load_iris(as_frame=True)
 iris_x = iris.data.set_axis(COLUMNS, axis=1)
 
-# SQL and Mustela don't like dots in column names, replace them with underscores
+# SQL and OrbitalML don't like dots in column names, replace them with underscores
 iris_x.columns = COLUMNS = [cname.replace(".", "_") for cname in COLUMNS]
 
 X_train, X_test, y_train, y_test = train_test_split(

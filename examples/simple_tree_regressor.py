@@ -29,7 +29,7 @@ model.fit(X, y)
 data_sample = X.head(5)
 
 features = orbitalml.types.guess_datatypes(X)
-print("Mustela Features:", features)
+print("OrbitalML Features:", features)
 
 orbitalml_pipeline = orbitalml.parse_pipeline(model, features=features)
 print(orbitalml_pipeline)

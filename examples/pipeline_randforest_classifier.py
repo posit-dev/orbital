@@ -47,7 +47,7 @@ pipeline.fit(X, y)
 
 
 features = orbitalml.types.guess_datatypes(X)
-print("Mustela Features:", features)
+print("OrbitalML Features:", features)
 
 orbitalml_pipeline = orbitalml.parse_pipeline(pipeline, features=features)
 print(orbitalml_pipeline)

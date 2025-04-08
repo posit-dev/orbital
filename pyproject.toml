@@ -6,7 +6,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "Mustela"
+name = "OrbitalML"
 version = "0.1.0"
 description = "Allow SKLearn predictions to run on database systems in pure SQL."
 keywords = ["database", "machine learning", "sql"]

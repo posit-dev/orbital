@@ -63,11 +63,11 @@ pipeline = Pipeline(
 
 pipeline.fit(X, y)
 
-# Converti le feature per Mustela
+# Converti le feature per OrbitalML
 features = orbitalml.types.guess_datatypes(X)
-print("Mustela Features:", features)
+print("OrbitalML Features:", features)
 
-# Converti la pipeline in SQL con Mustela
+# Converti la pipeline in SQL con OrbitalML
 orbitalml_pipeline = orbitalml.parse_pipeline(pipeline, features=features)
 print(orbitalml_pipeline)
 
@@ -81,7 +81,7 @@ example_data = pa.table(
     }
 )
 
-# Genera la query SQL con Mustela
+# Genera la query SQL con OrbitalML
 ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
 ibis_expression = orbitalml.translate(ibis_table, orbitalml_pipeline)
 

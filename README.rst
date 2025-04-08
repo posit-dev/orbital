@@ -1,4 +1,4 @@
-Mustela
+OrbitalML
 =======
 
 Convert SKLearn pipelines into SQL queries for execution in a database
@@ -14,12 +14,12 @@ See `examples` directory for example pipelines.
 **Note**::
 
     Not all transformations and models can be represented as SQL queries,
-    so Mustela might not be able to implement the specific pipeline you are using.
+    so OrbitalML might not be able to implement the specific pipeline you are using.
 
 Getting Started
 ----------------
 
-Install Mustela::
+Install OrbitalML::
 
     $ git clone https://github.com/posit-dev/orbitalml.git
     $ pip install ./orbitalml
@@ -34,7 +34,7 @@ Prepare some data::
     iris = load_iris(as_frame=True)
     iris_x = iris.data.set_axis(COLUMNS, axis=1)
 
-    # SQL and Mustela don't like dots in column names, replace them with underscores
+    # SQL and OrbitalML don't like dots in column names, replace them with underscores
     iris_x.columns = COLUMNS = [cname.replace(".", "_") for cname in COLUMNS]
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -57,7 +57,7 @@ Define a Scikit-Learn pipeline and train it::
     )
     pipeline.fit(X_train, y_train)
 
-Convert the pipeline to Mustela::
+Convert the pipeline to OrbitalML::
 
     import orbitalml
     import orbitalml.types
@@ -141,7 +141,7 @@ by running the scikitlearn pipeline on the same set of data::
 Supported Models
 -----------------
 
-Mustela currently supports the following models:
+OrbitalML currently supports the following models:
 
 - Linear Regression
 - Logistic Regression

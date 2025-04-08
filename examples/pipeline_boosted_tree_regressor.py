@@ -36,7 +36,7 @@ numeric_features = [
 ]
 categorical_features = ames.select_dtypes(include=["object", "category"]).columns
 
-# Mustela requires the input and outputs of an imputer to
+# OrbitalML requires the input and outputs of an imputer to
 # be of the same type, as SimpleImputer has to compute the mean
 # the result is always a float. Which makes sense.
 # Let's convert all numeric features to doubles so
@@ -114,7 +114,7 @@ print(target)
 # NOTE: Interestingly the DuckDB optimizer has a bug on this query too
 #       and unless disabled the query never completes.
 #       That's why we run using SQLite.
-#       The Mustela optimizer when enabled is able to preoptimize the query
+#       The OrbitalML optimizer when enabled is able to preoptimize the query
 #       which seems to allow DuckDB to complete the query as probably the DuckDB
 #       optimizer has less work to do in that case.
 print("\nPrediction with Ibis")

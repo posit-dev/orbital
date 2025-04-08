@@ -12,14 +12,14 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-import mustela
-import mustela.types
+import orbitalml
+import orbitalml.types
 
 PRINT_SQL = int(os.environ.get("PRINTSQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
 
 logging.basicConfig(level=logging.INFO)
-logging.getLogger("mustela").setLevel(logging.INFO)  # Set DEBUG to see translation process.
+logging.getLogger("orbitalml").setLevel(logging.INFO)  # Set DEBUG to see translation process.
 
 ames = fetch_openml(name="house_prices", as_frame=True)
 ames = ames.frame
@@ -87,19 +87,19 @@ model.fit(X, y)
 # It's easier to understand if it's small
 data_sample = X.head(5)
 
-features = mustela.types.guess_datatypes(X)
-mustela_pipeline = mustela.parse_pipeline(model, features=features)
-print(mustela_pipeline)
+features = orbitalml.types.guess_datatypes(X)
+orbitalml_pipeline = orbitalml.parse_pipeline(model, features=features)
+print(orbitalml_pipeline)
 
 ibis_table = ibis.memtable(data_sample, name="DATA_TABLE")
-ibis_expression = mustela.translate(ibis_table, mustela_pipeline)
+ibis_expression = orbitalml.translate(ibis_table, orbitalml_pipeline)
 con = ibis.duckdb.connect()
 
 if PRINT_SQL:
     con = ibis.duckdb.connect()
     print(con.compile(ibis_expression))
 
-    sql = mustela.export_sql("DATA_TABLE", mustela_pipeline, dialect="duckdb")
+    sql = orbitalml.export_sql("DATA_TABLE", orbitalml_pipeline, dialect="duckdb")
     print("\nGenerated Query for DuckDB:")
     print(sql)
     print("\nPrediction with SQL")

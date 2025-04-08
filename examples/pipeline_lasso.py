@@ -10,14 +10,14 @@ from sklearn.linear_model import Lasso
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-import mustela
-import mustela.types
+import orbitalml
+import orbitalml.types
 
 PRINT_SQL = int(os.environ.get("PRINTSQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
 
 logging.basicConfig(level=logging.INFO)
-logging.getLogger("mustela").setLevel(logging.INFO)  # Set DEBUG to see translation process.
+logging.getLogger("orbitalml").setLevel(logging.INFO)  # Set DEBUG to see translation process.
 
 iris = load_iris(as_frame=True)
 iris_x = iris.data
@@ -42,10 +42,10 @@ pipeline = Pipeline(
 )
 pipeline.fit(iris_x, iris.target)
 
-features = mustela.types.guess_datatypes(iris_x)
+features = orbitalml.types.guess_datatypes(iris_x)
 
-mustela_pipeline = mustela.parse_pipeline(pipeline, features=features)
-print(mustela_pipeline)
+orbitalml_pipeline = orbitalml.parse_pipeline(pipeline, features=features)
+print(orbitalml_pipeline)
 
 # Include at least 1 value from training set to confirm the right computation happened
 example_data = pa.table(
@@ -58,11 +58,11 @@ example_data = pa.table(
 )
 
 ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
-ibis_expression = mustela.translate(ibis_table, mustela_pipeline)
+ibis_expression = orbitalml.translate(ibis_table, orbitalml_pipeline)
 
 con = ibis.duckdb.connect()
 if PRINT_SQL:
-    sql = mustela.export_sql("DATA_TABLE", mustela_pipeline, dialect="duckdb")
+    sql = orbitalml.export_sql("DATA_TABLE", orbitalml_pipeline, dialect="duckdb")
     print("\nGenerated Query for DuckDB:")
     print(sql)
     print("\nPrediction with SQL")

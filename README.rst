@@ -21,8 +21,8 @@ Getting Started
 
 Install Mustela::
 
-    $ git clone https://github.com/posit-dev/mustela.git
-    $ pip install ./mustela
+    $ git clone https://github.com/posit-dev/orbitalml.git
+    $ pip install ./orbitalml
 
 Prepare some data::
 
@@ -59,19 +59,19 @@ Define a Scikit-Learn pipeline and train it::
 
 Convert the pipeline to Mustela::
 
-    import mustela
-    import mustela.types
+    import orbitalml
+    import orbitalml.types
 
-    mustela_pipeline = mustela.parse_pipeline(pipeline, features={
-        "sepal_length": mustela.types.DoubleColumnType(),
-        "sepal_width": mustela.types.DoubleColumnType(),
-        "petal_length": mustela.types.DoubleColumnType(),
-        "petal_width": mustela.types.DoubleColumnType(),
+    orbitalml_pipeline = orbitalml.parse_pipeline(pipeline, features={
+        "sepal_length": orbitalml.types.DoubleColumnType(),
+        "sepal_width": orbitalml.types.DoubleColumnType(),
+        "petal_length": orbitalml.types.DoubleColumnType(),
+        "petal_width": orbitalml.types.DoubleColumnType(),
     })
 
 You can print the pipeline to see the result::
 
-    >>> print(mustela_pipeline)
+    >>> print(orbitalml_pipeline)
 
     ParsedPipeline(
         features={
@@ -107,7 +107,7 @@ You can print the pipeline to see the result::
 
 Now we can generate the SQL from the pipeline::
 
-    sql = mustela.export_sql("DATA_TABLE", mustela_pipeline, dialect="duckdb")
+    sql = orbitalml.export_sql("DATA_TABLE", orbitalml_pipeline, dialect="duckdb")
 
 And check the resulting query::
 

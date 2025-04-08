@@ -7,8 +7,8 @@ from sklearn.preprocessing import StandardScaler
 
 import duckdb
 
-import mustela
-import mustela.types
+import orbitalml
+import orbitalml.types
 
 COLUMNS = ["sepal.length", "sepal.width", "petal.length", "petal.width"]
 
@@ -33,15 +33,15 @@ pipeline = Pipeline(
 pipeline.fit(X_train, y_train)
 
 
-mustela_pipeline = mustela.parse_pipeline(pipeline, features={
-    "sepal_length": mustela.types.DoubleColumnType(),
-    "sepal_width": mustela.types.DoubleColumnType(),
-    "petal_length": mustela.types.DoubleColumnType(),
-    "petal_width": mustela.types.DoubleColumnType(),
+orbitalml_pipeline = orbitalml.parse_pipeline(pipeline, features={
+    "sepal_length": orbitalml.types.DoubleColumnType(),
+    "sepal_width": orbitalml.types.DoubleColumnType(),
+    "petal_length": orbitalml.types.DoubleColumnType(),
+    "petal_width": orbitalml.types.DoubleColumnType(),
 })
-print(mustela_pipeline)
+print(orbitalml_pipeline)
 
-sql = mustela.export_sql("DATA_TABLE", mustela_pipeline, dialect="duckdb")
+sql = orbitalml.export_sql("DATA_TABLE", orbitalml_pipeline, dialect="duckdb")
 print("\nGenerated Query for DuckDB:")
 print(sql)
 print("\nPrediction with SQL")

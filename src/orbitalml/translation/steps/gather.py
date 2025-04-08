@@ -1,6 +1,6 @@
 """Defines the translation step for the Gather operation."""
 
-from mustela.translation.variables import VariablesGroup
+from orbitalml.translation.variables import VariablesGroup
 
 from ..translator import Translator
 

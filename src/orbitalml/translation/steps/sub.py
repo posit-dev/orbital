@@ -4,7 +4,7 @@ import typing
 
 import ibis
 
-from mustela.translation.variables import (
+from orbitalml.translation.variables import (
     NumericVariablesGroup,
     ValueVariablesGroup,
     VariablesGroup,

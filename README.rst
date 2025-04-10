@@ -21,8 +21,8 @@ Getting Started
 
 Install OrbitalML::
 
-    $ git clone https://github.com/posit-dev/orbitalml.git
-    $ pip install ./orbitalml
+    $ git clone https://github.com/posit-dev/orbital.git
+    $ pip install ./orbital
 
 Prepare some data::
 

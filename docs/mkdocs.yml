@@ -2,3 +2,42 @@ site_name: Orbital
 site_url: https://posit-dev.github.io/orbital
 theme:
   name: material
+  font:
+    text: Roboto
+extra_css:
+    - css/extra.css
+plugins:
+- search
+- autorefs
+- mkdocstrings:
+    enable_inventory: true
+    default_handler: python
+    handlers:
+      python:
+        paths: 
+          - ../src
+        options:
+          show_root_heading: true
+          show_root_members_full_path: true
+          show_symbol_type_heading: true
+          show_symbol_type_toc: true
+          docstring_style: sphinx
+          separate_signature: true
+          show_signature_annotations: true
+          signature_crossrefs: true
+          members_order: source
+        inventories:
+        - https://docs.python.org/3/objects.inv
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+nav:
+  - Home: index.md
+  - Getting Started: getstarted.md
+  - API Reference: apiref.md
+  - Internals: internals.md

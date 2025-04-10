@@ -1,0 +1,4 @@
+.doc-heading .doc-object-name {
+  font-size: 1.2em;
+  color: var(--md-mermaid-node-fg-color);
+}

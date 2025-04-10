@@ -1,0 +1,4 @@
+site_name: Orbital
+site_url: https://posit-dev.github.io/orbital
+theme:
+  name: material

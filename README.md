@@ -1,31 +1,33 @@
-OrbitalML
-=======
+# OrbitalML
 
 Convert SKLearn pipelines into SQL queries for execution in a database
 without the need for a Python environment.
 
-See `examples` directory for example pipelines.
+See `examples` directory for example
+pipelines.
 
-**Warning**::
+**Warning**:
 
     This is a work in progress.
     You might encounter bugs or missing features.
 
-**Note**::
+**Note**:
 
     Not all transformations and models can be represented as SQL queries,
     so OrbitalML might not be able to implement the specific pipeline you are using.
 
-Getting Started
-----------------
+## Getting Started
 
-Install OrbitalML::
+Install OrbitalML:
 
+```bash
     $ git clone https://github.com/posit-dev/orbital.git
     $ pip install ./orbital
+```
 
-Prepare some data::
+Prepare some data:
 
+```python
     from sklearn.datasets import load_iris
     from sklearn.model_selection import train_test_split
 
@@ -40,9 +42,11 @@ Prepare some data::
     X_train, X_test, y_train, y_test = train_test_split(
         iris_x, iris.target, test_size=0.2, random_state=42
     )
+```
 
-Define a Scikit-Learn pipeline and train it::
+Define a Scikit-Learn pipeline and train it:
 
+```python
     from sklearn.compose import ColumnTransformer
     from sklearn.linear_model import LinearRegression
     from sklearn.pipeline import Pipeline
@@ -56,9 +60,11 @@ Define a Scikit-Learn pipeline and train it::
         ]
     )
     pipeline.fit(X_train, y_train)
+```
 
-Convert the pipeline to OrbitalML::
+Convert the pipeline to OrbitalML:
 
+```python
     import orbitalml
     import orbitalml.types
 
@@ -68,9 +74,11 @@ Convert the pipeline to OrbitalML::
         "petal_length": orbitalml.types.DoubleColumnType(),
         "petal_width": orbitalml.types.DoubleColumnType(),
     })
+```
 
-You can print the pipeline to see the result::
+You can print the pipeline to see the result:
 
+```python
     >>> print(orbitalml_pipeline)
 
     ParsedPipeline(
@@ -104,13 +112,17 @@ You can print the pipeline to see the result::
             )
         ],
     )
+``` 
 
-Now we can generate the SQL from the pipeline::
+Now we can generate the SQL from the pipeline:
 
+```python
     sql = orbitalml.export_sql("DATA_TABLE", orbitalml_pipeline, dialect="duckdb")
+```
 
-And check the resulting query::
+And check the resulting query:
 
+```python
     >>> print(sql)
 
     SELECT ("t0"."sepal_length" - 5.809166666666666) * -0.11633479416518255 + 0.9916666666666668 +  
@@ -118,59 +130,70 @@ And check the resulting query::
            ("t0"."petal_length" - 3.7266666666666666) * 0.25491374699772246 + 
            ("t0"."petal_width" - 1.1833333333333333) * 0.5475959809777828 
     AS "variable" FROM "DATA_TABLE" AS "t0"
+``` 
 
-Once the SQL is generate, you can use it to run the pipeline on a database. 
-From here on the SQL can be exported and reused in other places::
+Once the SQL is generate, you can use it to run the pipeline on a
+database. From here on the SQL can be exported and reused in other
+places:
 
+```python
     >>> print("\nPrediction with SQL")
     >>> duckdb.register("DATA_TABLE", X_test)
     >>> print(duckdb.sql(sql).df()["variable"][:5].to_numpy())
 
     Prediction with SQL
     [ 1.23071715 -0.04010441  2.21970287  1.34966889  1.28429336]
+```
 
 We can verify that the prediction matches the one done by Scikit-Learn
-by running the scikitlearn pipeline on the same set of data::
+by running the scikitlearn pipeline on the same set of data:
 
+```python
     >>> print("\nPrediction with SciKit-Learn")
     >>> print(pipeline.predict(X_test)[:5])
 
     Prediction with SciKit-Learn
     [ 1.23071715 -0.04010441  2.21970287  1.34966889  1.28429336 ]
+``` 
 
-Supported Models
------------------
+## Supported Models
 
 OrbitalML currently supports the following models:
 
-- Linear Regression
-- Logistic Regression
-- Lasso Regression
-- Elastic Net
-- Decision Tree Regressor
-- Decision Tree Classifier
-- Random Forest Classifier
-- Gradient Boosting Regressor
-- Gradient Boosting Classifier
+-   Linear Regression
+-   Logistic Regression
+-   Lasso Regression
+-   Elastic Net
+-   Decision Tree Regressor
+-   Decision Tree Classifier
+-   Random Forest Classifier
+-   Gradient Boosting Regressor
+-   Gradient Boosting Classifier
 
-Testing
--------
+# Testing
 
-Setup testing environment::
+Setup testing environment:
 
+```bash
     $ uv sync --no-dev --extra test
+```
 
-Run Tests::
+Run Tests:
 
+```bash
     $ uv run pytest -v
+```
 
-Try Examples::
+Try Examples:
 
+```bash
     $ uv run examples/pipeline_lineareg.py
+```
 
-Development
------------
+# Development
 
-Setup a development environment::
+Setup a development environment:
 
-    $ uv sync --dev 
+```bash
+    $ uv sync
+```

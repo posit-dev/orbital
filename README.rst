@@ -1,4 +1,4 @@
-Mustela
+OrbitalML
 =======
 
 Convert SKLearn pipelines into SQL queries for execution in a database
@@ -14,15 +14,15 @@ See `examples` directory for example pipelines.
 **Note**::
 
     Not all transformations and models can be represented as SQL queries,
-    so Mustela might not be able to implement the specific pipeline you are using.
+    so OrbitalML might not be able to implement the specific pipeline you are using.
 
 Getting Started
 ----------------
 
-Install Mustela::
+Install OrbitalML::
 
-    $ git clone https://github.com/posit-dev/mustela.git
-    $ pip install ./mustela
+    $ git clone https://github.com/posit-dev/orbitalml.git
+    $ pip install ./orbitalml
 
 Prepare some data::
 
@@ -34,7 +34,7 @@ Prepare some data::
     iris = load_iris(as_frame=True)
     iris_x = iris.data.set_axis(COLUMNS, axis=1)
 
-    # SQL and Mustela don't like dots in column names, replace them with underscores
+    # SQL and OrbitalML don't like dots in column names, replace them with underscores
     iris_x.columns = COLUMNS = [cname.replace(".", "_") for cname in COLUMNS]
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -57,21 +57,21 @@ Define a Scikit-Learn pipeline and train it::
     )
     pipeline.fit(X_train, y_train)
 
-Convert the pipeline to Mustela::
+Convert the pipeline to OrbitalML::
 
-    import mustela
-    import mustela.types
+    import orbitalml
+    import orbitalml.types
 
-    mustela_pipeline = mustela.parse_pipeline(pipeline, features={
-        "sepal_length": mustela.types.DoubleColumnType(),
-        "sepal_width": mustela.types.DoubleColumnType(),
-        "petal_length": mustela.types.DoubleColumnType(),
-        "petal_width": mustela.types.DoubleColumnType(),
+    orbitalml_pipeline = orbitalml.parse_pipeline(pipeline, features={
+        "sepal_length": orbitalml.types.DoubleColumnType(),
+        "sepal_width": orbitalml.types.DoubleColumnType(),
+        "petal_length": orbitalml.types.DoubleColumnType(),
+        "petal_width": orbitalml.types.DoubleColumnType(),
     })
 
 You can print the pipeline to see the result::
 
-    >>> print(mustela_pipeline)
+    >>> print(orbitalml_pipeline)
 
     ParsedPipeline(
         features={
@@ -107,7 +107,7 @@ You can print the pipeline to see the result::
 
 Now we can generate the SQL from the pipeline::
 
-    sql = mustela.export_sql("DATA_TABLE", mustela_pipeline, dialect="duckdb")
+    sql = orbitalml.export_sql("DATA_TABLE", orbitalml_pipeline, dialect="duckdb")
 
 And check the resulting query::
 
@@ -141,7 +141,7 @@ by running the scikitlearn pipeline on the same set of data::
 Supported Models
 -----------------
 
-Mustela currently supports the following models:
+OrbitalML currently supports the following models:
 
 - Linear Regression
 - Logistic Regression

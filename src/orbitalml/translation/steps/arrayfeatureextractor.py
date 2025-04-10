@@ -20,8 +20,8 @@ class ArrayFeatureExtractorTranslator(Translator):
     of ``0`` would mean the first column. If the input is a 1D tensor instead the
     last axis is the row axis. So an index of ``0`` would mean the first row.
 
-    This could be confusing because axis are inverted between tensors and mustela column groups.
-    In the case of Tensors, index=0 means row=0, while instead in mustela
+    This could be confusing because axis are inverted between tensors and orbitalml column groups.
+    In the case of Tensors, index=0 means row=0, while instead in orbitalml
     column groups (by virtue of being a group of columns), index=0 means
     the first column.
 

@@ -1,7 +1,7 @@
 import onnx
 
-from mustela import types
-from mustela.ast import ParsedPipeline
+from orbitalml import types
+from orbitalml.ast import ParsedPipeline
 
 BASIC_FEATURES = {
     "X": types.FloatColumnType(),

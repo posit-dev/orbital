@@ -18,8 +18,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, StandardScaler
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
-import mustela
-from mustela import types
+import orbitalml
+from orbitalml import types
 
 
 class TestEndToEndPipelines:
@@ -55,7 +55,7 @@ class TestEndToEndPipelines:
             conn.close()
         elif dialect == "postgres":
             try:
-                conn = sqlalchemy.create_engine("postgresql://mustelatestuser:mustelatestpassword@localhost:5432/mustelatestdb")
+                conn = sqlalchemy.create_engine("postgresql://orbitalmltestuser:orbitalmltestpassword@localhost:5432/orbitalmltestdb")
             except (sqlalchemy.exc.OperationalError, ImportError):
                 pytest.skip("Postgres database not available")
             yield conn, dialect
@@ -83,9 +83,9 @@ class TestEndToEndPipelines:
         sklearn_preds = sklearn_pipeline.predict(X)
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
-        parsed_pipeline = mustela.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = mustela.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
 
         sql_results = self.execute_sql(sql, conn, dialect, df)
         np.testing.assert_allclose(
@@ -109,9 +109,9 @@ class TestEndToEndPipelines:
         sklearn_preds = sklearn_pipeline.predict(X)
 
         features = {str(fname): types.FloatColumnType() for fname in feature_names}
-        parsed_pipeline = mustela.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = mustela.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
 
         sql_results = self.execute_sql(sql, conn, dialect, df)
         np.testing.assert_allclose(
@@ -142,9 +142,9 @@ class TestEndToEndPipelines:
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
         features["cat_feature"] = types.StringColumnType()
-        parsed_pipeline = mustela.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = mustela.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
 
         sql_results = self.execute_sql(sql, conn, dialect, df)
         np.testing.assert_allclose(
@@ -170,9 +170,9 @@ class TestEndToEndPipelines:
         sklearn_proba = sklearn_pipeline.predict_proba(X)
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
-        parsed_pipeline = mustela.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = mustela.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
 
         sql_results = self.execute_sql(sql, conn, dialect, binary_df)
 
@@ -213,9 +213,9 @@ class TestEndToEndPipelines:
         sklearn_class = sklearn_pipeline.predict(X)
 
         features = {fname: types.FloatColumnType() for fname in ["petal_length"]}
-        parsed_pipeline = mustela.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = mustela.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
         sql_results = self.execute_sql(sql, conn, dialect, binary_df)
 
         sklearn_proba_df = pd.DataFrame(
@@ -251,9 +251,9 @@ class TestEndToEndPipelines:
         sklearn_preds = sklearn_pipeline.predict(X)
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
-        parsed_pipeline = mustela.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = mustela.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
 
         sql_results = self.execute_sql(sql, conn, dialect, df)
         np.testing.assert_allclose(
@@ -308,9 +308,9 @@ class TestEndToEndPipelines:
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
         features["quality"] = types.StringColumnType()
-        parsed_pipeline = mustela.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = mustela.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
         sql_results = self.execute_sql(sql, conn, dialect, df)
 
         np.testing.assert_allclose(
@@ -353,9 +353,9 @@ class TestEndToEndPipelines:
         sklearn_preds = sklearn_pipeline.predict(X)
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
-        parsed_pipeline = mustela.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = mustela.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
         sql_results = self.execute_sql(sql, conn, dialect, df)
 
         np.testing.assert_allclose(
@@ -384,9 +384,9 @@ class TestEndToEndPipelines:
         sklearn_preds = sklearn_pipeline.predict(X)
 
         features = {str(fname): types.FloatColumnType() for fname in feature_names}
-        parsed_pipeline = mustela.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = mustela.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
         sql_results = self.execute_sql(sql, conn, dialect, df)
 
         np.testing.assert_allclose(
@@ -444,9 +444,9 @@ class TestEndToEndPipelines:
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
         features["region"] = types.StringColumnType()
-        parsed_pipeline = mustela.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = mustela.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
         sql_results = self.execute_sql(sql, conn, dialect, df)
 
         np.testing.assert_allclose(
@@ -505,10 +505,10 @@ class TestEndToEndPipelines:
             {fname: types.FloatColumnType() for fname in feature_names},
             region=types.StringColumnType(),
         )
-        parsed_pipeline = mustela.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
 
         # Test prediction
-        sql = mustela.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
         sql_results = self.execute_sql(sql, conn, dialect, binary_df)
         np.testing.assert_allclose(
             sql_results["output_label"].to_numpy(), sklearn_class

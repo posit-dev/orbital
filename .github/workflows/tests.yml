@@ -30,10 +30,10 @@ jobs:
       - name: Set up PostgreSQL
         uses: harmon758/postgresql-action@v1
         with:
-          postgresql db: mustelatestdb
-          postgresql user: mustelatestuser
-          postgresql password: mustelatestpassword
+          postgresql db: orbitalmltestdb
+          postgresql user: orbitalmltestuser
+          postgresql password: orbitalmltestpassword
 
       - name: Run Test Suite
         run: |
-          uv run pytest -v --tb=short --disable-warnings --maxfail=1 --cov=mustela
+          uv run pytest -v --tb=short --disable-warnings --maxfail=1 --cov=orbitalml

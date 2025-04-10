@@ -6,9 +6,9 @@ from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-import mustela
-from mustela import types
-from mustela.ast import ParsedPipeline
+import orbitalml
+from orbitalml import types
+from orbitalml.ast import ParsedPipeline
 
 BASIC_FEATURES = {
     "sepal_length": types.FloatColumnType(),
@@ -44,7 +44,7 @@ class TestSQLExport:
 
     def test_sql(self):
         parsed_pipeline = ParsedPipeline._from_onnx_model(BASIC_MODEL, BASIC_FEATURES)
-        sql = mustela.export_sql("DATA_TABLE", parsed_pipeline, dialect="duckdb")
+        sql = orbitalml.export_sql("DATA_TABLE", parsed_pipeline, dialect="duckdb")
         assert sql == (
             'SELECT ("t0"."sepal_length" - 5.84333) * -0.111906 + 1.0 + '
             '("t0"."sepal_width" - 3.05733) * -0.0400795 + '
@@ -65,12 +65,12 @@ class TestSQLExport:
         sklearn_pipeline.fit(X, y)
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
-        parsed_pipeline = mustela.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
 
-        optimized_sql = mustela.export_sql(
+        optimized_sql = orbitalml.export_sql(
             "data", parsed_pipeline, dialect="duckdb", optimize=True
         )
-        unoptimized_sql = mustela.export_sql(
+        unoptimized_sql = orbitalml.export_sql(
             "data", parsed_pipeline, dialect="duckdb", optimize=False
         )
 
@@ -95,10 +95,10 @@ class TestSQLExport:
         sklearn_pipeline.fit(X, y)
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
-        parsed_pipeline = mustela.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
 
         try:
-            sql = mustela.export_sql("data", parsed_pipeline, dialect=dialect)
+            sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
             assert isinstance(sql, str) and len(sql) > 0
         except Exception as e:
             pytest.skip(f"Dialect {dialect} not supported: {str(e)}")

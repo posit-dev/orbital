@@ -6,7 +6,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "Mustela"
+name = "OrbitalML"
 version = "0.1.0"
 description = "Allow SKLearn predictions to run on database systems in pure SQL."
 keywords = ["database", "machine learning", "sql"]
@@ -85,7 +85,7 @@ testpaths = ["tests"]
 [tool.mypy]
 ignore_missing_imports = true
 mypy_path = "$MYPY_CONFIG_FILE_DIR/src"
-packages = ["mustela"]
+packages = ["orbitalml"]
 
 [tool.ruff]
 target-version = "py39"

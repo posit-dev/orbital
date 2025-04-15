@@ -10,7 +10,7 @@ name = "OrbitalML"
 version = "0.1.0"
 description = "Allow SKLearn predictions to run on database systems in pure SQL."
 keywords = ["database", "machine learning", "sql"]
-readme = { file = "README.rst", content-type = "text/x-rst" }
+readme = { file = "README.md", content-type = "text/markdown" }
 license = { file = "LICENSE.md" }
 authors = [
   { name = "Alessandro Molina", email = "alessandro@posit.co" },
@@ -43,7 +43,7 @@ test = [
   "pytest-cov>=5.0.0",
   "pytest>=8.3.2",
   "sqlalchemy",
-  "psycopg2",
+  "psycopg2-binary",
   "duckdb",
 ]
 
@@ -64,12 +64,13 @@ dev-dependencies = [
     "mypy>=1.11.2",
     "pre-commit",
     "ruff>=0.6.3",
-    "sphinx",
+    "mkdocs-material",
+    "mkdocstrings[python]",
     "pydot",
     "onnxruntime",
     "onnxscript",
     "sqlalchemy",
-    "psycopg2",
+    "psycopg2-binary",
     "duckdb",
 ]
 

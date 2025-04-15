@@ -39,5 +39,6 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Getting Started: getstarted.md
+  - Learn More: learnmore.md
   - API Reference: apiref.md
   - Internals: internals.md

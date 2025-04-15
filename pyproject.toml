@@ -70,7 +70,7 @@ dev-dependencies = [
     "onnxruntime",
     "onnxscript",
     "sqlalchemy",
-    "psycopg2",
+    "psycopg2-binary",
     "duckdb",
 ]
 

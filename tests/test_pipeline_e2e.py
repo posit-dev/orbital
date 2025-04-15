@@ -57,7 +57,7 @@ class TestEndToEndPipelines:
             try:
                 conn = sqlalchemy.create_engine("postgresql://orbitalmltestuser:orbitalmltestpassword@localhost:5432/orbitalmltestdb")
                 with conn.connect() as testcon:
-                    testcon.execute("SELECT 1")  # Test connection
+                    testcon.execute(sqlalchemy.text("SELECT 1"))  # Test connection
             except (sqlalchemy.exc.OperationalError, ImportError):
                 pytest.skip("Postgres database not available")
             yield conn, dialect

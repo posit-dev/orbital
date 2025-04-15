@@ -43,7 +43,7 @@ test = [
   "pytest-cov>=5.0.0",
   "pytest>=8.3.2",
   "sqlalchemy",
-  "psycopg2",
+  "psycopg2-binary",
   "duckdb",
 ]
 

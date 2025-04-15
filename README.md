@@ -3,8 +3,7 @@
 Convert SKLearn pipelines into SQL queries for execution in a database
 without the need for a Python environment.
 
-See `examples` directory for example
-pipelines.
+See `examples` directory for [example pipelines](https://github.com/posit-dev/orbital/tree/main/examples) and [Documentation](https://posit-dev.github.io/orbital/)
 
 **Warning**:
 

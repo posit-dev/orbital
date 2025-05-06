@@ -94,6 +94,30 @@ class TestEndToEndPipelines:
             sql_results.values.flatten(), sklearn_preds.flatten(), rtol=1e-4, atol=1e-4
         )
 
+    def test_simple_linear_with_projection(self, iris_data, db_connection):
+        df, feature_names = iris_data
+        conn, dialect = db_connection
+
+        sklearn_pipeline = Pipeline(
+            [("scaler", StandardScaler()), ("regression", LinearRegression())]
+        )
+        X = df[feature_names]
+        y = df["target"]
+        sklearn_pipeline.fit(X, y)
+        sklearn_preds = sklearn_pipeline.predict(X)
+
+        features = {fname: types.FloatColumnType() for fname in feature_names}
+        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
+
+        sql = orbitalml.export_sql("data", parsed_pipeline, projection=orbitalml.ResultsProjection(["sepal_length"]), dialect=dialect)
+
+        sql_results = self.execute_sql(sql, conn, dialect, df)
+        print(sql_results)
+        assert set(sql_results.columns) == {"sepal_length", "variable.target_0"}
+        np.testing.assert_allclose(
+            sql_results["variable.target_0"].values.flatten(), sklearn_preds.flatten(), rtol=1e-4, atol=1e-4
+        )
+
     def test_feature_selection_pipeline(self, diabetes_data, db_connection):
         df, feature_names = diabetes_data
         conn, dialect = db_connection

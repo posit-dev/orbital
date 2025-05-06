@@ -9,6 +9,6 @@ the need for a python runtime environment.
 
 from .ast import parse_pipeline
 from .sql import export_sql
-from .translate import translate
+from .translate import ResultsProjection, translate
 
-__all__ = ["parse_pipeline", "translate", "export_sql"]
+__all__ = ["parse_pipeline", "translate", "export_sql", "ResultsProjection"]

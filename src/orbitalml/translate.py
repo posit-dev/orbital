@@ -76,7 +76,57 @@ LOG_DATA = False
 LOG_SQL = False
 
 
-def translate(table: ibis.Table, pipeline: ParsedPipeline) -> ibis.Table:
+class ResultsProjection:
+    """Projection of the results of the pipeline.
+
+    This class is used to select the columns to be returned
+    from the pipeline. It can be used to select specific
+    columns or to omit the results of the pipeline.
+
+    It can also be used to skip the select step of columns
+    from the pipeline.
+    """
+
+    RESULTS = object()
+    OMIT = object()
+
+    def __init__(self, select: typing.Optional[list[str]] = None) -> None:
+        """
+        :param select: A list of additional columns to be selected from the pipeline.
+                       or ResultsProjection.OMIT to skip the selection.
+        """
+        if select is self.OMIT:
+            self._select = None
+        else:
+            self._select = [self.RESULTS]
+            if select:
+                self._select.extend(select)
+
+    def is_empty(self) -> bool:
+        """Check if the projection step should be skipped."""
+        return self._select is None
+
+    def _expand(self, results: typing.Iterable[str]) -> typing.Optional[list[str]]:
+        if self._select is None:
+            return None
+
+        selected_columns = self._select
+
+        def _emit_projection() -> typing.Generator[str, None, None]:
+            for item in selected_columns:
+                if item is self.RESULTS:
+                    yield from results
+                elif isinstance(item, str):
+                    yield item
+
+        return list(_emit_projection())
+
+
+def translate(
+    table: ibis.Table,
+    pipeline: ParsedPipeline,
+    projection: ResultsProjection = ResultsProjection(),
+) -> ibis.Table:
     """Translate a pipeline into an Ibis expression.
 
     This function takes a pipeline and a table and translates the pipeline
@@ -98,14 +148,18 @@ def translate(table: ibis.Table, pipeline: ParsedPipeline) -> ibis.Table:
         translator.process()
         table = translator.mutated_table  # Translator might return a new table.
         _log_debug_end(translator, variables)
-    return _projection_results(table, variables)
+    return _projection_results(table, variables, projection)
 
 
-def _projection_results(table: ibis.Table, variables: GraphVariables) -> ibis.Table:
+def _projection_results(
+    table: ibis.Table,
+    variables: GraphVariables,
+    projection: ResultsProjection = ResultsProjection(),
+) -> ibis.Table:
     # As we pop out the variables as we use them
     # the remaining ones are the values resulting from all
     # graph branches.
-    final_projections = {}
+    final_projections: dict[str, typing.Any] = {}
     for key, value in variables.remaining().items():
         if isinstance(value, dict):
             for field in value:
@@ -116,7 +170,11 @@ def _projection_results(table: ibis.Table, variables: GraphVariables) -> ibis.Ta
                 final_projections[colkey] = colvalue
         else:
             final_projections[key] = value
-    return table.mutate(**final_projections).select(final_projections.keys())
+    query = table.mutate(**final_projections)
+    selection = projection._expand(final_projections.keys())
+    if selection is not None:
+        query = query.select(*selection)
+    return query
 
 
 def _log_debug_start(translator: Translator, variables: GraphVariables) -> None:

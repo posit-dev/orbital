@@ -12,7 +12,7 @@ import sqlglot.optimizer.optimizer
 from ibis.expr.sql import Catalog
 
 from .ast import ParsedPipeline
-from .translate import translate
+from .translate import ResultsProjection, translate
 
 OPTIMIZER_RULES = (
     sqlglot.optimizer.optimizer.qualify,
@@ -36,6 +36,7 @@ def export_sql(
     table_name: str,
     pipeline: ParsedPipeline,
     dialect: str = "duckdb",
+    projection: ResultsProjection = ResultsProjection(),
     optimize: bool = True,
 ) -> str:
     """Export SQL for a given pipeline.
@@ -58,7 +59,12 @@ def export_sql(
         name=table_name,
     )
 
-    ibis_expr = translate(unbound_table, pipeline)
+    if projection.is_empty():
+        raise ValueError(
+            "Projection is empty. Please provide a projection to export SQL."
+        )
+
+    ibis_expr = translate(unbound_table, pipeline, projection=projection)
     sqlglot_expr = getattr(sc, dialect).compiler.to_sqlglot(ibis_expr)
 
     if optimize:

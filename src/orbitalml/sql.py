@@ -59,7 +59,7 @@ def export_sql(
         name=table_name,
     )
 
-    if projection.is_empty():
+    if projection._omit:
         raise ValueError(
             "Projection is empty. Please provide a projection to export SQL."
         )

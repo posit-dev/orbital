@@ -81,43 +81,37 @@ class ResultsProjection:
 
     This class is used to select the columns to be returned
     from the pipeline. It can be used to select specific
-    columns or to omit the results of the pipeline.
+    columns to include in the final result set.
 
     It can also be used to skip the select step of columns
     from the pipeline.
-    """
 
-    RESULTS = object()
-    OMIT = object()
+    You can use the `omit` method to skip the projection
+    step entirely.
+    """
 
     def __init__(self, select: typing.Optional[list[str]] = None) -> None:
         """
         :param select: A list of additional columns to be selected from the pipeline.
-                       or ResultsProjection.OMIT to skip the selection.
         """
-        if select is self.OMIT:
-            self._select = None
-        else:
-            self._select = [self.RESULTS]
-            if select:
-                self._select.extend(select)
+        self._select = select or []
+        self._omit = False
 
-    def is_empty(self) -> bool:
-        """Check if the projection step should be skipped."""
-        return self._select is None
+    @classmethod
+    def omit(cls) -> "ResultsProjection":
+        """Create a projection that skips projection phase entirely."""
+        projection = cls()
+        projection._omit = True
+        return projection
 
     def _expand(self, results: typing.Iterable[str]) -> typing.Optional[list[str]]:
-        if self._select is None:
+        if self._omit:
             return None
 
-        selected_columns = self._select
-
         def _emit_projection() -> typing.Generator[str, None, None]:
-            for item in selected_columns:
-                if item is self.RESULTS:
-                    yield from results
-                elif isinstance(item, str):
-                    yield item
+            yield from results
+            for item in self._select:
+                yield item
 
         return list(_emit_projection())
 

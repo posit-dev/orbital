@@ -4,6 +4,7 @@ repo_name: posit-dev/orbital
 repo_url: https://github.com/posit-dev/orbital
 theme:
   name: material
+  logo: images/orbital_white.png
   font:
     text: Roboto
 extra_css:

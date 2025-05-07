@@ -20,8 +20,7 @@ See `examples` directory for [example pipelines](https://github.com/posit-dev/or
 Install OrbitalML:
 
 ```bash
-$ git clone https://github.com/posit-dev/orbital.git
-$ pip install ./orbital
+$ pip install orbitalml
 ```
 
 Prepare some data:

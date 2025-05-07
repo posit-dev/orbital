@@ -1,5 +1,7 @@
 # Welcome to Orbital
 
+![Orbital](images/orbital.png){ align=left width=52 }
+
 Convert SKLearn pipelines into SQL queries for execution in a database
 without the need for a Python environment.
 

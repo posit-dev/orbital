@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "setuptools>=75.0.0",
+    "setuptools>=77.0.0",
     "wheel"
 ]
 build-backend = "setuptools.build_meta"
@@ -11,19 +11,26 @@ version = "0.1.0"
 description = "Allow SKLearn predictions to run on database systems in pure SQL."
 keywords = ["database", "machine learning", "sql"]
 readme = { file = "README.md", content-type = "text/markdown" }
-license = { file = "LICENSE.md" }
+license = "MIT"
 authors = [
   { name = "Alessandro Molina", email = "alessandro@posit.co" },
   { name = "Posit Software PBC" }
 ]
 classifiers = [
-  "License :: OSI Approved :: MIT License",
-  "Programming Language :: Python :: 3.8",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX",
+  "Operating System :: Unix",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13"
+  "Programming Language :: Python :: 3.13",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development",
+  "Topic :: Scientific/Engineering",
 ]
 
 requires-python = ">=3.9"

@@ -31,6 +31,9 @@ classifiers = [
   "Intended Audience :: Developers",
   "Topic :: Software Development",
   "Topic :: Scientific/Engineering",
+  "Topic :: Database",
+  "Programming Language :: Python",
+  "Programming Language :: SQL",
 ]
 
 requires-python = ">=3.9"

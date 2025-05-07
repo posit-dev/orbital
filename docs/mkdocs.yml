@@ -1,5 +1,7 @@
 site_name: Orbital
 site_url: https://posit-dev.github.io/orbital
+repo_name: posit-dev/orbital
+repo_url: https://github.com/posit-dev/orbital
 theme:
   name: material
   font:

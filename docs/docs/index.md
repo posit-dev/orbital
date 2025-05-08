@@ -13,6 +13,7 @@ Orbital provides a lightweight alternative: it translates trained sklearn pipeli
 versioned, and executed entirely inside the database engine.
 
 This enables:
+
 * In-database predictions: avoid moving data or running external inference services
 * No dependencies: models run as standard SQL, with no Python runtime required
 * Interpretable results: clear formulas for linear models and structured logic for trees

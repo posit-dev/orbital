@@ -2,8 +2,23 @@
 
 ![Orbital](images/orbital.png){ align=left width=52 }
 
-Convert SKLearn pipelines into SQL queries for execution in a database
-without the need for a Python environment.
+Orbital lets you convert scikit-learn pipelines into pure SQL, 
+allowing execution of machine learning models directly in your database, 
+without requiring a Python environment.
+
+### Why Orbital?
+
+In regulated, secure, or resource-constrained environments, deploying Python code may be undesirable or even impossible. 
+Orbital provides a lightweight alternative: it translates trained sklearn pipelines into SQL expressions that can be audited, 
+versioned, and executed entirely inside the database engine.
+
+This enables:
+* In-database predictions: avoid moving data or running external inference services
+* No dependencies: models run as standard SQL, with no Python runtime required
+* Interpretable results: clear formulas for linear models and structured logic for trees
+* Security and compliance: auditable, deterministic, dependency-free
+
+### Example
 
 Take a look at the [Examples](https://github.com/posit-dev/orbital/tree/main/examples) 
 or follow the [Getting Started](getstarted.md) Guide
@@ -38,6 +53,8 @@ SELECT ("t0"."sepal_length" - 5.809166666666666) * -0.11633479416518255 + 0.9916
        ("t0"."petal_width" - 1.1833333333333333) * 0.5475959809777828 
 AS "variable" FROM "DATA_TABLE" AS "t0"
 ```
+
+This SQL produces the same predictions as `pipeline.predict(...)` from SciKit-Lear
 
 ## Supported Models
 

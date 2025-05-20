@@ -16,7 +16,8 @@ class ColumnType(abc.ABC):
 
     def __init__(self, passthrough: bool = False) -> None:
         """
-        :param passthrough: If True, the column is ignored by the pipeline and only used by SQL generator.
+        :param passthrough: If True, the column is ignored by the pipeline and is only available to SQL generator.
+                            You will still need to project those columns for them to be included in the SQL query.
         """
         self.is_passthrough = passthrough
 

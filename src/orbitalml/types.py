@@ -14,6 +14,12 @@ log = logging.getLogger(__name__)
 class ColumnType(abc.ABC):
     """A base class representing the type of a column of data."""
 
+    def __init__(self, passthrough: bool = False) -> None:
+        """
+        :param passthrough: If True, the column is ignored by the pipeline and only used by SQL generator.
+        """
+        self.is_passthrough = passthrough
+
     @abc.abstractmethod
     def _to_onnxtype(self) -> _sl2o_types.DataType:  # pragma: no cover
         """Convert the ColumnType to an onnx type.

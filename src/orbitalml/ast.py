@@ -117,7 +117,9 @@ def parse_pipeline(
     onnx_model = _skl2o.to_onnx(
         pipeline,
         initial_types=[
-            (fname, ftype._to_onnxtype()) for fname, ftype in features.items()
+            (fname, ftype._to_onnxtype())
+            for fname, ftype in features.items()
+            if not ftype.is_passthrough
         ],
     )
     return ParsedPipeline._from_onnx_model(onnx_model, features)

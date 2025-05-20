@@ -9,6 +9,7 @@ import ibis
 import ibis.backends.sql.compilers as sc
 import sqlglot.optimizer
 import sqlglot.optimizer.optimizer
+import sqlglot.schema
 from ibis.expr.sql import Catalog
 
 from .ast import ParsedPipeline
@@ -69,9 +70,10 @@ def export_sql(
 
     if optimize:
         c = Catalog()
-        catalog = {
-            unbound_table.get_name(): c.to_sqlglot_schema(unbound_table.schema())
-        }
+        catalog = sqlglot.schema.MappingSchema(
+            {unbound_table.get_name(): c.to_sqlglot_schema(unbound_table.schema())},
+            normalize=False,
+        )
         sqlglot_expr = sqlglot.optimizer.optimize(
             sqlglot_expr, schema=catalog, rules=OPTIMIZER_RULES
         )

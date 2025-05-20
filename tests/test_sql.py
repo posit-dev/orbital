@@ -102,3 +102,32 @@ class TestSQLExport:
             assert isinstance(sql, str) and len(sql) > 0
         except Exception as e:
             pytest.skip(f"Dialect {dialect} not supported: {str(e)}")
+
+    def test_sql_columns_passthrough(self, iris_data):
+        df, feature_names = iris_data
+
+        sklearn_pipeline = Pipeline(
+            [("scaler", StandardScaler()), ("regression", LinearRegression())]
+        )
+
+        X = df[feature_names]
+        y = df["target"]
+        sklearn_pipeline.fit(X, y)
+
+        features = {fname: types.FloatColumnType() for fname in feature_names}
+        features["ID"] = types.Int64ColumnType(passthrough=True)
+        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
+
+        optimized_sql = orbitalml.export_sql(
+            "data", parsed_pipeline, dialect="duckdb", optimize=True,
+            projection=orbitalml.ResultsProjection(["ID"]),
+        )
+        assert ('AS "variable.target_0"' in optimized_sql)
+        assert ('"t0"."ID"' in optimized_sql)
+
+        unoptimized_sql = orbitalml.export_sql(
+            "data", parsed_pipeline, dialect="duckdb", optimize=False,
+            projection=orbitalml.ResultsProjection(["ID"]),
+        )
+        assert ('AS "variable.target_0"' in unoptimized_sql)
+        assert ('"t0"."ID"' in unoptimized_sql)

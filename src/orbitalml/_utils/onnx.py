@@ -1,8 +1,10 @@
+import typing
+
 import onnx
 import onnx.helper
 
-ListVariableTypes = list[int] | list[float] | list[str]
-VariableTypes = float | int | str | ListVariableTypes
+ListVariableTypes = typing.Union[list[int], list[float], list[str]]
+VariableTypes = typing.Union[float, int, str, ListVariableTypes]
 
 
 def get_initializer_data(var: onnx.TensorProto) -> VariableTypes:

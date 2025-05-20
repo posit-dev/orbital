@@ -1,6 +1,7 @@
 """Base class for the translators of each pipeline step."""
 
 import abc
+import typing
 
 import ibis
 import onnx
@@ -75,7 +76,9 @@ class Translator(abc.ABC):
 
     def set_output(
         self,
-        value: ibis.Deferred | ibis.Expr | VariablesGroup | onnx_utils.VariableTypes,
+        value: typing.Union[
+            ibis.Deferred, ibis.Expr, VariablesGroup, onnx_utils.VariableTypes
+        ],
         index: int = 0,
     ) -> None:
         """Set the output variable for the translator.
@@ -110,7 +113,7 @@ class Translator(abc.ABC):
         # so we'll leave it for now.
         return [self._table[cname] for cname in mutate_args]
 
-    def variable_unique_short_alias(self, prefix: str | None = None) -> str:
+    def variable_unique_short_alias(self, prefix: typing.Optional[str] = None) -> str:
         """Generate a unique short name for a variable.
 
         This is generally used to generate names for temporary variables

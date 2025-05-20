@@ -135,7 +135,7 @@ class Optimizer:
         """Precompute constants in a list of multiplications"""
         return self._fold_associative_op_contiguous(lst, operator.mul)
 
-    def fold_case(self, expr: ibis.Value | ibis.Deferred) -> ibis.Value:
+    def fold_case(self, expr: typing.Union[ibis.Value, ibis.Deferred]) -> ibis.Value:
         """Apply different folding strategies to CASE WHHEN expressions.
 
         - If the CASE is a constant, it will evalute it immediately.

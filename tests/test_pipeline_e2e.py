@@ -1,4 +1,6 @@
 import sqlite3
+import math
+import sys
 
 import duckdb
 import sqlalchemy
@@ -21,6 +23,7 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 import orbitalml
 from orbitalml import types
 
+PY39 = sys.version_info[:2] < (3, 10)
 
 class TestEndToEndPipelines:
     @pytest.fixture(scope="class")
@@ -51,6 +54,9 @@ class TestEndToEndPipelines:
             conn.close()
         elif dialect == "sqlite":
             conn = sqlite3.connect(":memory:")
+            if PY39:
+                # Python 3.9 sqlite is compiled without -DSQLITE_ENABLE_MATH_FUNCTIONS
+                conn.create_function("exp", 1, math.exp)
             yield conn, dialect
             conn.close()
         elif dialect == "postgres":

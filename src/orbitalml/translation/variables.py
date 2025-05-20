@@ -24,7 +24,7 @@ class VariablesGroup(dict[str, VariablesGroupVarT], typing.Generic[VariablesGrou
 
     VAR_TYPE = ibis.Expr
 
-    def __init__(self, vargroup: dict | None = None) -> None:
+    def __init__(self, vargroup: typing.Optional[dict] = None) -> None:
         """
         :param vargroup: A dictionary of names and expressions that are part of the group.
         """
@@ -120,13 +120,15 @@ class GraphVariables:
             init.name: onnx_utils.get_initializer_data(init)
             for init in graph.initializer
         }
-        self._variables: dict[str, ibis.Expr | VariablesGroup] = {
+        self._variables: dict[str, typing.Union[ibis.Expr, VariablesGroup]] = {
             inp.name: table[inp.name] for inp in graph.input
         }
         self._consumed: set[str] = set()
         self._uniqueid: int = 0
 
-    def consume(self, name: str) -> ibis.Expr | VariableTypes | VariablesGroup:
+    def consume(
+        self, name: str
+    ) -> typing.Union[ibis.Expr, VariableTypes, VariablesGroup]:
         """Consume a variable or a constant.
 
         Return a python value for constants and an Expression
@@ -143,20 +145,20 @@ class GraphVariables:
         return self._variables[name]
 
     def peek_variable(
-        self, name: str, default: None | ibis.Expr = None
-    ) -> ibis.Expr | VariablesGroup | None:
+        self, name: str, default: typing.Optional[ibis.Expr] = None
+    ) -> typing.Union[ibis.Expr, VariablesGroup, None]:
         """Peek a variable without consuming it."""
         return self._variables.get(name, default)
 
     def get_initializer(
-        self, name: str, default: None | onnx.TensorProto = None
-    ) -> onnx.TensorProto | None:
+        self, name: str, default: typing.Optional[onnx.TensorProto] = None
+    ) -> typing.Union[onnx.TensorProto, None]:
         """Get an initializer by name."""
         return self._initializers.get(name, default)
 
     def get_initializer_value(
-        self, name: str, default: None | VariableTypes = None
-    ) -> VariableTypes | None:
+        self, name: str, default: typing.Optional[VariableTypes] = None
+    ) -> typing.Union[VariableTypes, None]:
         """Get a constant value."""
         return self._initializers_values.get(name, default)
 
@@ -164,7 +166,9 @@ class GraphVariables:
         """Name of all the variables that were not consumed."""
         return [f for f in self._variables if f not in self._consumed]
 
-    def __setitem__(self, key: str, value: ibis.Expr | VariablesGroup, /) -> None:
+    def __setitem__(
+        self, key: str, value: typing.Union[ibis.Expr, VariablesGroup], /
+    ) -> None:
         self._variables[key] = value
         self._consumed.discard(key)
 
@@ -186,7 +190,7 @@ class GraphVariables:
                     total += 1
         return total
 
-    def remaining(self) -> dict[str, ibis.Expr | VariablesGroup]:
+    def remaining(self) -> dict[str, typing.Union[ibis.Expr, VariablesGroup]]:
         """Return the variables that were not consumed."""
         return {
             name: self._variables[name]

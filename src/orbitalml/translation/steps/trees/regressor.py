@@ -36,7 +36,9 @@ class TreeEnsembleRegressorTranslator(Translator):
         prediction_expr = self.build_regressor(input_exr)
         self.set_output(prediction_expr)
 
-    def build_regressor(self, input_expr: VariablesGroup | ibis.Expr) -> ibis.Expr:
+    def build_regressor(
+        self, input_expr: typing.Union[VariablesGroup, ibis.Expr]
+    ) -> ibis.Expr:
         """Build the regression expression"""
         optimizer = self._optimizer
         ensemble_trees = build_tree(self)

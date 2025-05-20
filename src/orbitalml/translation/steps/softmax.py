@@ -47,8 +47,8 @@ class SoftmaxTranslator(Translator):
     def compute_softmax(
         cls,
         translator: Translator,
-        data: ibis.expr.types.NumericValue | VariablesGroup,
-    ) -> ibis.Expr | VariablesGroup:
+        data: typing.Union[ibis.expr.types.NumericValue, VariablesGroup],
+    ) -> typing.Union[ibis.Expr, VariablesGroup]:
         """Computes the actual softmax operation over a column or column group."""
         if isinstance(data, VariablesGroup):
             data = NumericVariablesGroup(data)

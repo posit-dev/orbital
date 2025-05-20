@@ -66,7 +66,7 @@ class TreeEnsembleClassifierTranslator(Translator):
         self._variables[self.outputs[1]] = prob_colgroup
 
     def build_classifier(
-        self, input_expr: ibis.Expr | VariablesGroup
+        self, input_expr: typing.Union[ibis.Expr, VariablesGroup]
     ) -> tuple[ibis.Expr, VariablesGroup]:
         """Build the classification expression and the probabilities expressions
 
@@ -82,7 +82,7 @@ class TreeEnsembleClassifierTranslator(Translator):
         if classlabels is None:
             raise ValueError("Unable to detect classlabels for classification")
         output_classlabels = classlabels = typing.cast(
-            list[str] | list[int], classlabels
+            typing.Union[list[str], list[int]], classlabels
         )
 
         # ONNX treats binary classification as a special case:
@@ -96,7 +96,9 @@ class TreeEnsembleClassifierTranslator(Translator):
             # In this case there is only one label, the first one
             # which actually acts as the score of the prediction.
             # When > 0.5 then class 1, when < 0.5 then class 0
-            classlabels = typing.cast(list[str] | list[int], [classlabels[0]])
+            classlabels = typing.cast(
+                typing.Union[list[str], list[int]], [classlabels[0]]
+            )
 
         if isinstance(input_expr, VariablesGroup):
             ordered_features = input_expr.values_value()
@@ -108,7 +110,7 @@ class TreeEnsembleClassifierTranslator(Translator):
         ]
         ordered_features = self.preserve(*ordered_features)
 
-        def build_tree_case(node: dict) -> dict[str | int, ibis.Expr]:
+        def build_tree_case(node: dict) -> dict[typing.Union[str, int], ibis.Expr]:
             # Leaf node, return the votes
             if node["mode"] == "LEAF":
                 # We can assume missing class = weight 0

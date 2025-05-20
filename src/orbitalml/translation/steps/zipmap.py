@@ -24,10 +24,10 @@ class ZipMapTranslator(Translator):
         data = self._variables.consume(self.inputs[0])
 
         int_labels = typing.cast(
-            list[int] | None, self._attributes.get("classlabels_int64s")
+            typing.Optional[list[int]], self._attributes.get("classlabels_int64s")
         )
         string_labels = typing.cast(
-            list[str] | None, self._attributes.get("classlabels_strings")
+            typing.Optional[list[str]], self._attributes.get("classlabels_strings")
         )
         if string_labels is not None:
             labels = string_labels

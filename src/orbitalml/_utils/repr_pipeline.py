@@ -42,14 +42,12 @@ class ParsedPipelineStr:
 
     def _node_str(self, node: _onnx.NodeProto) -> str:
         """Generate a string representation of a pipeline step."""
-        return f"""    {self._varnames(None, node.output)}={node.op_type}(
-      inputs: {self._varnames(node, node.input)},
+        return f"""    {self._varnames(node.output)}={node.op_type}(
+      inputs: {self._varnames(node.input)},
       attributes: {self._attributes(node.attribute)}
     )"""
 
-    def _varnames(
-        self, node: _onnx.NodeProto | None, varlist: typing.Iterable[str]
-    ) -> str:
+    def _varnames(self, varlist: typing.Iterable[str]) -> str:
         """Generate a string representation of a list of variables or constants."""
 
         def _var_value(var: str) -> str:

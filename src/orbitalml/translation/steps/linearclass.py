@@ -31,9 +31,11 @@ class LinearClassifierTranslator(Translator):
         if multi_class != 0:
             raise NotImplementedError("Multi-class classification is not implemented.")
 
-        classlabels: list[str] | list[int] | None = typing.cast(
-            list[int] | None, self._attributes.get("classlabels_ints")
-        ) or typing.cast(list[str] | None, self._attributes.get("classlabels_strings"))
+        classlabels: typing.Union[list[str], list[int], None] = typing.cast(
+            typing.Optional[list[int]], self._attributes.get("classlabels_ints")
+        ) or typing.cast(
+            typing.Optional[list[str]], self._attributes.get("classlabels_strings")
+        )
 
         if classlabels is None:
             raise ValueError(

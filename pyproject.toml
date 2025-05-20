@@ -40,7 +40,7 @@ requires-python = ">=3.9"
 dependencies = [
   "scikit-learn",
   "skl2onnx",
-  "ibis-framework"
+  "ibis-framework<11.0.0",
 ]
 
 [project.optional-dependencies]

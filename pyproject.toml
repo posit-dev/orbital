@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "OrbitalML"
-version = "0.2.0"
+version = "0.2.1"
 description = "Allow SKLearn predictions to run on database systems in pure SQL."
 keywords = ["database", "machine learning", "sql"]
 readme = { file = "README.md", content-type = "text/markdown" }
@@ -38,9 +38,10 @@ classifiers = [
 
 requires-python = ">=3.9"
 dependencies = [
+  "packaging",  # somehow required by skl2onnx/operator_converters
   "scikit-learn",
-  "skl2onnx",
-  "onnx<1.18",
+  "skl2onnx~=1.19.1",
+  "onnx~=1.18.0",
   "ibis-framework<11.0.0",
 ]
 

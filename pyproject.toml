@@ -38,6 +38,7 @@ classifiers = [
 
 requires-python = ">=3.9"
 dependencies = [
+  "packaging",  # somehow required by skl2onnx/operator_converters
   "scikit-learn",
   "skl2onnx~=1.19.1",
   "onnx~=1.18.0",

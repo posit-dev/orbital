@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orbital"
-version = "0.2.1"
+version = "0.2.2"
 description = "Allow SKLearn predictions to run on database systems in pure SQL."
 keywords = ["database", "machine learning", "sql"]
 readme = { file = "README.md", content-type = "text/markdown" }

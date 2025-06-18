@@ -33,10 +33,13 @@ jobs:
           
       - name: Install packages with local dependencies
         run: |
+          cd ..
           # Install orbital from local wheel with test dependencies
-          pip install "dist/*.whl[test]"
+          ORBITAL_WHEEL=$(find dist -name "orbital-*.whl" | head -1)
+          pip install "${ORBITAL_WHEEL}[test]"
           # Install orbitalml from local wheel (which depends on orbital)
-          pip install proxypackage/dist/*.whl
+          ORBITALML_WHEEL=$(find proxypackage/dist -name "orbitalml-*.whl" | head -1)
+          pip install "${ORBITALML_WHEEL}"
       
       - name: Copy and modify examples
         run: |

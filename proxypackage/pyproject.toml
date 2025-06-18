@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orbitalml"
-version = "2.1.1"
+version = "0.2.2"
 description = "Machine Learning pipeline to SQL converter (proxy for orbital)"
 authors = [
   { name = "Alessandro Molina", email = "alessandro.molina@posit.co" },

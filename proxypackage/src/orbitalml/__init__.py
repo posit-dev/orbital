@@ -12,25 +12,23 @@ Usage:
     # Use exactly like the orbital package
 """
 
+import warnings
+
 # Import everything from orbital's __all__
 from orbital import *
 
 # Import submodules that are NOT in orbital's __all__
 from orbital import ast, sql, translate, translation, types
+import orbital
 
-# Optional: Add version info
-__version__ = "1.0.0"
+# Issue deprecation warning
+warnings.warn(
+    "OrbitalML is a transitional proxy package. "
+    "Please migrate to 'import orbital' instead of 'import orbitalml'. "
+    "New projects should use the 'orbital' package directly.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 # Re-export everything
-__all__ = [
-    # From orbital.__all__
-    "parse_pipeline",
-    "translate",
-    "export_sql",
-    "ResultsProjection",
-    # Additional submodules
-    "types",
-    "ast",
-    "sql",
-    "translation",
-]
+__all__ = orbital.__all__

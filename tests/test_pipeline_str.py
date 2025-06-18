@@ -1,7 +1,7 @@
 import onnx
 
-from orbitalml import types
-from orbitalml.ast import ParsedPipeline
+from orbital import types
+from orbital.ast import ParsedPipeline
 
 BASIC_FEATURES = {
     "X": types.FloatColumnType(),

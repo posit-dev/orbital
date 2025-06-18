@@ -1,6 +1,6 @@
 """Defines the translation step for the Gather operation."""
 
-from orbitalml.translation.variables import VariablesGroup
+from orbital.translation.variables import VariablesGroup
 
 from ..translator import Translator
 

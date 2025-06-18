@@ -9,20 +9,20 @@ from sklearn.linear_model import ElasticNet
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-import orbitalml
-import orbitalml.types
+import orbital
+import orbital.types
 
 PRINT_SQL = int(os.environ.get("PRINTSQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
 
 logging.basicConfig(level=logging.INFO)
-logging.getLogger("orbitalml").setLevel(logging.INFO)  # Set DEBUG to see translation process.
+logging.getLogger("orbital").setLevel(logging.INFO)  # Set DEBUG to see translation process.
 
 # Load the Iris dataset
 iris = load_iris(as_frame=True)
 iris_x = iris.data
 
-# SQL and OrbitalML don't like dots in column names, replace them with underscores
+# SQL and orbital don't like dots in column names, replace them with underscores
 iris_x.columns = [cname.replace(".", "_") for cname in iris_x.columns]
 
 numeric_cols = ["sepal_length", "sepal_width", "petal_length", "petal_width"]
@@ -46,10 +46,10 @@ pipeline.fit(iris_x, iris.target)
 
 # Convenience for this example to avoid repeating the schema,
 # in real cases, the user would know the schema of its database.
-features = orbitalml.types.guess_datatypes(iris_x)
+features = orbital.types.guess_datatypes(iris_x)
 
-orbitalml_pipeline = orbitalml.parse_pipeline(pipeline, features=features)
-print(orbitalml_pipeline)
+orbital_pipeline = orbital.parse_pipeline(pipeline, features=features)
+print(orbital_pipeline)
 
 # Example data for testing, including at least one training value
 example_data = pa.table(
@@ -61,13 +61,13 @@ example_data = pa.table(
     }
 )
 
-# Generate a query expression using OrbitalML
+# Generate a query expression using orbital
 ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
-ibis_expression = orbitalml.translate(ibis_table, orbitalml_pipeline)
+ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
 
 con = ibis.duckdb.connect()
 if PRINT_SQL:
-    sql = orbitalml.export_sql("DATA_TABLE", orbitalml_pipeline, dialect="duckdb")
+    sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect="duckdb")
     print("\nGenerated Query for DuckDB:")
     print(sql)
     print("\nPrediction with SQL")

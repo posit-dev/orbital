@@ -6,14 +6,14 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "OrbitalML"
-version = "0.2.1"
+name = "orbital"
+version = "0.2.2"
 description = "Allow SKLearn predictions to run on database systems in pure SQL."
 keywords = ["database", "machine learning", "sql"]
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "MIT"
 authors = [
-  { name = "Alessandro Molina", email = "alessandro@posit.co" },
+  { name = "Alessandro Molina", email = "alessandro.molina@posit.co" },
   { name = "Posit Software PBC" }
 ]
 classifiers = [
@@ -98,12 +98,12 @@ testpaths = ["tests"]
 [tool.mypy]
 ignore_missing_imports = true
 mypy_path = "$MYPY_CONFIG_FILE_DIR/src"
-packages = ["orbitalml"]
+packages = ["orbital"]
 
 [tool.ruff]
 target-version = "py39"
 src = ["src"]
-extend-exclude = ["docs", "tests", "examples"]
+extend-exclude = ["docs", "tests", "examples", "proxypackage"]
 output-format = "grouped"
 lint.select = [
   "E4", "E7", "E9",

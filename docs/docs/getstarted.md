@@ -1,9 +1,9 @@
 # Getting Started
 
-Install OrbitalML:
+Install orbital:
 
 ```bash
-$ pip install orbitalml
+$ pip install orbital
 ```
 
 Prepare some data:
@@ -17,7 +17,7 @@ COLUMNS = ["sepal.length", "sepal.width", "petal.length", "petal.width"]
 iris = load_iris(as_frame=True)
 iris_x = iris.data.set_axis(COLUMNS, axis=1)
 
-# SQL and OrbitalML don't like dots in column names, replace them with underscores
+# SQL and orbital don't like dots in column names, replace them with underscores
 iris_x.columns = COLUMNS = [cname.replace(".", "_") for cname in COLUMNS]
 
 X_train, X_test, y_train, y_test = train_test_split(
@@ -43,24 +43,24 @@ pipeline = Pipeline(
 pipeline.fit(X_train, y_train)
 ```
 
-Convert the pipeline to OrbitalML:
+Convert the pipeline to orbital:
 
 ```python
-import orbitalml
-import orbitalml.types
+import orbital
+import orbital.types
 
-orbitalml_pipeline = orbitalml.parse_pipeline(pipeline, features={
-    "sepal_length": orbitalml.types.DoubleColumnType(),
-    "sepal_width": orbitalml.types.DoubleColumnType(),
-    "petal_length": orbitalml.types.DoubleColumnType(),
-    "petal_width": orbitalml.types.DoubleColumnType(),
+orbital_pipeline = orbital.parse_pipeline(pipeline, features={
+    "sepal_length": orbital.types.DoubleColumnType(),
+    "sepal_width": orbital.types.DoubleColumnType(),
+    "petal_length": orbital.types.DoubleColumnType(),
+    "petal_width": orbital.types.DoubleColumnType(),
 })
 ```
 
 You can print the pipeline to see the result:
 
 ```python
->>> print(orbitalml_pipeline)
+>>> print(orbital_pipeline)
 
 ParsedPipeline(
     features={
@@ -98,7 +98,7 @@ ParsedPipeline(
 Now we can generate the SQL from the pipeline:
 
 ```python
-sql = orbitalml.export_sql("DATA_TABLE", orbitalml_pipeline, dialect="duckdb")
+sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect="duckdb")
 ```
 
 And check the resulting query:

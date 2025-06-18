@@ -12,14 +12,14 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-import orbitalml
-import orbitalml.types
+import orbital
+import orbital.types
 
 PRINT_SQL = int(os.environ.get("PRINTSQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
 
 logging.basicConfig(level=logging.INFO)
-logging.getLogger("orbitalml").setLevel(logging.INFO)  # Set DEBUG to see translation process.
+logging.getLogger("orbital").setLevel(logging.INFO)  # Set DEBUG to see translation process.
 
 # Load Ames Housing for classification
 ames = fetch_openml(name="house_prices", as_frame=True)
@@ -92,23 +92,23 @@ model = Pipeline(
 
 model.fit(X, y)
 
-# Convert types from numpy to orbitalml types
-features = orbitalml.types.guess_datatypes(X)
+# Convert types from numpy to orbital types
+features = orbital.types.guess_datatypes(X)
 
 # Target only 5 rows, so that it's easier for a human to understand
 data_sample = X.head(5)
 
 # Convert the model to an execution pipeline
-orbitalml_pipeline = orbitalml.parse_pipeline(model, features=features)
-print(orbitalml_pipeline)
+orbital_pipeline = orbital.parse_pipeline(model, features=features)
+print(orbital_pipeline)
 
 # Translate the pipeline to a query
 ibis_table = ibis.memtable(data_sample, name="DATA_TABLE")
-ibis_expression = orbitalml.translate(ibis_table, orbitalml_pipeline)
+ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
 
 con = ibis.duckdb.connect()
 if PRINT_SQL:
-    sql = orbitalml.export_sql("DATA_TABLE", orbitalml_pipeline, dialect="duckdb")
+    sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect="duckdb")
     print("\nGenerated Query for DuckDB:")
     print(sql)
     print("\nPrediction with SQL")

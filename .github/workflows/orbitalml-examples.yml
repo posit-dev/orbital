@@ -1,0 +1,85 @@
+name: Test OrbitalML Examples
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  orbitalml-examples:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Build orbital package locally
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+          
+      - name: Build orbitalml package
+        run: |
+          cd proxypackage
+          python -m build
+          cd ..
+          
+      - name: Install packages with local dependencies
+        run: |
+          # Install orbital from local wheel with test dependencies
+          ORBITAL_WHEEL=$(find dist -name "orbital-*.whl" | head -1)
+          pip install "${ORBITAL_WHEEL}[test]"
+          # Install orbitalml from local wheel (which depends on orbital)
+          ORBITALML_WHEEL=$(find proxypackage/dist -name "orbitalml-*.whl" | head -1)
+          pip install "${ORBITALML_WHEEL}"
+      
+      - name: Copy and modify examples
+        run: |
+          # Create test examples directory
+          mkdir -p test_orbitalml_examples
+
+          # Copy all Python examples and the test runner script
+          cp examples/*.py examples/test_examples.sh test_orbitalml_examples/
+
+          # Replace import statements in each example
+          find test_orbitalml_examples -name "*.py" -exec sed -i 's/^import orbital$/import orbitalml as orbital/g' {} \;
+          find test_orbitalml_examples -name "*.py" -exec sed -i 's/^from orbital/from orbitalml/g' {} \;
+          find test_orbitalml_examples -name "*.py" -exec sed -i 's/^import orbital\./import orbitalml./g' {} \;
+          
+      - name: Verify no direct 'orbital' imports remain
+        run: |
+          echo "Checking for any remaining direct 'orbital' imports..."
+          
+          # Check for direct "import orbital" (not "import orbitalml")
+          if grep -r "import orbital[^m]" test_orbitalml_examples/ || grep -r "import orbital$" test_orbitalml_examples/; then
+            echo "❌ Found direct 'import orbital' - should be 'import orbitalml as orbital'"
+            exit 1
+          fi
+          
+          # Check for "from orbital" imports (should be "from orbitalml")
+          if grep -r "from orbital " test_orbitalml_examples/; then
+            echo "❌ Found 'from orbital' - should be 'from orbitalml'"
+            exit 1
+          fi
+          
+          # Verify we have the correct orbitalml imports
+          if ! grep -r "import orbitalml" test_orbitalml_examples/ >/dev/null; then
+            echo "❌ No 'import orbitalml' found in examples"
+            exit 1
+          fi
+          
+          echo "✓ All examples use 'orbitalml' correctly!"
+
+      - name: Run OrbitalML Examples
+        run: |
+          echo "Testing OrbitalML examples via test_examples.sh..."
+          # Invoke the example test runner
+          bash test_orbitalml_examples/test_examples.sh

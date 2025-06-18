@@ -9,7 +9,7 @@ performed in sequence:
 
 ## The Pipeline Parser
 
-When [orbitalml.parse_pipeline][] is invoked, the SciKit-Learn pipeline is parsed
+When [orbital.parse_pipeline][] is invoked, the SciKit-Learn pipeline is parsed
 and converted to a tree of steps. Each step depends on some input variables,
 some constants, emits one or more output variables and has attributes.
 
@@ -22,14 +22,14 @@ table schema, providing only the columns that constitute the input features on
 which the pipeline was originally fitted is sufficient.
 
 The Input features are provided via a `FeatureTypes` dictionary, which is a
-normal dictionary mapping column names to [orbitalml.types][] column types.
+normal dictionary mapping column names to [orbital.types][] column types.
 
 ```python
 {
-    "sepal_length": orbitalml.types.DoubleColumnType(),
-    "sepal_width": orbitalml.types.DoubleColumnType(),
-    "petal_length": orbitalml.types.DoubleColumnType(),
-    "petal_width": orbitalml.types.DoubleColumnType(),
+    "sepal_length": orbital.types.DoubleColumnType(),
+    "sepal_width": orbital.types.DoubleColumnType(),
+    "petal_length": orbital.types.DoubleColumnType(),
+    "petal_width": orbital.types.DoubleColumnType(),
 }
 ```
 
@@ -88,7 +88,7 @@ the only variables you will recognize in the final SQL are the initial inputs an
 The SQL might nonetheless create other intermediate columns that it needs to reuse, but those
 won't appear in the final results of the query.
 
-Each variable could be a single column or a [orbitalml.translation.variables.ValueVariablesGroup][],
+Each variable could be a single column or a [orbital.translation.variables.ValueVariablesGroup][],
 as a user we will never deal with variable groups, those are exclusively created by intermediate steps
 during the translation phase of the Pipeline.
 
@@ -111,7 +111,7 @@ one of the categories as `1` and `0`.
 
 ## Translator
 
-The translator is in charge of accepting a [orbitalml.ast.ParsedPipeline][] and converting it to
+The translator is in charge of accepting a [orbital.ast.ParsedPipeline][] and converting it to
 an expression that can then be compiled to one of the supported SQL dialects.
 
 The conversion happens step by step, so each step type has its own translator and generally steps
@@ -122,11 +122,11 @@ step will generate an intermediate column for each encoded category, because it 
 for granted that the encoded columns will be used in a future step (otherwise there would
 be no reason to encode them at all.)
 
-Typically as users we won't see that intermediate expression, as the [orbitalml.export_sql][]
+Typically as users we won't see that intermediate expression, as the [orbital.export_sql][]
 function takes care of directly converting it to SQL in the provided dialect:
 
 ```python
-sql = orbitalml.export_sql("TABLE_NAME", orbitalml_pipeline, dialect="duckdb")
+sql = orbital.export_sql("TABLE_NAME", orbital_pipeline, dialect="duckdb")
 ```
 
 The conversion of the intermediate expression to SQL happens via [SQLGlot](https://sqlglot.com/sqlglot.html)
@@ -187,7 +187,7 @@ Using it leads to smaller and faster SQL, but it's not perfect and can
 sometimes choke on more complex queries. 
 
 If compiling to SQL gets stuck you can try to disable the SQL optimizer
-by passing `optimize=False` to [orbitalml.export_sql][].
+by passing `optimize=False` to [orbital.export_sql][].
 
 We can take as an example the following query resulting from a Linear Regression,
 as it's easy to immediately notice the impact of the optimizer:

@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "orbitalml"
+version = "0.2.2"
+description = "Machine Learning pipeline to SQL converter (proxy for orbital)"
+authors = [
+  { name = "Alessandro Molina", email = "alessandro.molina@posit.co" },
+  { name = "Posit Software PBC" }
+]
+readme = "README.md"
+license = "MIT"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "orbital",
+]
+
+[project.urls]
+Homepage = "https://github.com/posit-dev/orbital"
+Repository = "https://github.com/posit-dev/orbital"
+Documentation = "https://posit-dev.github.io/orbital/"
+
+[tool.setuptools.packages.find]
+where = ["src"]

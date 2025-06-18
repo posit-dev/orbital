@@ -5,7 +5,7 @@ import polars as pl
 import pyarrow as pa
 import pytest
 
-from orbitalml import types
+from orbital import types
 
 
 class TestDataTypesGuessing:

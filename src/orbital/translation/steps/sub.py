@@ -4,7 +4,7 @@ import typing
 
 import ibis
 
-from orbitalml.translation.variables import (
+from orbital.translation.variables import (
     NumericVariablesGroup,
     ValueVariablesGroup,
     VariablesGroup,

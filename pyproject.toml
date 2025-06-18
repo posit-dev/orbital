@@ -13,7 +13,7 @@ keywords = ["database", "machine learning", "sql"]
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "MIT"
 authors = [
-  { name = "Alessandro Molina", email = "alessandro@posit.co" },
+  { name = "Alessandro Molina", email = "alessandro.molina@posit.co" },
   { name = "Posit Software PBC" }
 ]
 classifiers = [

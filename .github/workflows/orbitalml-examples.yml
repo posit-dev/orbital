@@ -54,19 +54,6 @@ jobs:
           
           # Replace "import orbital.types" and similar with commented orbital.types usage
           find test_orbitalml_examples -name "*.py" -exec sed -i 's/^import orbital\./# orbital.types available via: import orbitalml as orbital/g' {} \;
-
-      - name: Run OrbitalML Examples
-        run: |
-          echo "Testing OrbitalML examples..."
-          for example in test_orbitalml_examples/*.py; do
-              if [[ -f "$example" ]]; then
-                  echo "Running $example..."
-                  python "$example"
-                  echo "✓ $example completed successfully"
-                  echo "---"
-              fi
-          done
-          echo "All OrbitalML examples completed successfully!"
           
       - name: Verify no direct 'orbital' imports remain
         run: |
@@ -91,3 +78,16 @@ jobs:
           fi
           
           echo "✓ All examples use 'orbitalml' correctly!"
+
+      - name: Run OrbitalML Examples
+        run: |
+          echo "Testing OrbitalML examples..."
+          for example in test_orbitalml_examples/*.py; do
+              if [[ -f "$example" ]]; then
+                  echo "Running $example..."
+                  python "$example"
+                  echo "✓ $example completed successfully"
+                  echo "---"
+              fi
+          done
+          echo "All OrbitalML examples completed successfully!"

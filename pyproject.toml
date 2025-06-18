@@ -103,7 +103,7 @@ packages = ["orbital"]
 [tool.ruff]
 target-version = "py39"
 src = ["src"]
-extend-exclude = ["docs", "tests", "examples"]
+extend-exclude = ["docs", "tests", "examples", "proxypackage"]
 output-format = "grouped"
 lint.select = [
   "E4", "E7", "E9",

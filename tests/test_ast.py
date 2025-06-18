@@ -6,7 +6,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from orbitalml import ast, types
+from orbital import ast, types
 
 
 class TestPipelineParsing:

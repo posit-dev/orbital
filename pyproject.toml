@@ -6,7 +6,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "OrbitalML"
+name = "orbital"
 version = "0.2.1"
 description = "Allow SKLearn predictions to run on database systems in pure SQL."
 keywords = ["database", "machine learning", "sql"]
@@ -98,7 +98,7 @@ testpaths = ["tests"]
 [tool.mypy]
 ignore_missing_imports = true
 mypy_path = "$MYPY_CONFIG_FILE_DIR/src"
-packages = ["orbitalml"]
+packages = ["orbital"]
 
 [tool.ruff]
 target-version = "py39"

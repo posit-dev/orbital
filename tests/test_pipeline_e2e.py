@@ -20,8 +20,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, StandardScaler
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
-import orbitalml
-from orbitalml import types
+import orbital
+from orbital import types
 
 PY39 = sys.version_info[:2] < (3, 10)
 
@@ -61,7 +61,7 @@ class TestEndToEndPipelines:
             conn.close()
         elif dialect == "postgres":
             try:
-                conn = sqlalchemy.create_engine("postgresql://orbitalmltestuser:orbitalmltestpassword@localhost:5432/orbitalmltestdb")
+                conn = sqlalchemy.create_engine("postgresql://orbitaltestuser:orbitaltestpassword@localhost:5432/orbitaltestdb")
                 with conn.connect() as testcon:
                     testcon.execute(sqlalchemy.text("SELECT 1"))  # Test connection
             except (sqlalchemy.exc.OperationalError, ImportError):
@@ -91,9 +91,9 @@ class TestEndToEndPipelines:
         sklearn_preds = sklearn_pipeline.predict(X)
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
-        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
 
         sql_results = self.execute_sql(sql, conn, dialect, df)
         np.testing.assert_allclose(
@@ -113,9 +113,9 @@ class TestEndToEndPipelines:
         sklearn_preds = sklearn_pipeline.predict(X)
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
-        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = orbitalml.export_sql("data", parsed_pipeline, projection=orbitalml.ResultsProjection(["sepal_length"]), dialect=dialect)
+        sql = orbital.export_sql("data", parsed_pipeline, projection=orbital.ResultsProjection(["sepal_length"]), dialect=dialect)
 
         sql_results = self.execute_sql(sql, conn, dialect, df)
         print(sql_results)
@@ -141,9 +141,9 @@ class TestEndToEndPipelines:
         sklearn_preds = sklearn_pipeline.predict(X)
 
         features = {str(fname): types.FloatColumnType() for fname in feature_names}
-        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
 
         sql_results = self.execute_sql(sql, conn, dialect, df)
         np.testing.assert_allclose(
@@ -174,9 +174,9 @@ class TestEndToEndPipelines:
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
         features["cat_feature"] = types.StringColumnType()
-        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
 
         sql_results = self.execute_sql(sql, conn, dialect, df)
         np.testing.assert_allclose(
@@ -202,9 +202,9 @@ class TestEndToEndPipelines:
         sklearn_proba = sklearn_pipeline.predict_proba(X)
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
-        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
 
         sql_results = self.execute_sql(sql, conn, dialect, binary_df)
 
@@ -245,9 +245,9 @@ class TestEndToEndPipelines:
         sklearn_class = sklearn_pipeline.predict(X)
 
         features = {fname: types.FloatColumnType() for fname in ["petal_length"]}
-        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
         sql_results = self.execute_sql(sql, conn, dialect, binary_df)
 
         sklearn_proba_df = pd.DataFrame(
@@ -283,9 +283,9 @@ class TestEndToEndPipelines:
         sklearn_preds = sklearn_pipeline.predict(X)
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
-        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
 
         sql_results = self.execute_sql(sql, conn, dialect, df)
         np.testing.assert_allclose(
@@ -340,9 +340,9 @@ class TestEndToEndPipelines:
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
         features["quality"] = types.StringColumnType()
-        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
         sql_results = self.execute_sql(sql, conn, dialect, df)
 
         np.testing.assert_allclose(
@@ -385,9 +385,9 @@ class TestEndToEndPipelines:
         sklearn_preds = sklearn_pipeline.predict(X)
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
-        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
         sql_results = self.execute_sql(sql, conn, dialect, df)
 
         np.testing.assert_allclose(
@@ -416,9 +416,9 @@ class TestEndToEndPipelines:
         sklearn_preds = sklearn_pipeline.predict(X)
 
         features = {str(fname): types.FloatColumnType() for fname in feature_names}
-        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
         sql_results = self.execute_sql(sql, conn, dialect, df)
 
         np.testing.assert_allclose(
@@ -476,9 +476,9 @@ class TestEndToEndPipelines:
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
         features["region"] = types.StringColumnType()
-        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
         sql_results = self.execute_sql(sql, conn, dialect, df)
 
         np.testing.assert_allclose(
@@ -537,10 +537,10 @@ class TestEndToEndPipelines:
             {fname: types.FloatColumnType() for fname in feature_names},
             region=types.StringColumnType(),
         )
-        parsed_pipeline = orbitalml.parse_pipeline(sklearn_pipeline, features=features)
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
         # Test prediction
-        sql = orbitalml.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
         sql_results = self.execute_sql(sql, conn, dialect, binary_df)
         np.testing.assert_allclose(
             sql_results["output_label"].to_numpy(), sklearn_class

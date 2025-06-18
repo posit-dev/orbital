@@ -6,13 +6,13 @@ import pandas as pd
 from sklearn.datasets import make_regression
 from sklearn.ensemble import GradientBoostingRegressor
 
-import orbitalml
-import orbitalml.types
+import orbital
+import orbital.types
 
 PRINT_SQL = False
 
 logging.basicConfig(level=logging.INFO)
-logging.getLogger("orbitalml").setLevel(logging.DEBUG)
+logging.getLogger("orbital").setLevel(logging.DEBUG)
 
 X_np, y = make_regression(n_samples=20, n_features=1, noise=0.1, random_state=42)
 df = pd.DataFrame(X_np, columns=["feature1"])
@@ -28,13 +28,13 @@ model.fit(X, y)
 # Sample of data on which we will run the regression
 data_sample = X.head(5)
 
-features = orbitalml.types.guess_datatypes(X)
-print("OrbitalML Features:", features)
+features = orbital.types.guess_datatypes(X)
+print("orbital Features:", features)
 
-orbitalml_pipeline = orbitalml.parse_pipeline(model, features=features)
-print(orbitalml_pipeline)
+orbital_pipeline = orbital.parse_pipeline(model, features=features)
+print(orbital_pipeline)
 
-ibis_expression = orbitalml.translate(ibis.memtable(data_sample), orbitalml_pipeline)
+ibis_expression = orbital.translate(ibis.memtable(data_sample), orbital_pipeline)
 
 # This currently doesn't work with DuckDB, need to investigate
 # duckdb.duckdb.ConversionException: Conversion Error: Casting value "19.7795275449752808" to type DECIMAL(18,17) failed: value is out of range!

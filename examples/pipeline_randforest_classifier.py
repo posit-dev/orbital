@@ -11,14 +11,14 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.ensemble import RandomForestClassifier
 
-import orbitalml
-import orbitalml.types
+import orbital
+import orbital.types
 
 PRINT_SQL = int(os.environ.get("PRINTSQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
 
 logging.basicConfig(level=logging.INFO)
-logging.getLogger("orbitalml").setLevel(logging.INFO)  # Set DEBUG to see translation process.
+logging.getLogger("orbital").setLevel(logging.INFO)  # Set DEBUG to see translation process.
 
 iris = load_iris()
 df = pd.DataFrame(iris.data, columns=["sepal_length", "sepal_width", "petal_length", "petal_width"])
@@ -46,11 +46,11 @@ pipeline = Pipeline([
 pipeline.fit(X, y)
 
 
-features = orbitalml.types.guess_datatypes(X)
-print("OrbitalML Features:", features)
+features = orbital.types.guess_datatypes(X)
+print("orbital Features:", features)
 
-orbitalml_pipeline = orbitalml.parse_pipeline(pipeline, features=features)
-print(orbitalml_pipeline)
+orbital_pipeline = orbital.parse_pipeline(pipeline, features=features)
+print(orbital_pipeline)
 
 # Prepare test data for predictions
 example_data = pa.table({
@@ -63,11 +63,11 @@ example_data = pa.table({
 
 
 ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
-ibis_expression = orbitalml.translate(ibis_table, orbitalml_pipeline)
+ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
 
 con = ibis.duckdb.connect()
 if PRINT_SQL:
-    sql = orbitalml.export_sql("DATA_TABLE", orbitalml_pipeline, dialect="duckdb")
+    sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect="duckdb")
     print("\nGenerated Query for DuckDB:")
     print(sql)
     print("\nPrediction with SQL")

@@ -70,7 +70,7 @@ class FeatureVectorizerTranslator(Translator):
     This is similar to Concat, but it is a simplified version
     that always only acts on columns, and does not support
     concatenating over rows. While Concat can in theory
-    support rows concatenation, even though orbitalml doesn't implement it.
+    support rows concatenation, even though orbital doesn't implement it.
     """
 
     def process(self) -> None:

@@ -1,6 +1,6 @@
-"""OrbitalML, translate scikit-learn pipelines into SQL queries
+"""orbital, translate scikit-learn pipelines into SQL queries
 
-OrbitalML is a library for translating **scikit-learn** pipelines
+orbital is a library for translating **scikit-learn** pipelines
 into **SQL queries** and **Ibis expressions**.
 
 It provides a way to execute machine learning models on databases without

@@ -1,15 +1,15 @@
 # Orbital Internals
 
-::: orbitalml.translate
+::: orbital.translate
     options:
         heading_level: 2
 
-::: orbitalml.translation.variables
+::: orbital.translation.variables
 
-::: orbitalml.translation.translator
+::: orbital.translation.translator
 
-::: orbitalml.translation.optimizer
+::: orbital.translation.optimizer
 
-::: orbitalml.translation.steps
+::: orbital.translation.steps
     options:
         show_submodules: true

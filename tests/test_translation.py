@@ -1,8 +1,8 @@
 import ibis
 import onnx
 
-from orbitalml.translation.translator import Translator
-from orbitalml.translation.variables import GraphVariables
+from orbital.translation.translator import Translator
+from orbital.translation.variables import GraphVariables
 
 BASIC_TABLE = ibis.memtable(
     {

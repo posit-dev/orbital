@@ -36,15 +36,15 @@ pipeline = Pipeline(
 pipeline.fit(X_train, y_train)
 
 # Convert it to an Orbital Pipeline
-orbitalml_pipeline = orbitalml.parse_pipeline(pipeline, features={
-    "sepal_length": orbitalml.types.DoubleColumnType(),
-    "sepal_width": orbitalml.types.DoubleColumnType(),
-    "petal_length": orbitalml.types.DoubleColumnType(),
-    "petal_width": orbitalml.types.DoubleColumnType(),
+orbital_pipeline = orbital.parse_pipeline(pipeline, features={
+    "sepal_length": orbital.types.DoubleColumnType(),
+    "sepal_width": orbital.types.DoubleColumnType(),
+    "petal_length": orbital.types.DoubleColumnType(),
+    "petal_width": orbital.types.DoubleColumnType(),
 })
 
 # Generate SQL
-sql = orbitalml.export_sql("DATA_TABLE", orbitalml_pipeline, dialect="duckdb")
+sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect="duckdb")
 ```
 ```
 >>> print(sql)
@@ -59,7 +59,7 @@ This SQL produces the same predictions as `pipeline.predict(...)` from SciKit-Le
 
 ## Supported Models
 
-OrbitalML currently supports the following models:
+orbital currently supports the following models:
 
 -   Linear Regression
 -   Logistic Regression

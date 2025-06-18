@@ -1,18 +1,18 @@
 # API Reference
 
-::: orbitalml
+::: orbital
     options:
         show_root_heading: true
         heading_level: 2
 
-::: orbitalml.ast
+::: orbital.ast
     options:
         members:
             - ParsedPipeline
             - UnsupportedFormatVersion
         heading_level: 3
 
-::: orbitalml.types
+::: orbital.types
     options:
         show_root_heading: true
         heading_level: 3

@@ -42,7 +42,7 @@ def export_sql(
 ) -> str:
     """Export SQL for a given pipeline.
 
-    Given a orbitalml pipeline, this function generates a SQL query that can be
+    Given a orbital pipeline, this function generates a SQL query that can be
     used to execute the pipeline on a database. The generated SQL is compatible
     with the specified SQL dialect.
 

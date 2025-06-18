@@ -30,10 +30,10 @@ jobs:
         run: |
           cd proxypackage
           python -m build
+          cd ..
           
       - name: Install packages with local dependencies
         run: |
-          cd ..
           # Install orbital from local wheel with test dependencies
           ORBITAL_WHEEL=$(find dist -name "orbital-*.whl" | head -1)
           pip install "${ORBITAL_WHEEL}[test]"
@@ -55,8 +55,8 @@ jobs:
           # Replace all "from orbital" with "from orbitalml"
           find test_orbitalml_examples -name "*.py" -exec sed -i 's/^from orbital/from orbitalml/g' {} \;
           
-          # Replace "import orbital.types" and similar with commented orbital.types usage
-          find test_orbitalml_examples -name "*.py" -exec sed -i 's/^import orbital\./# orbital.types available via: import orbitalml as orbital/g' {} \;
+          # Replace "import orbital.module" with "import orbitalml.module"
+          find test_orbitalml_examples -name "*.py" -exec sed -i 's/^import orbital\./import orbitalml./g' {} \;
           
       - name: Verify no direct 'orbital' imports remain
         run: |
@@ -75,8 +75,8 @@ jobs:
           fi
           
           # Verify we have the correct orbitalml imports
-          if ! grep -r "import orbitalml as orbital" test_orbitalml_examples/ >/dev/null; then
-            echo "❌ No 'import orbitalml as orbital' found in examples"
+          if ! grep -r "import orbitalml" test_orbitalml_examples/ >/dev/null; then
+            echo "❌ No 'import orbitalml' found in examples"
             exit 1
           fi
           

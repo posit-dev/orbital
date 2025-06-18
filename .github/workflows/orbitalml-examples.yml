@@ -45,17 +45,13 @@ jobs:
         run: |
           # Create test examples directory
           mkdir -p test_orbitalml_examples
-          
-          # Copy all Python examples from the examples directory
-          cp examples/*.py test_orbitalml_examples/
-          
-          # Replace all "import orbital" with "import orbitalml as orbital"
+
+          # Copy all Python examples and the test runner script
+          cp examples/*.py examples/test_examples.sh test_orbitalml_examples/
+
+          # Replace import statements in each example
           find test_orbitalml_examples -name "*.py" -exec sed -i 's/^import orbital$/import orbitalml as orbital/g' {} \;
-          
-          # Replace all "from orbital" with "from orbitalml"
           find test_orbitalml_examples -name "*.py" -exec sed -i 's/^from orbital/from orbitalml/g' {} \;
-          
-          # Replace "import orbital.module" with "import orbitalml.module"
           find test_orbitalml_examples -name "*.py" -exec sed -i 's/^import orbital\./import orbitalml./g' {} \;
           
       - name: Verify no direct 'orbital' imports remain
@@ -84,13 +80,6 @@ jobs:
 
       - name: Run OrbitalML Examples
         run: |
-          echo "Testing OrbitalML examples..."
-          for example in test_orbitalml_examples/*.py; do
-              if [[ -f "$example" ]]; then
-                  echo "Running $example..."
-                  python "$example"
-                  echo "✓ $example completed successfully"
-                  echo "---"
-              fi
-          done
-          echo "All OrbitalML examples completed successfully!"
+          echo "Testing OrbitalML examples via test_examples.sh..."
+          # Invoke the example test runner
+          bash test_orbitalml_examples/test_examples.sh

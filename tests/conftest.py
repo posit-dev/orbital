@@ -65,7 +65,9 @@ def db_connection(request):
         conn.close()
     elif dialect == "postgres":
         try:
-            conn = sqlalchemy.create_engine("postgresql://orbitaltestuser:orbitaltestpassword@localhost:5432/orbitaltestdb")
+            conn = sqlalchemy.create_engine(
+                "postgresql://orbitaltestuser:orbitaltestpassword@localhost:5432/orbitaltestdb"
+            )
             with conn.connect() as testcon:
                 testcon.execute(sqlalchemy.text("SELECT 1"))  # Test connection
         except (sqlalchemy.exc.OperationalError, ImportError):

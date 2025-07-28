@@ -49,13 +49,21 @@ class TestEndToEndPipelines:
         features = {fname: types.FloatColumnType() for fname in feature_names}
         parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = orbital.export_sql("data", parsed_pipeline, projection=orbital.ResultsProjection(["sepal_length"]), dialect=dialect)
+        sql = orbital.export_sql(
+            "data",
+            parsed_pipeline,
+            projection=orbital.ResultsProjection(["sepal_length"]),
+            dialect=dialect,
+        )
 
         sql_results = execute_sql(sql, conn, dialect, df)
         print(sql_results)
         assert set(sql_results.columns) == {"sepal_length", "variable.target_0"}
         np.testing.assert_allclose(
-            sql_results["variable.target_0"].values.flatten(), sklearn_preds.flatten(), rtol=1e-4, atol=1e-4
+            sql_results["variable.target_0"].values.flatten(),
+            sklearn_preds.flatten(),
+            rtol=1e-4,
+            atol=1e-4,
         )
 
     def test_feature_selection_pipeline(self, diabetes_data, db_connection):
@@ -154,14 +162,6 @@ class TestEndToEndPipelines:
                 atol=1e-4,
             )
 
-
-
-
-
-
-
-
-
     def test_elasticnet(self, diabetes_data, db_connection):
         """Test an ElasticNet pipeline with preprocessing transformations."""
         df, feature_names = diabetes_data
@@ -192,9 +192,3 @@ class TestEndToEndPipelines:
             rtol=1e-4,
             atol=1e-4,
         )
-
-
-
-
-
-

@@ -119,15 +119,21 @@ class TestSQLExport:
         parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
         optimized_sql = orbital.export_sql(
-            "data", parsed_pipeline, dialect="duckdb", optimize=True,
+            "data",
+            parsed_pipeline,
+            dialect="duckdb",
+            optimize=True,
             projection=orbital.ResultsProjection(["ID"]),
         )
-        assert ('AS "variable.target_0"' in optimized_sql)
-        assert ('"t0"."ID"' in optimized_sql)
+        assert 'AS "variable.target_0"' in optimized_sql
+        assert '"t0"."ID"' in optimized_sql
 
         unoptimized_sql = orbital.export_sql(
-            "data", parsed_pipeline, dialect="duckdb", optimize=False,
+            "data",
+            parsed_pipeline,
+            dialect="duckdb",
+            optimize=False,
             projection=orbital.ResultsProjection(["ID"]),
         )
-        assert ('AS "variable.target_0"' in unoptimized_sql)
-        assert ('"t0"."ID"' in unoptimized_sql)
+        assert 'AS "variable.target_0"' in unoptimized_sql
+        assert '"t0"."ID"' in unoptimized_sql

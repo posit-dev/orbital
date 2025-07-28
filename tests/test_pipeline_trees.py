@@ -1,11 +1,13 @@
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
+from sklearn.datasets import make_classification
 from sklearn.ensemble import (
     GradientBoostingClassifier,
     GradientBoostingRegressor,
     RandomForestClassifier,
 )
+from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, StandardScaler
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
@@ -328,3 +330,330 @@ class TestTreeBasedPipelines:
                 rtol=0.05,
                 atol=0.05,
             )
+
+
+class TestTreePostTransformations:
+    def test_gradient_boosting_binary_classification_post_transform_bug(
+        self, db_connection
+    ):
+        """Test that GBM binary classification applies post-transforms correctly."""
+        conn, dialect = db_connection
+
+        # Create mock binary classification data
+        X, y = make_classification(n_samples=100, n_features=20, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42
+        )
+
+        sklearn_pipeline = Pipeline(
+            [
+                (
+                    "preprocess",
+                    ColumnTransformer(
+                        [("scaler", StandardScaler(with_std=False), [0, 1, 2])],
+                        remainder="passthrough",
+                    ),
+                ),
+                (
+                    "gbm",
+                    GradientBoostingClassifier(
+                        max_depth=1, n_estimators=1, random_state=42
+                    ),
+                ),
+            ]
+        )
+
+        sklearn_pipeline.fit(X_train, y_train)
+        sklearn_proba = sklearn_pipeline.predict_proba(X_train)
+        sklearn_predictions = sklearn_pipeline.predict(X_train)
+
+        n_cols = len(X_train[0])
+        nm_cols = [f"var_{i}" for i in range(n_cols)]
+        features = {n: types.DoubleColumnType() for n in nm_cols}
+
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+
+        test_data = pd.DataFrame(X_train, columns=nm_cols)
+        sql_results = execute_sql(sql, conn, dialect, test_data)
+
+        # Probabilities should sum to 1
+        prob_0 = sql_results["output_probability.0"].to_numpy()
+        prob_1 = sql_results["output_probability.1"].to_numpy()
+        prob_sums = prob_0 + prob_1
+        np.testing.assert_allclose(
+            prob_sums,
+            1.0,
+            rtol=1e-6,
+            atol=1e-6,
+            err_msg="Probabilities don't sum to 1.0 due to incorrect post-transform order in GBM binary classification",
+        )
+
+        # Compare individual class probabilities with sklearn
+        sklearn_prob_0 = sklearn_proba[:, 0]  # Class 0 probabilities
+        sklearn_prob_1 = sklearn_proba[:, 1]  # Class 1 probabilities
+        np.testing.assert_allclose(
+            prob_1,
+            sklearn_prob_1,
+            rtol=1e-4,
+            atol=1e-4,
+            err_msg="Class 1 probabilities don't match sklearn due to incorrect post-transform",
+        )
+        np.testing.assert_allclose(
+            prob_0,
+            sklearn_prob_0,
+            rtol=1e-4,
+            atol=1e-4,
+            err_msg="Class 0 probabilities don't match sklearn due to incorrect post-transform order",
+        )
+
+        # Predictions should match sklearn
+        sql_predictions = sql_results["output_label"].to_numpy()
+        np.testing.assert_array_equal(
+            sql_predictions,
+            sklearn_predictions,
+            err_msg="Predictions don't match sklearn due to incorrect probability calculations",
+        )
+
+    def test_random_forest_binary_classification_post_transform_check(
+        self, db_connection
+    ):
+        """Test RandomForest binary classification works correctly because it uses post_transform="NONE"."""
+        conn, dialect = db_connection
+
+        # Create mock binary classification data
+        X, y = make_classification(n_samples=100, n_features=20, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42
+        )
+
+        sklearn_pipeline = Pipeline(
+            [
+                (
+                    "preprocess",
+                    ColumnTransformer(
+                        [("scaler", StandardScaler(with_std=False), [0, 1, 2])],
+                        remainder="passthrough",
+                    ),
+                ),
+                (
+                    "rf",
+                    RandomForestClassifier(
+                        n_estimators=10, max_depth=3, random_state=42
+                    ),
+                ),
+            ]
+        )
+
+        sklearn_pipeline.fit(X_train, y_train)
+        sklearn_proba = sklearn_pipeline.predict_proba(X_train)
+        sklearn_predictions = sklearn_pipeline.predict(X_train)
+
+        n_cols = len(X_train[0])
+        nm_cols = [f"var_{i}" for i in range(n_cols)]
+        features = {n: types.DoubleColumnType() for n in nm_cols}
+
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+
+        test_data = pd.DataFrame(X_train, columns=nm_cols)
+        sql_results = execute_sql(sql, conn, dialect, test_data)
+
+        # RandomForest should work correctly: probabilities should sum to 1
+        prob_0 = sql_results["output_probability.0"].to_numpy()
+        prob_1 = sql_results["output_probability.1"].to_numpy()
+        prob_sums = prob_0 + prob_1
+        np.testing.assert_allclose(
+            prob_sums,
+            1.0,
+            rtol=1e-6,
+            atol=1e-6,
+            err_msg="RandomForest: Probabilities don't sum to 1.0 - unexpected bug!",
+        )
+
+        # RandomForest probabilities should match sklearn exactly
+        sklearn_prob_0 = sklearn_proba[:, 0]  # Class 0 probabilities
+        sklearn_prob_1 = sklearn_proba[:, 1]  # Class 1 probabilities
+        np.testing.assert_allclose(
+            prob_0,
+            sklearn_prob_0,
+            rtol=1e-4,
+            atol=1e-4,
+            err_msg="RandomForest: Class 0 probabilities don't match sklearn",
+        )
+
+        np.testing.assert_allclose(
+            prob_1,
+            sklearn_prob_1,
+            rtol=1e-4,
+            atol=1e-4,
+            err_msg="RandomForest: Class 1 probabilities don't match sklearn",
+        )
+
+        # RandomForest predictions should match sklearn
+        sql_predictions = sql_results["output_label"].to_numpy()
+        np.testing.assert_array_equal(
+            sql_predictions,
+            sklearn_predictions,
+            err_msg="RandomForest: Predictions don't match sklearn",
+        )
+
+    def test_decision_tree_binary_classification_post_transform_check(
+        self, db_connection
+    ):
+        """Test DecisionTree binary classification works correctly because DecisionTree uses post_transform="NONE"."""
+        conn, dialect = db_connection
+
+        # Create mock binary classification data
+        X, y = make_classification(n_samples=100, n_features=20, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42
+        )
+
+        sklearn_pipeline = Pipeline(
+            [
+                (
+                    "preprocess",
+                    ColumnTransformer(
+                        [("scaler", StandardScaler(with_std=False), [0, 1, 2])],
+                        remainder="passthrough",
+                    ),
+                ),
+                ("dt", DecisionTreeClassifier(max_depth=5, random_state=42)),
+            ]
+        )
+
+        sklearn_pipeline.fit(X_train, y_train)
+        sklearn_proba = sklearn_pipeline.predict_proba(X_train)
+        sklearn_predictions = sklearn_pipeline.predict(X_train)
+
+        n_cols = len(X_train[0])
+        nm_cols = [f"var_{i}" for i in range(n_cols)]
+        features = {n: types.DoubleColumnType() for n in nm_cols}
+
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+
+        test_data = pd.DataFrame(X_train, columns=nm_cols)
+        sql_results = execute_sql(sql, conn, dialect, test_data)
+
+        # DecisionTree should work correctly: probabilities should sum to 1
+        prob_0 = sql_results["output_probability.0"].to_numpy()
+        prob_1 = sql_results["output_probability.1"].to_numpy()
+        prob_sums = prob_0 + prob_1
+        np.testing.assert_allclose(
+            prob_sums,
+            1.0,
+            rtol=1e-6,
+            atol=1e-6,
+            err_msg="DecisionTree: Probabilities don't sum to 1.0 - unexpected bug!",
+        )
+
+        # DecisionTree probabilities should match sklearn exactly
+        sklearn_prob_0 = sklearn_proba[:, 0]  # Class 0 probabilities
+        sklearn_prob_1 = sklearn_proba[:, 1]  # Class 1 probabilities
+        np.testing.assert_allclose(
+            prob_0,
+            sklearn_prob_0,
+            rtol=1e-4,
+            atol=1e-4,
+            err_msg="DecisionTree: Class 0 probabilities don't match sklearn",
+        )
+
+        np.testing.assert_allclose(
+            prob_1,
+            sklearn_prob_1,
+            rtol=1e-4,
+            atol=1e-4,
+            err_msg="DecisionTree: Class 1 probabilities don't match sklearn",
+        )
+
+        # DecisionTree predictions should match sklearn
+        sql_predictions = sql_results["output_label"].to_numpy()
+        np.testing.assert_array_equal(
+            sql_predictions,
+            sklearn_predictions,
+            err_msg="DecisionTree: Predictions don't match sklearn",
+        )
+
+    def test_gradient_boosting_multiclass_classification_post_transform_check(
+        self, iris_data, db_connection
+    ):
+        """Test that GradientBoosting multi-class classification works correctly with SOFTMAX post-transform."""
+        conn, dialect = db_connection
+
+        # Use iris dataset for multi-class classification (3 classes)
+        df, feature_names = iris_data
+
+        # Create pipeline with GradientBoosting multi-class classifier
+        sklearn_pipeline = Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                (
+                    "gbm",
+                    GradientBoostingClassifier(
+                        n_estimators=5, max_depth=3, random_state=42
+                    ),
+                ),
+            ]
+        )
+
+        X = df[feature_names]
+        y = df["target"]
+        sklearn_pipeline.fit(X, y)
+        sklearn_proba = sklearn_pipeline.predict_proba(X)
+        sklearn_predictions = sklearn_pipeline.predict(X)
+
+        features = {fname: types.FloatColumnType() for fname in feature_names}
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+
+        test_data = df[feature_names]
+        sql_results = execute_sql(sql, conn, dialect, test_data)
+
+        # Multi-class GBM with SOFTMAX should work correctly: probabilities should sum to 1
+        prob_0 = sql_results["output_probability.0"].to_numpy()
+        prob_1 = sql_results["output_probability.1"].to_numpy()
+        prob_2 = sql_results["output_probability.2"].to_numpy()
+        prob_sums = prob_0 + prob_1 + prob_2
+        np.testing.assert_allclose(
+            prob_sums,
+            1.0,
+            rtol=1e-4,
+            atol=1e-4,
+            err_msg="Multi-class GBM: Probabilities don't sum to 1.0 - SOFTMAX post-transform bug!",
+        )
+
+        # Multi-class GBM probabilities should match sklearn exactly
+        sklearn_prob_0 = sklearn_proba[:, 0]  # Class 0 probabilities
+        sklearn_prob_1 = sklearn_proba[:, 1]  # Class 1 probabilities
+        sklearn_prob_2 = sklearn_proba[:, 2]  # Class 2 probabilities
+        np.testing.assert_allclose(
+            prob_0,
+            sklearn_prob_0,
+            rtol=1e-4,
+            atol=1e-4,
+            err_msg="Multi-class GBM: Class 0 probabilities don't match sklearn",
+        )
+        np.testing.assert_allclose(
+            prob_1,
+            sklearn_prob_1,
+            rtol=1e-4,
+            atol=1e-4,
+            err_msg="Multi-class GBM: Class 1 probabilities don't match sklearn",
+        )
+        np.testing.assert_allclose(
+            prob_2,
+            sklearn_prob_2,
+            rtol=1e-4,
+            atol=1e-4,
+            err_msg="Multi-class GBM: Class 2 probabilities don't match sklearn",
+        )
+
+        # Multi-class GBM predictions should match sklearn
+        sql_predictions = sql_results["output_label"].to_numpy()
+        np.testing.assert_array_equal(
+            sql_predictions,
+            sklearn_predictions,
+            err_msg="Multi-class GBM: Predictions don't match sklearn",
+        )

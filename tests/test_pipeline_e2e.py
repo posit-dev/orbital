@@ -57,7 +57,6 @@ class TestEndToEndPipelines:
         )
 
         sql_results = execute_sql(sql, conn, dialect, df)
-        print(sql_results)
         assert set(sql_results.columns) == {"sepal_length", "variable.target_0"}
         np.testing.assert_allclose(
             sql_results["variable.target_0"].values.flatten(),

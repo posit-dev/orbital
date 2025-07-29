@@ -40,12 +40,6 @@ class TreeEnsembleClassifierTranslator(Translator):
             )
 
         label_expr, prob_colgroup = self.build_classifier(input_exr)
-        post_transform = typing.cast(
-            str, self._attributes.get("post_transform", "NONE")
-        )
-
-        prob_colgroup = apply_post_transform(prob_colgroup, post_transform)
-
         self._variables[self.outputs[0]] = label_expr
         self._variables[self.outputs[1]] = prob_colgroup
 
@@ -143,8 +137,20 @@ class TreeEnsembleClassifierTranslator(Translator):
                 .else_(output_classlabels[0])
                 .end()
             )
-            # The order matters, for ONNX the VariableGroup is a list of subvariables
+            # The order of variables matters, so class 0 must be first,
+            # for ONNX the VariableGroup is a list of subvariables
             # the names are not important.
+
+            post_transform = typing.cast(
+                str, self._attributes.get("post_transform", "NONE")
+            )
+            if post_transform != "NONE":
+                # A transformation was requested, so just apply it to the raw scores.
+                total_score = typing.cast(
+                    ibis.expr.types.NumericValue,
+                    apply_post_transform(total_score, post_transform),
+                )
+
             prob_dict = ValueVariablesGroup(
                 {
                     str(output_classlabels[0]): 1.0 - total_score,
@@ -177,20 +183,21 @@ class TreeEnsembleClassifierTranslator(Translator):
             post_transform = typing.cast(
                 str, self._attributes.get("post_transform", "NONE")
             )
-            if post_transform == "SOFTMAX":
-                # Use softmax as an hint that we are doing a gradient boosted tree,
-                # thus the probability is the same as the score and should not be normalized
-                prob_dict = ValueVariablesGroup(
-                    {str(clslabel): total_votes[clslabel] for clslabel in classlabels}
-                )
-            else:
-                # Compute probability to return it too.
-                sum_votes = sum(total_votes[clslabel] for clslabel in classlabels)
-                prob_dict = ValueVariablesGroup(
-                    {
-                        str(clslabel): total_votes[clslabel] / sum_votes
-                        for clslabel in classlabels
-                    }
-                )
+            if post_transform == "NONE":
+                # By default we normalize the scores
+                post_transform = "NORMALIZE"
+
+            prob_dict = typing.cast(
+                ValueVariablesGroup,
+                apply_post_transform(
+                    ValueVariablesGroup(
+                        {
+                            str(clslabel): total_votes[clslabel]
+                            for clslabel in classlabels
+                        }
+                    ),
+                    post_transform,
+                ),
+            )
 
         return label_expr, prob_dict

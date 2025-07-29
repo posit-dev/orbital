@@ -120,9 +120,16 @@ class TreeEnsembleClassifierTranslator(Translator):
             tree_votes.append(build_tree_case(tree))
 
         # Aggregate votes from all trees.
+        base_values = self._attributes.get("base_values", [])
+        # Ensure base_values is a list
+        if not isinstance(base_values, list):
+            base_values = [base_values] if base_values is not None else []
+
         total_votes = {}
-        for clslabel in classlabels:
-            total_votes[clslabel] = ibis.literal(0.0)
+        for i, clslabel in enumerate(classlabels):
+            # Initialize with base value if available, otherwise 0.0
+            base_value = base_values[i] if i < len(base_values) else 0.0
+            total_votes[clslabel] = ibis.literal(base_value)
             for votes in tree_votes:
                 total_votes[clslabel] = optimizer.fold_operation(
                     total_votes[clslabel] + votes.get(clslabel, ibis.literal(0.0))
@@ -131,6 +138,17 @@ class TreeEnsembleClassifierTranslator(Translator):
         # Compute prediction of class itself.
         if is_binary:
             total_score = total_votes[classlabels[0]]
+            post_transform = typing.cast(
+                str, self._attributes.get("post_transform", "NONE")
+            )
+
+            # Apply post-transform before checking the threshold
+            if post_transform != "NONE":
+                total_score = typing.cast(
+                    ibis.expr.types.NumericValue,
+                    apply_post_transform(total_score, post_transform),
+                )
+
             label_expr = optimizer.fold_case(
                 ibis.case()
                 .when(total_score > 0.5, output_classlabels[1])
@@ -140,17 +158,6 @@ class TreeEnsembleClassifierTranslator(Translator):
             # The order of variables matters, so class 0 must be first,
             # for ONNX the VariableGroup is a list of subvariables
             # the names are not important.
-
-            post_transform = typing.cast(
-                str, self._attributes.get("post_transform", "NONE")
-            )
-            if post_transform != "NONE":
-                # A transformation was requested, so just apply it to the raw scores.
-                total_score = typing.cast(
-                    ibis.expr.types.NumericValue,
-                    apply_post_transform(total_score, post_transform),
-                )
-
             prob_dict = ValueVariablesGroup(
                 {
                     str(output_classlabels[0]): 1.0 - total_score,
@@ -184,7 +191,7 @@ class TreeEnsembleClassifierTranslator(Translator):
                 str, self._attributes.get("post_transform", "NONE")
             )
             if post_transform == "NONE":
-                # By default we normalize the scores
+                # By default we normalize the scores so that they sum to 1.0
                 post_transform = "NORMALIZE"
 
             prob_dict = typing.cast(

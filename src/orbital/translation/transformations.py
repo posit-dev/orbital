@@ -26,8 +26,8 @@ Example usage:
     # Result: NumericVariablesGroup with normalized probabilities that sum to 1.0
 """
 
+import abc
 import typing
-from abc import ABC, abstractmethod
 
 import ibis
 
@@ -55,6 +55,11 @@ def apply_post_transform(
         # this is mostly for convenience, it will raise TypeError if any value is not numeric
         data = NumericVariablesGroup(data)
 
+    if transform_class is IdentityTransform:
+        # Identity transform does not change the data
+        # We can avoid applying it at all.
+        return data
+
     transformer = transform_class()
 
     if isinstance(data, NumericVariablesGroup):
@@ -69,10 +74,10 @@ def apply_post_transform(
         )
 
 
-class PostTransform(ABC):
+class PostTransform(abc.ABC):
     """Base class for post-transformation operations."""
 
-    @abstractmethod
+    @abc.abstractmethod
     def transform_numeric(
         self, value: ibis.expr.types.NumericValue
     ) -> ibis.expr.types.NumericValue:
@@ -109,16 +114,6 @@ class LogisticTransform(PostTransform):
         return 1 / (1 + (-value).exp())
 
 
-class IdentityTransform(PostTransform):
-    """Identity transformation (no change)."""
-
-    def transform_numeric(
-        self, value: ibis.expr.types.NumericValue
-    ) -> ibis.expr.types.NumericValue:
-        """Apply identity transformation to a single value."""
-        return value
-
-
 class SoftmaxTransform(PostTransform):
     """Softmax transformation: exp(x_i) / sum(exp(x_j)) for all j."""
 
@@ -148,6 +143,22 @@ class SoftmaxTransform(PostTransform):
         return NumericVariablesGroup(
             {name: exp_val / sum_exp for name, exp_val in exp_dict.items()}
         )
+
+
+class IdentityTransform(PostTransform):
+    """Identity transformation (no change).
+
+    This primarily only acts as a guard
+    against applying unnecessary transformations.
+    It still provides a working implementation,
+    but `apply_post_transform` will ignore it.
+    """
+
+    def transform_numeric(
+        self, value: ibis.expr.types.NumericValue
+    ) -> ibis.expr.types.NumericValue:
+        """Return the value unchanged."""
+        return value
 
 
 # Mapping of transformation names to their corresponding classes

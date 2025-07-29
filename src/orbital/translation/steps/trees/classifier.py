@@ -44,20 +44,7 @@ class TreeEnsembleClassifierTranslator(Translator):
             str, self._attributes.get("post_transform", "NONE")
         )
 
-        if post_transform != "NONE":
-            if post_transform == "SOFTMAX":
-                prob_colgroup = apply_post_transform(prob_colgroup, "SOFTMAX")
-            elif post_transform == "LOGISTIC":
-                transformed_dict = {}
-                for lbl, prob_col in prob_colgroup.items():
-                    transformed_dict[lbl] = apply_post_transform(
-                        prob_col, post_transform
-                    )
-                prob_colgroup = ValueVariablesGroup(transformed_dict)
-            else:
-                raise NotImplementedError(
-                    f"Post transform {post_transform} not implemented."
-                )
+        prob_colgroup = apply_post_transform(prob_colgroup, post_transform)
 
         self._variables[self.outputs[0]] = label_expr
         self._variables[self.outputs[1]] = prob_colgroup

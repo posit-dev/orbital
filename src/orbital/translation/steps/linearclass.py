@@ -4,6 +4,7 @@ import typing
 
 import ibis
 
+from ..transformations import apply_post_transform
 from ..translator import Translator
 from ..variables import NumericVariablesGroup, ValueVariablesGroup, VariablesGroup
 
@@ -74,7 +75,7 @@ class LinearClassifierTranslator(Translator):
             for val, coef in zip(fields, coef_slice):
                 score += val * coef
 
-            score = self._apply_post_transform(score, post_transform)
+            score = apply_post_transform(score, post_transform)
             scores.append(self._optimizer.fold_operation(score))
 
         scores_struct = ValueVariablesGroup(
@@ -89,19 +90,3 @@ class LinearClassifierTranslator(Translator):
 
         self.set_output(predictions, index=0)
         self.set_output(scores_struct, index=1)
-
-    @classmethod
-    def _apply_post_transform(
-        cls, score: ibis.expr.types.NumericValue, transform: str
-    ) -> ibis.expr.types.NumericValue:
-        # TODO: Move to a dedicated set of post-transform
-        #       functions together with SOFTMAX
-        if transform == "LOGISTIC":
-            return 1 / (1 + (-score).exp())
-        elif transform == "NONE":
-            return score
-        else:
-            # TODO: apply more post_transform here if needed
-            raise NotImplementedError(
-                f"Post transform '{transform}' is not implemented."
-            )

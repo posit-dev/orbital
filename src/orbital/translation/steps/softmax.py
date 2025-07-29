@@ -4,8 +4,9 @@ import typing
 
 import ibis
 
+from ..transformations import apply_post_transform
 from ..translator import Translator
-from ..variables import NumericVariablesGroup, ValueVariablesGroup, VariablesGroup
+from ..variables import NumericVariablesGroup, VariablesGroup
 
 
 class SoftmaxTranslator(Translator):
@@ -38,37 +39,5 @@ class SoftmaxTranslator(Translator):
         if isinstance(data, VariablesGroup):
             data = NumericVariablesGroup(data)
         else:
-            data = typing.cast(
-                ibis.expr.types.NumericValue, ibis.expr.types.NumericValue
-            )
-        self.set_output(self.compute_softmax(self, data))
-
-    @classmethod
-    def compute_softmax(
-        cls,
-        translator: Translator,
-        data: typing.Union[ibis.expr.types.NumericValue, VariablesGroup],
-    ) -> typing.Union[ibis.Expr, VariablesGroup]:
-        """Computes the actual softmax operation over a column or column group."""
-        if isinstance(data, VariablesGroup):
-            data = NumericVariablesGroup(data)
-            max_value = ibis.greatest(*data.values()).name(
-                translator.variable_unique_short_alias("sfmx")
-            )
-            translator.preserve(max_value)
-
-            # Compute, for each column, the exponent
-            exp_dict = {k: (v - max_value).exp() for k, v in data.items()}
-
-            # Sum all column exponents
-            sum_exp = sum(exp_dict.values())
-
-            # Multi columns case: softmax = exp(column_exp) / (exponents_sum)
-            return ValueVariablesGroup({k: exp_dict[k] / sum_exp for k in data.keys()})
-        elif isinstance(data, ibis.Expr):
-            # Single column case: softmax(x) = exp(x) / exp(x) = 1
-            return ibis.literal(1.0)
-        else:
-            raise TypeError(
-                f"Softmax: expected a column group or a single column. Got {type(data)}"
-            )
+            data = typing.cast(ibis.expr.types.NumericValue, data)
+        self.set_output(apply_post_transform(data, "SOFTMAX"))

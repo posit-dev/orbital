@@ -145,6 +145,25 @@ class SoftmaxTransform(PostTransform):
         )
 
 
+class NormalizeTransform(PostTransform):
+    """Normalization transformation: x / TOTAL where TOTAL is the sum of all variables."""
+
+    def transform_numeric(
+        self, value: ibis.expr.types.NumericValue
+    ) -> ibis.expr.types.NumericValue:
+        """Apply normalization to a single value."""
+        return 1.0
+
+    def transform_variables_group(
+        self, group: NumericVariablesGroup
+    ) -> NumericVariablesGroup:
+        """Apply L1 normalization across all variables in the group."""
+        sum_votes = sum(group.values())
+        return NumericVariablesGroup(
+            {name: value / sum_votes for name, value in group.items()}
+        )
+
+
 class IdentityTransform(PostTransform):
     """Identity transformation (no change).
 
@@ -166,4 +185,7 @@ TRANSFORM_CLASSES: dict[str, type[PostTransform]] = {
     "LOGISTIC": LogisticTransform,
     "NONE": IdentityTransform,
     "SOFTMAX": SoftmaxTransform,
+    # Make sure you prefix ORBITAL specific transforms with ORBITAL_
+    # to avoid conflicts with ONNX transforms.
+    "ORBITAL_NORMALIZE": NormalizeTransform,
 }

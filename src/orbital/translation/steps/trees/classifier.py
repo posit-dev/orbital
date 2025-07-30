@@ -6,7 +6,7 @@ import ibis
 
 from ...transformations import apply_post_transform
 from ...translator import Translator
-from ...variables import ValueVariablesGroup, VariablesGroup
+from ...variables import NumericVariablesGroup, VariablesGroup
 from .tree import build_tree, mode_to_condition
 
 
@@ -45,7 +45,7 @@ class TreeEnsembleClassifierTranslator(Translator):
 
     def build_classifier(
         self, input_expr: typing.Union[ibis.Expr, VariablesGroup]
-    ) -> tuple[ibis.Expr, VariablesGroup]:
+    ) -> tuple[ibis.Expr, NumericVariablesGroup]:
         """Build the classification expression and the probabilities expressions
 
         Return the classification expression as the first argument and a group of
@@ -114,22 +114,23 @@ class TreeEnsembleClassifierTranslator(Translator):
                 )
             return votes
 
-        # Genera voti per ogni albero
+        # Generate the votes for each tree
         tree_votes = []
         for tree in ensemble_trees.values():
             tree_votes.append(build_tree_case(tree))
 
-        # Aggregate votes from all trees.
-        base_values = self._attributes.get("base_values", [])
-        # Ensure base_values is a list
-        if not isinstance(base_values, list):
-            base_values = [base_values] if base_values is not None else []
+        # In case base_values are provided, we need to add them to the votes.
+        base_values = typing.cast(list[float], self._attributes.get("base_values", []))
+        if not base_values:
+            # If no base values are provided, we assume all classes start with 0.0 votes.
+            base_values = [0.0] * len(classlabels)
 
+        # Aggregate votes from all trees.
         total_votes = {}
         for i, clslabel in enumerate(classlabels):
+            clslabel = typing.cast(typing.Union[str, int], clslabel)
             # Initialize with base value if available, otherwise 0.0
-            base_value = base_values[i] if i < len(base_values) else 0.0
-            total_votes[clslabel] = ibis.literal(base_value)
+            total_votes[clslabel] = ibis.literal(base_values[i])
             for votes in tree_votes:
                 total_votes[clslabel] = optimizer.fold_operation(
                     total_votes[clslabel] + votes.get(clslabel, ibis.literal(0.0))
@@ -158,7 +159,7 @@ class TreeEnsembleClassifierTranslator(Translator):
             # The order of variables matters, so class 0 must be first,
             # for ONNX the VariableGroup is a list of subvariables
             # the names are not important.
-            prob_dict = ValueVariablesGroup(
+            prob_dict = NumericVariablesGroup(
                 {
                     str(output_classlabels[0]): 1.0 - total_score,
                     str(output_classlabels[1]): total_score,
@@ -194,17 +195,11 @@ class TreeEnsembleClassifierTranslator(Translator):
                 # By default we normalize the scores so that they sum to 1.0
                 post_transform = "NORMALIZE"
 
-            prob_dict = typing.cast(
-                ValueVariablesGroup,
-                apply_post_transform(
-                    ValueVariablesGroup(
-                        {
-                            str(clslabel): total_votes[clslabel]
-                            for clslabel in classlabels
-                        }
-                    ),
-                    post_transform,
+            prob_dict = apply_post_transform(
+                NumericVariablesGroup(
+                    {str(clslabel): total_votes[clslabel] for clslabel in classlabels}
                 ),
+                post_transform,
             )
 
         return label_expr, prob_dict

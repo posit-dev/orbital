@@ -185,5 +185,7 @@ TRANSFORM_CLASSES: dict[str, type[PostTransform]] = {
     "LOGISTIC": LogisticTransform,
     "NONE": IdentityTransform,
     "SOFTMAX": SoftmaxTransform,
-    "NORMALIZE": NormalizeTransform,
+    # Make sure you prefix ORBITAL specific transforms with ORBITAL_
+    # to avoid conflicts with ONNX transforms.
+    "ORBITAL_NORMALIZE": NormalizeTransform,
 }

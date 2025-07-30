@@ -193,7 +193,7 @@ class TreeEnsembleClassifierTranslator(Translator):
             )
             if post_transform == "NONE":
                 # By default we normalize the scores so that they sum to 1.0
-                post_transform = "NORMALIZE"
+                post_transform = "ORBITAL_NORMALIZE"
 
             prob_dict = apply_post_transform(
                 NumericVariablesGroup(

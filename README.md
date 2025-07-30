@@ -168,7 +168,13 @@ orbital currently supports the following models:
 -   Gradient Boosting Regressor
 -   Gradient Boosting Classifier
 
-# Testing
+# Contributing
+
+Before contributing make sure you read ``.github/copilot-instructions.md``,
+those are guidelines that are meaningful both to human developers and
+agents working on the codebase.
+
+## Testing
 
 Setup testing environment:
 
@@ -188,7 +194,7 @@ Try Examples:
 $ uv run examples/pipeline_lineareg.py
 ```
 
-# Development
+## Development
 
 Setup a development environment:
 

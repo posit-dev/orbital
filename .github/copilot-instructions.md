@@ -26,13 +26,13 @@ This document contains instructions for GitHub Copilot when working on the Orbit
 ### Final Validation
 After standard tests have passed and before considering work complete:
 
-1. **Run example validation**: Execute `examples/test_examples.sh` to check for bugs in example scripts
+1. **Run example validation**: Execute `uv run examples/test_examples.sh` to check for bugs in example scripts
 2. **Run pre-commit checks**: Execute `pre-commit run -a` and ensure it passes
 3. **Format tests directory**: Execute `uv run ruff format tests/` (this won't be performed by pre-commit)
 
 ### Work Completion Checklist
 - [ ] Standard tests pass (`uv run pytest`)
-- [ ] Example validation passes (`examples/test_examples.sh`)
+- [ ] Example validation passes (`uv run examples/test_examples.sh`)
 - [ ] Pre-commit checks pass (`pre-commit run -a`)
 - [ ] Tests directory formatted (`uv run ruff format tests/`)
 

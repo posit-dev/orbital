@@ -2,7 +2,10 @@ import numpy as np
 import pandas as pd
 import pytest
 from google.protobuf.json_format import MessageToDict
+from sklearn.datasets import make_classification
+from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.impute import SimpleImputer
+from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
@@ -95,10 +98,6 @@ class TestPipelineParsing:
         This tests the fix for the issue where sklearn2onnx fails when there are
         no preprocessing steps and multiple input features.
         """
-        from sklearn.ensemble import GradientBoostingClassifier
-        from sklearn.datasets import make_classification
-        from sklearn.model_selection import train_test_split
-
         # Create some test data
         X, y = make_classification(n_features=5, random_state=42)
         X_train, _, y_train, _ = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -127,8 +126,6 @@ class TestPipelineParsing:
 
         # The model should have been converted successfully
         model_graph = MessageToDict(parsed._model.graph)
-        # The model should have been converted successfully
-        model_graph = MessageToDict(parsed._model.graph)
 
         # With the fix, we should have individual feature inputs for SQL compatibility
         assert len(model_graph["input"]) == 5  # One input per feature
@@ -139,5 +136,4 @@ class TestPipelineParsing:
         # Should have a Concat node to combine features and the tree ensemble
         node_types = {n["opType"] for n in model_graph["node"]}
         assert "Concat" in node_types  # Injected for SQL compatibility
-        assert "TreeEnsembleClassifier" in node_types
         assert "TreeEnsembleClassifier" in node_types

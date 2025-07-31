@@ -27,6 +27,8 @@ This document contains instructions for GitHub Copilot when working on the Orbit
 After standard tests have passed and before considering work complete:
 
 1. **Run example validation**: Execute `uv run examples/test_examples.sh` to check for bugs in example scripts
+   - **Important**: Always run with `uv run` prefix, do NOT modify the `test_examples.sh` script itself
+   - The script internally uses `python` which will resolve to the correct environment when run via `uv run`
 2. **Run pre-commit checks**: Execute `pre-commit run -a` and ensure it passes
 3. **Format tests directory**: Execute `uv run ruff format tests/` (this won't be performed by pre-commit)
 

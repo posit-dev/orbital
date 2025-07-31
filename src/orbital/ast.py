@@ -114,15 +114,121 @@ def parse_pipeline(
         }
 
     """
-    onnx_model = _skl2o.to_onnx(
-        pipeline,
-        initial_types=[
+    non_passthrough_features = {
+        fname: ftype for fname, ftype in features.items() if not ftype.is_passthrough
+    }
+
+    if not non_passthrough_features:
+        raise ValueError(
+            "All provided features are passthrough. "
+            "The pipeline would not do anything useful."
+        )
+
+    initial_types = non_passthrough_features
+    if len(pipeline.steps) == 1 and len(non_passthrough_features) > 1:
+        # Pipeline has no preprocessing steps and multiple features
+        # Create a single concatenated input tensor instead of separate features
+        # This is required because models expect a single feature vector
+
+        # Determine the appropriate tensor type based on the feature types
+        # All features must be of the same type for single-step pipelines
+        feature_onnx_types = {
+            type(ftype._to_onnxtype()) for ftype in non_passthrough_features.values()
+        }
+
+        if len(feature_onnx_types) != 1:
+            # The features are of mixed types, which is not allowed
+            # for single-step pipelines as they expect a single input tensor.
+            # Let the user take care of this.
+            type_names = [t.__name__ for t in feature_onnx_types]
+            raise ValueError(
+                f"All features must be of the same type for single-step pipelines. "
+                f"Found mixed types: {', '.join(sorted(type_names))}. "
+                f"Please ensure all features use the same ColumnType."
+            )
+
+            # All features have the same type, use it
+        uniform_type = next(iter(feature_onnx_types))
+        initial_types = [("input", uniform_type([None, len(non_passthrough_features)]))]
+    else:
+        # Pipeline has preprocessing steps or single feature
+        # Use individual feature inputs as before
+        initial_types = [
             (fname, ftype._to_onnxtype())
-            for fname, ftype in features.items()
-            if not ftype.is_passthrough
-        ],
-    )
+            for fname, ftype in non_passthrough_features.items()
+        ]
+
+    onnx_model = _skl2o.to_onnx(pipeline, initial_types=initial_types)
+
+    # Ensure we have a ModelProto (skl2onnx can return different types)
+    if not isinstance(onnx_model, _onnx.ModelProto):
+        raise TypeError(f"Expected ONNX ModelProto, got {type(onnx_model)}")
+
+    # For single-step pipelines with multiple features, inject a Concat operation
+    # to make SQL generation work with individual feature columns
+    if len(pipeline.steps) == 1 and len(non_passthrough_features) > 1:
+        onnx_model = _inject_concat_for_sql_compatibility(
+            onnx_model, non_passthrough_features
+        )
+
     return ParsedPipeline._from_onnx_model(onnx_model, features)
+
+
+def _inject_concat_for_sql_compatibility(
+    onnx_model: _onnx.ModelProto, non_passthrough_features: FeaturesTypes
+) -> _onnx.ModelProto:
+    """Inject a Concat operation for single-step pipelines to enable SQL generation.
+
+    Single-step pipelines create a single "input" tensor, but SQL generation expects
+    individual feature columns. This function modifies the ONNX graph to:
+    1. Replace the single "input" with individual feature inputs
+    2. Add a Concat operation to combine them back into "input"
+
+    This bridges the gap between SQL (individual columns) and models (concatenated input).
+    """
+    graph = onnx_model.graph
+
+    # Verify this is a single-step pipeline with "input" tensor
+    input_names = [inp.name for inp in graph.input]
+    if "input" not in input_names:
+        # Not a single-step pipeline, return unchanged
+        return onnx_model
+
+    # Get the original input tensor info for reference
+    original_input = next(inp for inp in graph.input if inp.name == "input")
+    original_elem_type = original_input.type.tensor_type.elem_type
+
+    # Create new individual feature inputs
+    new_inputs = []
+    feature_names = list(non_passthrough_features.keys())
+
+    for fname in feature_names:
+        # Create new input tensor for each feature with shape [None, 1]
+        new_input = _onnx.helper.make_tensor_value_info(
+            fname,
+            original_elem_type,  # Use same element type as original
+            [None, 1],  # Individual feature column
+        )
+        new_inputs.append(new_input)
+
+    # Create Concat node to combine individual features into "input"
+    concat_node = _onnx.helper.make_node(
+        "Concat",
+        inputs=feature_names,  # Individual feature columns
+        outputs=["input"],  # Combined input expected by the model
+        axis=1,  # Concatenate along feature axis (columns)
+        name="sql_compat_concat",
+    )
+
+    # Modify the graph
+    # 1. Replace graph inputs with individual features
+    del graph.input[:]
+    graph.input.extend(new_inputs)
+
+    # 2. Insert concat node at the beginning of the graph
+    graph.node.insert(0, concat_node)
+
+    return onnx_model
 
 
 class UnsupportedFormatVersion(Exception):

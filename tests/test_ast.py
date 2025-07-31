@@ -127,11 +127,17 @@ class TestPipelineParsing:
 
         # The model should have been converted successfully
         model_graph = MessageToDict(parsed._model.graph)
+        # The model should have been converted successfully
+        model_graph = MessageToDict(parsed._model.graph)
 
-        # With the fix, we should have a single input named "input" instead of separate feature inputs
-        assert len(model_graph["input"]) == 1
-        assert model_graph["input"][0]["name"] == "input"
+        # With the fix, we should have individual feature inputs for SQL compatibility
+        assert len(model_graph["input"]) == 5  # One input per feature
+        input_names = {inp["name"] for inp in model_graph["input"]}
+        expected_names = {f"feature_{i}" for i in range(5)}
+        assert input_names == expected_names
 
-        # Should have the tree ensemble and output processing nodes
+        # Should have a Concat node to combine features and the tree ensemble
         node_types = {n["opType"] for n in model_graph["node"]}
+        assert "Concat" in node_types  # Injected for SQL compatibility
+        assert "TreeEnsembleClassifier" in node_types
         assert "TreeEnsembleClassifier" in node_types

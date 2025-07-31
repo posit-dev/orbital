@@ -100,6 +100,49 @@ class ParsedPipeline:
         return str(repr_pipeline.ParsedPipelineStr(self))
 
 
+def _pipeline_starts_with_model(pipeline: sklearn.pipeline.Pipeline) -> bool:
+    """Check if the pipeline starts with a ML model that expects a single input tensor.
+
+    Models (as opposed to transformers) expect a concatenated feature vector as input.
+    This is different from transformers which can work with individual feature columns.
+    """
+    if not pipeline.steps:
+        return False
+
+    # Get the first step's estimator
+    first_step_name, first_estimator = pipeline.steps[0]
+
+    # Import classes for model identification
+    # We do this inside the function to avoid top-level imports
+    from sklearn.ensemble import (
+        GradientBoostingClassifier,
+        GradientBoostingRegressor,
+        RandomForestClassifier,
+    )
+    from sklearn.linear_model import (
+        ElasticNet,
+        Lasso,
+        LinearRegression,
+        LogisticRegression,
+    )
+    from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+
+    # List of model classes that expect concatenated input
+    model_classes = (
+        LinearRegression,
+        LogisticRegression,
+        Lasso,
+        ElasticNet,
+        DecisionTreeClassifier,
+        DecisionTreeRegressor,
+        RandomForestClassifier,
+        GradientBoostingClassifier,
+        GradientBoostingRegressor,
+    )
+
+    return isinstance(first_estimator, model_classes)
+
+
 def parse_pipeline(
     pipeline: sklearn.pipeline.Pipeline, features: FeaturesTypes
 ) -> ParsedPipeline:
@@ -124,35 +167,32 @@ def parse_pipeline(
             "The pipeline would not do anything useful."
         )
 
-    initial_types = non_passthrough_features
-    if len(pipeline.steps) == 1 and len(non_passthrough_features) > 1:
-        # Pipeline has no preprocessing steps and multiple features
-        # Create a single concatenated input tensor instead of separate features
-        # This is required because models expect a single feature vector
+    # Check if pipeline starts with a model (which expects concatenated input)
+    pipeline_starts_with_model = _pipeline_starts_with_model(pipeline)
 
-        # Determine the appropriate tensor type based on the feature types
-        # All features must be of the same type for single-step pipelines
+    if pipeline_starts_with_model:
+        # Pipeline starts with a model - create concatenated input tensor
+        # Models expect a single feature vector "input"
+
+        # All features must be of the same type for model input
         feature_onnx_types = {
             type(ftype._to_onnxtype()) for ftype in non_passthrough_features.values()
         }
 
         if len(feature_onnx_types) != 1:
-            # The features are of mixed types, which is not allowed
-            # for single-step pipelines as they expect a single input tensor.
-            # Let the user take care of this.
+            # Mixed types not allowed for model input
             type_names = [t.__name__ for t in feature_onnx_types]
             raise ValueError(
-                f"All features must be of the same type for single-step pipelines. "
+                f"All features must be of the same type when pipeline starts with a model. "
                 f"Found mixed types: {', '.join(sorted(type_names))}. "
                 f"Please ensure all features use the same ColumnType."
             )
 
-            # All features have the same type, use it
+        # All features have the same type, use it for concatenated input
         uniform_type = next(iter(feature_onnx_types))
         initial_types = [("input", uniform_type([None, len(non_passthrough_features)]))]
     else:
-        # Pipeline has preprocessing steps or single feature
-        # Use individual feature inputs as before
+        # Pipeline starts with transformers - use individual feature inputs
         initial_types = [
             (fname, ftype._to_onnxtype())
             for fname, ftype in non_passthrough_features.items()
@@ -160,13 +200,8 @@ def parse_pipeline(
 
     onnx_model = _skl2o.to_onnx(pipeline, initial_types=initial_types)
 
-    # Ensure we have a ModelProto (skl2onnx can return different types)
-    if not isinstance(onnx_model, _onnx.ModelProto):
-        raise TypeError(f"Expected ONNX ModelProto, got {type(onnx_model)}")
-
-    # For single-step pipelines with multiple features, inject a Concat operation
-    # to make SQL generation work with individual feature columns
-    if len(pipeline.steps) == 1 and len(non_passthrough_features) > 1:
+    # Inject concat operation for SQL compatibility when starting with model
+    if pipeline_starts_with_model:
         onnx_model = _inject_concat_for_sql_compatibility(
             onnx_model, non_passthrough_features
         )
@@ -177,9 +212,9 @@ def parse_pipeline(
 def _inject_concat_for_sql_compatibility(
     onnx_model: _onnx.ModelProto, non_passthrough_features: FeaturesTypes
 ) -> _onnx.ModelProto:
-    """Inject a Concat operation for single-step pipelines to enable SQL generation.
+    """Inject a Concat operation for pipelines starting with models to enable SQL generation.
 
-    Single-step pipelines create a single "input" tensor, but SQL generation expects
+    Pipelines starting with models create a single "input" tensor, but SQL generation expects
     individual feature columns. This function modifies the ONNX graph to:
     1. Replace the single "input" with individual feature inputs
     2. Add a Concat operation to combine them back into "input"
@@ -188,10 +223,10 @@ def _inject_concat_for_sql_compatibility(
     """
     graph = onnx_model.graph
 
-    # Verify this is a single-step pipeline with "input" tensor
+    # Verify this is a pipeline with "input" tensor
     input_names = [inp.name for inp in graph.input]
     if "input" not in input_names:
-        # Not a single-step pipeline, return unchanged
+        # Not a model pipeline, return unchanged
         return onnx_model
 
     # Get the original input tensor info for reference

@@ -59,39 +59,46 @@ class TestSingleStepPipelines:
             }
         )
 
-    def validate_sql_execution(self, pipeline, X, y, features, is_classification=True, db_connection=None):
+    def validate_sql_execution(
+        self, pipeline, X, y, features, is_classification=True, db_connection=None
+    ):
         """Helper to validate SQL execution matches sklearn predictions."""
         # Use duckdb connection if none provided
         if db_connection is None:
             import duckdb
+
             conn = duckdb.connect(":memory:")
             dialect = "duckdb"
         else:
             conn, dialect = db_connection
-            
+
         # Parse pipeline and generate SQL
         parsed = parse_pipeline(pipeline, features)
         sql = orbital.export_sql("data", parsed, dialect=dialect)
-        
+
         # Get sklearn predictions
         sklearn_pred = pipeline.predict(X)
-        
+
         # Execute SQL and compare
         sql_results = execute_sql(sql, conn, dialect, X)
-        
+
         if is_classification:
             # For classification, compare predicted labels
             sql_pred = sql_results["output_label"].values
             np.testing.assert_array_equal(
-                sklearn_pred, sql_pred,
-                err_msg="SQL and sklearn predictions don't match"
+                sklearn_pred,
+                sql_pred,
+                err_msg="SQL and sklearn predictions don't match",
             )
         else:
             # For regression, compare with tolerance
             sql_pred = sql_results["variable"].values
             np.testing.assert_allclose(
-                sklearn_pred, sql_pred, rtol=1e-10, atol=1e-10,
-                err_msg="SQL and sklearn predictions don't match within tolerance"
+                sklearn_pred,
+                sql_pred,
+                rtol=1e-10,
+                atol=1e-10,
+                err_msg="SQL and sklearn predictions don't match within tolerance",
             )
 
     def test_decision_tree_classifier_double_features(self):
@@ -300,7 +307,7 @@ class TestSingleStepPipelines:
 
         with pytest.raises(
             ValueError,
-            match="All features must be of the same type for single-step pipelines",
+            match="All features must be of the same type when pipeline starts with a model",
         ):
             parse_pipeline(pipeline, features)
 
@@ -372,7 +379,7 @@ class TestSingleStepPipelines:
         # Mixed types should fail with our validation
         with pytest.raises(
             ValueError,
-            match="All features must be of the same type for single-step pipelines",
+            match="All features must be of the same type when pipeline starts with a model",
         ):
             parse_pipeline(pipeline, features)
 

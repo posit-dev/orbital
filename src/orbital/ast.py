@@ -9,8 +9,8 @@ from typing import Any, cast
 
 import onnx as _onnx
 import skl2onnx as _skl2o
-import sklearn.pipeline
 import skl2onnx.convert
+import sklearn.pipeline
 
 from ._utils import repr_pipeline
 from .types import ColumnType, FeaturesTypes
@@ -22,7 +22,7 @@ class ParsedPipeline:
     """An intermediate representation of a scikit-learn pipeline.
 
     This object can be converted to a SQL query and run on a database.
-    In can also be saved and loaded back in binary format to the sake
+    It can also be saved and loaded back in binary format for the sake
     of model distribution. Even though distributing the SQL query
     is usually more convenient.
     """
@@ -31,7 +31,7 @@ class ParsedPipeline:
     features: FeaturesTypes  # type: ignore[assignment]
 
     def __init__(self) -> None:
-        """ParsedPipeline objects can only be created by the parse_pipeline function."""
+        """:class:`ParsedPipeline` objects can only be created by the :func:`parse_pipeline` function."""
 
         raise NotImplementedError(
             "parse_pipeline must be used to create a ParsedPipeline object."
@@ -41,10 +41,15 @@ class ParsedPipeline:
     def _from_onnx_model(
         cls, model: _onnx.ModelProto, features: FeaturesTypes
     ) -> "ParsedPipeline":
-        """Create a ParsedPipeline from an ONNX model.
+        """Create a :class:`ParsedPipeline` from an ONNX model.
 
         This is considered an internal implementation detail
         as ONNX should never be exposed to the user.
+
+        Returns a new :class:`ParsedPipeline` instance.
+
+        :param model: The ONNX model proto to wrap
+        :param features: Dictionary mapping feature names to their :class:`ColumnType` objects
         """
         self = super().__new__(cls)
         self._model = model
@@ -57,6 +62,10 @@ class ParsedPipeline:
 
         This checks that the features provided are compatible
         with what a SQL query can handle.
+
+        Returns the validated features dictionary.
+
+        :param features: Dictionary mapping feature names to their :class:`ColumnType` objects
         """
         for name in features:
             if "." in name:
@@ -71,7 +80,10 @@ class ParsedPipeline:
         return features
 
     def dump(self, filename: str) -> None:
-        """Dump the parsed pipeline to a file."""
+        """Dump the parsed pipeline to a file.
+
+        :param filename: Path to the file where the pipeline will be saved
+        """
         # While the ONNX model is in protobuf format, and thus
         # it would make sense to use protobuf to serialize the
         # headers too. Using pickle avoids the need to define
@@ -86,7 +98,12 @@ class ParsedPipeline:
 
     @classmethod
     def load(cls, filename: str) -> "ParsedPipeline":
-        """Load a parsed pipeline from a file."""
+        """Load a parsed pipeline from a file.
+
+        Returns a :class:`ParsedPipeline` object loaded from the specified file.
+
+        :param filename: Path to the file containing the saved pipeline
+        """
         with open(filename, "rb") as f:
             header_len = int.from_bytes(f.read(4), "big")
             header_data = f.read(header_len)
@@ -107,6 +124,11 @@ def parse_pipeline(
 ) -> ParsedPipeline:
     """Parse a scikit-learn pipeline into an intermediate representation.
 
+    Returns a :class:`ParsedPipeline` object that can be converted to SQL queries.
+
+    :param pipeline: The fitted scikit-learn pipeline to parse
+    :param features: Mapping of column names to their :class:`ColumnType` objects from the :module:`orbital.types` module
+
     ``features`` should be a mapping of column names that are the inputs of the
     pipeline to their types from the :module:`.types` module::
 
@@ -114,7 +136,6 @@ def parse_pipeline(
             "column_name": types.DoubleColumnType(),
             "another_column": types.Int64ColumnType()
         }
-
     """
     non_passthrough_features = {
         fname: ftype for fname, ftype in features.items() if not ftype.is_passthrough
@@ -137,7 +158,7 @@ def parse_pipeline(
         # features to a single concatenated input tensor.
         # Later, we'll inject a concat operation to ensure the SQL query does work
         # with individual columns.
-        initial_types = concatenated_inputs.create_concat_initial_features()
+        initial_types = concatenated_inputs.concatenate_inputs()
     else:
         initial_types = [
             (fname, ftype._to_onnxtype())
@@ -151,7 +172,7 @@ def parse_pipeline(
 
     if pipeline_requires_input_vector:
         # Inject concat operation to create the "input" tensor when necessary.
-        onnx_model = concatenated_inputs.inject_concat_for_sql_compatibility(onnx_model)
+        onnx_model = concatenated_inputs.inject_concat_step(onnx_model)
 
     return ParsedPipeline._from_onnx_model(onnx_model, features)
 
@@ -161,8 +182,8 @@ class EnsureConcatenatedInputs:
 
     ONNX models require a single "input" tensor for models (as opposed to transformers).
     When a pipeline contains only a model without preprocessing steps, sklearn2onnx
-    doesn't always automatically add a Concat operation. 
-    
+    doesn't always automatically add a Concat operation.
+
     This class provides the necessary logic to:
 
     1. Detect when a pipeline starts with a model that expects concatenated input
@@ -176,81 +197,61 @@ class EnsureConcatenatedInputs:
     def __init__(self, features: FeaturesTypes) -> None:
         """Initialize with the features dictionary.
 
-        Args:
-            features: Dictionary mapping feature names to their ColumnType objects.
+        :param features: Dictionary mapping feature names to their :class:`ColumnType` objects
         """
         self.features = features
 
-    def pipeline_requires_input_vector(self, pipeline: sklearn.pipeline.Pipeline) -> bool:
-        """Analyse Pipeline topology determine if pipeline requires concatenated inputs.
+    def pipeline_requires_input_vector(
+        self, pipeline: sklearn.pipeline.Pipeline
+    ) -> bool:
+        """Determine if pipeline requires concatenated inputs by testing operator compatibility.
 
-        when a pipeline starts with a model, sklearn2onnx will create a topology where:
+        This method directly tests whether the first operator in the pipeline can handle
+        individual feature inputs by calling :meth:`infer_types`. If it fails, the operator
+        requires concatenated inputs.
 
-        1. With individual inputs: first operator takes multiple inputs
-        2. With concatenated input: first operator takes single input
+        Returns True if the pipeline requires concatenated inputs, False otherwise.
 
-        But transformers (like StandardScaler) create intermediate outputs, so
-        subsequent operators naturally get single inputs.
+        :param pipeline: The scikit-learn pipeline to analyze
         """
         individual_types = [
             (fname, ftype._to_onnxtype()) for fname, ftype in self.features.items()
         ]
 
-        topology = skl2onnx.convert.parse_sklearn_model(pipeline, initial_types=individual_types)
-        return self._analyze_topology_structure(topology, len(self.features))
+        topology = skl2onnx.convert.parse_sklearn_model(
+            pipeline, initial_types=individual_types
+        )
 
-    @staticmethod
-    def _analyze_topology_structure(topology: Any, num_features: int) -> bool:
-        """Analyze the ONNX topology structure to determine if this is a model-first pipeline."""
-        scope = topology.scopes[0]
-
-        if not scope.operators:
+        if len(self.features) <= 1:
+            # The user provided only one feature, no need for concatenation
             return False
 
-        # Get first and second operators (if any)
-        operators = list(scope.operators.values())
-        first_op = operators[0]
+        # Get the first operator in the topology
+        first_operator = next(topology.unordered_operator_iterator(), None)
+        if not first_operator:
+            return False
 
-        # Key insight: If pipeline starts with a model, all operators should
-        # naturally accept the individual inputs we provide. But if it starts
-        # with a transformer, the transformer will create an intermediate output
-        # that subsequent operators consume.
-
-        # Check if this looks like a "model-first" pattern:
-        # - First operator takes all our individual inputs
-        # - Either single operator (regressor) or first operator + post-processing (classifier)
-        if len(first_op.inputs) == num_features:
-            # First operator takes all inputs directly
-            if len(operators) == 1:
-                # Single operator (likely regressor) -> model
+        # Test if the operator can handle the individual inputs we provided
+        try:
+            first_operator.infer_types()
+            # If infer_types() succeeds, the operator accepts the inputs the user provided
+            return False
+        except RuntimeError as err:
+            if "at most 1 input" in str(err):
+                # If infer_types() fails with "at most 1 input", the operator needs concatenated inputs
+                # This is the best we can do as SKL2ONNX doesn't tell us how many inputs it expects.
+                # And the `check_input_and_output_numbers` function always throws a RuntimeError
                 return True
-            elif len(operators) == 2:
-                # Check if second operator is post-processing (common for classifiers)
-                second_op = operators[1]
-                if second_op.type in ["SklearnZipMap", "SklearnBinarizer"] and len(
-                    second_op.inputs
-                ) == len(first_op.outputs):
-                    # First op -> post-processing op pattern (classifier) -> model
-                    return True
-                else:
-                    # First op -> some other transformation -> likely transformer pipeline
-                    return False
-            else:
-                # More complex pipeline -> likely transformer pipeline
-                return False
-        else:
-            # First operator doesn't take all inputs -> unexpected pattern
             return False
 
-    def create_concat_initial_features(self) -> list[tuple[str, Any]]:
+    def concatenate_inputs(self) -> list[tuple[str, Any]]:
         """Create initial_types for skl2onnx when pipeline starts with a model.
 
         Models expect a single concatenated input tensor, so we create initial_types
         with a single "input" tensor containing all features concatenated together.
         All features must be of the same ONNX type for this to work.
 
-        Returns:
-            List with single tuple: [("input", onnx_type([None, num_features]))]
+        Returns a list with single tuple: [("input", onnx_type([None, num_features]))].
         """
         # All features must be of the same type for model input
         feature_onnx_types = {
@@ -270,9 +271,7 @@ class EnsureConcatenatedInputs:
         uniform_type = next(iter(feature_onnx_types))
         return [("input", uniform_type([None, len(self.features)]))]
 
-    def inject_concat_for_sql_compatibility(
-        self, onnx_model: _onnx.ModelProto
-    ) -> _onnx.ModelProto:
+    def inject_concat_step(self, onnx_model: _onnx.ModelProto) -> _onnx.ModelProto:
         """Inject a Concat operation for pipelines starting with models to enable SQL generation.
 
         Pipelines starting with models create a single "input" tensor, but SQL generation expects
@@ -281,6 +280,10 @@ class EnsureConcatenatedInputs:
         2. Add a Concat operation to combine them back into "input"
 
         This bridges the gap between SQL (individual columns) and models (concatenated input).
+
+        Returns the modified ONNX model with injected Concat operation.
+
+        :param onnx_model: The ONNX model to modify
         """
         graph = onnx_model.graph
 
@@ -290,21 +293,21 @@ class EnsureConcatenatedInputs:
             # Not a model pipeline, return unchanged
             return onnx_model
 
-        # Create new individual feature inputs
-        new_inputs = []
         feature_names = list(self.features.keys())
 
-        for fname in feature_names:
-            # Use the element type from our features to ensure consistency
-            ftype = self.features[fname]._to_onnxtype().to_onnx_type()
+        # Create new individual feature inputs
+        new_inputs = []
 
+        for fname in feature_names:
             # Create new input tensor for each feature with shape [None, 1]
-            new_input = _onnx.helper.make_tensor_value_info(
-                fname,
-                ftype.tensor_type.elem_type,  # Use the element type from our column type
-                [None, 1],  # Individual feature column
+            ftype = self.features[fname]._to_onnxtype().to_onnx_type()
+            new_inputs.append(
+                _onnx.helper.make_tensor_value_info(
+                    fname,
+                    ftype.tensor_type.elem_type,
+                    [None, 1],
+                )
             )
-            new_inputs.append(new_input)
 
         # Create Concat node to combine individual features into "input"
         concat_node = _onnx.helper.make_node(

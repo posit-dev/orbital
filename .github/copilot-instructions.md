@@ -87,3 +87,23 @@ Only when all four items are complete should work be considered fully done.
 - Example bad comments:
   - `# Split target from features` (obvious from variable names)
   - `# Fill missing values` (obvious from function call)
+
+### Sphinx Cross-References in Docstrings
+- Use Sphinx cross-reference syntax when referring to classes, modules, functions, etc. in docstrings
+- **Classes**: Use `:class:`ClassName`` when referring to classes
+- **Modules**: Use `:module:`module.name`` when referring to modules  
+- **Functions**: Use `:func:`function_name`` when referring to functions
+- **Methods**: Use `:meth:`method_name`` when referring to methods
+- **Attributes**: Use `:attr:`attribute_name`` when referring to attributes
+- Example:
+  ```python
+  def process_data(pipeline: Pipeline, features: dict) -> ParsedPipeline:
+      """Process data using a scikit-learn pipeline.
+      
+      Returns a :class:`ParsedPipeline` object that can be converted to SQL.
+      The features should come from the :module:`orbital.types` module.
+      
+      :param pipeline: The fitted scikit-learn pipeline
+      :param features: Dictionary mapping feature names to :class:`ColumnType` objects
+      """
+  ```

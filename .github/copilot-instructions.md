@@ -48,6 +48,26 @@ Only when all four items are complete should work be considered fully done.
 
 ## Code Quality and Documentation
 
+### Docstring Style
+- Use Sphinx-style docstrings for documenting Python function arguments
+- Function parameters should be documented using `:param NAME: description` format
+- Document returned values in the docstring itself, do not use `:return:` directive.
+- Do not document exceptions, as the maintenance cost of keeping them up-to-date is high.
+- Example:
+  ```python
+  def example_function(name: str, age: int) -> str:
+      """Example function with Sphinx-style docstring.
+
+      Returns a formatted string with the person's information.
+      
+      :param name: The person's name
+      :param age: The person's age in years
+      """
+      if age < 0:
+          raise ValueError("Age cannot be negative")
+      return f"{name} is {age} years old"
+  ```
+
 ### Meaningful Comments
 - Comments should explain **why** something is done, not **what** is being done
 - The code itself should be readable and self-explanatory through good naming and structure

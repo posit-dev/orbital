@@ -27,6 +27,8 @@ This document contains instructions for GitHub Copilot when working on the Orbit
 After standard tests have passed and before considering work complete:
 
 1. **Run example validation**: Execute `uv run examples/test_examples.sh` to check for bugs in example scripts
+   - **Important**: Always run with `uv run` prefix, do NOT modify the `test_examples.sh` script itself
+   - The script internally uses `python` which will resolve to the correct environment when run via `uv run`
 2. **Run pre-commit checks**: Execute `pre-commit run -a` and ensure it passes
 3. **Format tests directory**: Execute `uv run ruff format tests/` (this won't be performed by pre-commit)
 
@@ -45,6 +47,26 @@ Only when all four items are complete should work be considered fully done.
 - If any step in the quality assurance workflow fails, address the issues before proceeding
 
 ## Code Quality and Documentation
+
+### Docstring Style
+- Use Sphinx-style docstrings for documenting Python function arguments
+- Function parameters should be documented using `:param NAME: description` format
+- Document returned values in the docstring itself, do not use `:return:` directive.
+- Do not document exceptions, as the maintenance cost of keeping them up-to-date is high.
+- Example:
+  ```python
+  def example_function(name: str, age: int) -> str:
+      """Example function with Sphinx-style docstring.
+
+      Returns a formatted string with the person's information.
+      
+      :param name: The person's name
+      :param age: The person's age in years
+      """
+      if age < 0:
+          raise ValueError("Age cannot be negative")
+      return f"{name} is {age} years old"
+  ```
 
 ### Meaningful Comments
 - Comments should explain **why** something is done, not **what** is being done
@@ -65,3 +87,23 @@ Only when all four items are complete should work be considered fully done.
 - Example bad comments:
   - `# Split target from features` (obvious from variable names)
   - `# Fill missing values` (obvious from function call)
+
+### Sphinx Cross-References in Docstrings
+- Use Sphinx cross-reference syntax when referring to classes, modules, functions, etc. in docstrings
+- **Classes**: Use `:class:`ClassName`` when referring to classes
+- **Modules**: Use `:module:`module.name`` when referring to modules  
+- **Functions**: Use `:func:`function_name`` when referring to functions
+- **Methods**: Use `:meth:`method_name`` when referring to methods
+- **Attributes**: Use `:attr:`attribute_name`` when referring to attributes
+- Example:
+  ```python
+  def process_data(pipeline: Pipeline, features: dict) -> ParsedPipeline:
+      """Process data using a scikit-learn pipeline.
+      
+      Returns a :class:`ParsedPipeline` object that can be converted to SQL.
+      The features should come from the :module:`orbital.types` module.
+      
+      :param pipeline: The fitted scikit-learn pipeline
+      :param features: Dictionary mapping feature names to :class:`ColumnType` objects
+      """
+  ```

@@ -10,6 +10,8 @@
 
 ::: orbital.translation.optimizer
 
+::: orbital.ast
+
 ::: orbital.translation.steps
     options:
         show_submodules: true

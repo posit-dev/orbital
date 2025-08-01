@@ -2,7 +2,10 @@ import numpy as np
 import pandas as pd
 import pytest
 from google.protobuf.json_format import MessageToDict
+from sklearn.datasets import make_classification
+from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.impute import SimpleImputer
+from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
@@ -88,3 +91,49 @@ class TestPipelineParsing:
 
         with pytest.raises(ast.UnsupportedFormatVersion):
             ast.ParsedPipeline.load(filename)
+
+    def test_parse_pipeline_no_preprocessing(self):
+        """Test parsing a pipeline with no preprocessing steps.
+
+        This tests the fix for the issue where sklearn2onnx fails when there are
+        no preprocessing steps and multiple input features.
+        """
+        # Create some test data
+        X, y = make_classification(n_features=5, random_state=42)
+        X_train, _, y_train, _ = train_test_split(X, y, test_size=0.2, random_state=42)
+
+        # Create a pipeline with only a model (no preprocessing)
+        pipeline = Pipeline(
+            [
+                (
+                    "model",
+                    GradientBoostingClassifier(
+                        n_estimators=3, max_depth=2, random_state=42
+                    ),
+                )
+            ]
+        )
+        pipeline.fit(X_train, y_train)
+
+        # Define features for all columns
+        features = {f"feature_{i}": types.DoubleColumnType() for i in range(X.shape[1])}
+
+        # This should not raise an exception (previously it would fail)
+        parsed = ast.parse_pipeline(pipeline, features)
+
+        assert parsed.features == features
+        assert parsed._model is not None
+
+        # The model should have been converted successfully
+        model_graph = MessageToDict(parsed._model.graph)
+
+        # With the fix, we should have individual feature inputs for SQL compatibility
+        assert len(model_graph["input"]) == 5  # One input per feature
+        input_names = {inp["name"] for inp in model_graph["input"]}
+        expected_names = {f"feature_{i}" for i in range(5)}
+        assert input_names == expected_names
+
+        # Should have a Concat node to combine features and the tree ensemble
+        node_types = {n["opType"] for n in model_graph["node"]}
+        assert "Concat" in node_types  # Injected for SQL compatibility
+        assert "TreeEnsembleClassifier" in node_types

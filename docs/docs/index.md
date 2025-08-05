@@ -55,7 +55,7 @@ SELECT ("t0"."sepal_length" - 5.809166666666666) * -0.11633479416518255 + 0.9916
 AS "variable" FROM "DATA_TABLE" AS "t0"
 ```
 
-This SQL produces the same predictions as `pipeline.predict(...)` from SciKit-Lear
+This SQL produces the same predictions as `pipeline.predict(...)` from SciKit-Learn.
 
 ## Supported Models
 

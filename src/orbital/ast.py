@@ -31,7 +31,7 @@ class ParsedPipeline:
     features: FeaturesTypes  # type: ignore[assignment]
 
     def __init__(self) -> None:
-        """:class:`ParsedPipeline` objects can only be created by the :func:`parse_pipeline` function."""
+        """[ParsedPipeline] objects can only be created by the [orbital.ast.parse_pipeline][] function."""
 
         raise NotImplementedError(
             "parse_pipeline must be used to create a ParsedPipeline object."
@@ -41,15 +41,15 @@ class ParsedPipeline:
     def _from_onnx_model(
         cls, model: _onnx.ModelProto, features: FeaturesTypes
     ) -> "ParsedPipeline":
-        """Create a :class:`ParsedPipeline` from an ONNX model.
+        """Create a [orbital.ast.ParsedPipeline][] from an ONNX model.
 
         This is considered an internal implementation detail
         as ONNX should never be exposed to the user.
 
-        Returns a new :class:`ParsedPipeline` instance.
+        Returns a new [orbital.ast.ParsedPipeline][] instance.
 
         :param model: The ONNX model proto to wrap
-        :param features: Dictionary mapping feature names to their :class:`ColumnType` objects
+        :param features: Dictionary mapping feature names to their [orbital.types.ColumnType][] objects
         """
         self = super().__new__(cls)
         self._model = model
@@ -65,7 +65,7 @@ class ParsedPipeline:
 
         Returns the validated features dictionary.
 
-        :param features: Dictionary mapping feature names to their :class:`ColumnType` objects
+        :param features: Dictionary mapping feature names to their [orbital.types.ColumnType][] objects
         """
         for name in features:
             if "." in name:
@@ -100,7 +100,7 @@ class ParsedPipeline:
     def load(cls, filename: str) -> "ParsedPipeline":
         """Load a parsed pipeline from a file.
 
-        Returns a :class:`ParsedPipeline` object loaded from the specified file.
+        Returns a [orbital.ast.ParsedPipeline][] object loaded from the specified file.
 
         :param filename: Path to the file containing the saved pipeline
         """
@@ -124,18 +124,20 @@ def parse_pipeline(
 ) -> ParsedPipeline:
     """Parse a scikit-learn pipeline into an intermediate representation.
 
-    Returns a :class:`ParsedPipeline` object that can be converted to SQL queries.
+    Returns a [orbital.ast.ParsedPipeline][] object that can be converted to SQL queries.
 
     :param pipeline: The fitted scikit-learn pipeline to parse
-    :param features: Mapping of column names to their :class:`ColumnType` objects from the :module:`orbital.types` module
+    :param features: Mapping of column names to their [orbital.types.ColumnType][] objects from the [orbital.types][] module
 
     ``features`` should be a mapping of column names that are the inputs of the
-    pipeline to their types from the :module:`.types` module::
+    pipeline to their types from the [orbital.types][] module:
 
+    ```
         {
             "column_name": types.DoubleColumnType(),
             "another_column": types.Int64ColumnType()
         }
+    ```
     """
     non_passthrough_features = {
         fname: ftype for fname, ftype in features.items() if not ftype.is_passthrough
@@ -197,7 +199,7 @@ class EnsureConcatenatedInputs:
     def __init__(self, features: FeaturesTypes) -> None:
         """Initialize with the features dictionary.
 
-        :param features: Dictionary mapping feature names to their :class:`ColumnType` objects
+        :param features: Dictionary mapping feature names to their [orbital.types.ColumnType][] objects
         """
         self.features = features
 
@@ -207,7 +209,7 @@ class EnsureConcatenatedInputs:
         """Determine if pipeline requires concatenated inputs by testing operator compatibility.
 
         This method directly tests whether the first operator in the pipeline can handle
-        individual feature inputs by calling :meth:`infer_types`. If it fails, the operator
+        individual feature inputs by calling `infer_types`. If it fails, the operator
         requires concatenated inputs.
 
         Returns True if the pipeline requires concatenated inputs, False otherwise.
@@ -251,7 +253,7 @@ class EnsureConcatenatedInputs:
         with a single "input" tensor containing all features concatenated together.
         All features must be of the same ONNX type for this to work.
 
-        Returns a list with single tuple: [("input", onnx_type([None, num_features]))].
+        Returns a list with single tuple: `[("input", onnx_type([None, num_features]))]`.
         """
         # All features must be of the same type for model input
         feature_onnx_types = {
@@ -276,6 +278,7 @@ class EnsureConcatenatedInputs:
 
         Pipelines starting with models create a single "input" tensor, but SQL generation expects
         individual feature columns. This function modifies the ONNX graph to:
+        
         1. Replace the single "input" with individual feature inputs
         2. Add a Concat operation to combine them back into "input"
 

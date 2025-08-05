@@ -11,7 +11,7 @@ from ..variables import ValueVariablesGroup, VariablesGroup
 class ArrayFeatureExtractorTranslator(Translator):
     """Processes an ArrayFeatureExtractor node and updates the variables with the output expression.
 
-    ArrayFeatureExtractor can be considered the opposit of :class:`ConactTranslator`, as
+    ArrayFeatureExtractor can be considered the opposit of [orbital.translation.steps.concat.ConcatTranslator][], as
     in most cases it will be used to pick one or more features out of a group of column
     previously concatenated, or to pick a specific feature out of the result of an ArgMax operation.
 

@@ -88,22 +88,24 @@ Only when all four items are complete should work be considered fully done.
   - `# Split target from features` (obvious from variable names)
   - `# Fill missing values` (obvious from function call)
 
-### Sphinx Cross-References in Docstrings
-- Use Sphinx cross-reference syntax when referring to classes, modules, functions, etc. in docstrings
-- **Classes**: Use `:class:`ClassName`` when referring to classes
-- **Modules**: Use `:module:`module.name`` when referring to modules  
-- **Functions**: Use `:func:`function_name`` when referring to functions
-- **Methods**: Use `:meth:`method_name`` when referring to methods
-- **Attributes**: Use `:attr:`attribute_name`` when referring to attributes
+### MkDocs Cross-References in Docstrings
+- Use MkDocs cross-reference syntax when referring to classes, modules, functions, etc. in docstrings
+- **All references**: Use `[full.module.path.ObjectName][]` syntax for all objects
+- **Important**: Always use the full path to the object, not relative references
+  (e.g., `[.ParsedPipeline][]` should not be used)
+- Examples of valid references:
+  - Classes: `[orbital.ast.ParsedPipeline][]`
+  - Functions: `[orbital.translate.translate_pipeline][]`
+  - Modules: `[orbital.types][]`
 - Example:
   ```python
   def process_data(pipeline: Pipeline, features: dict) -> ParsedPipeline:
       """Process data using a scikit-learn pipeline.
       
-      Returns a :class:`ParsedPipeline` object that can be converted to SQL.
-      The features should come from the :module:`orbital.types` module.
+      Returns a [orbital.ast.ParsedPipeline][] object that can be converted to SQL.
+      The features should come from the [orbital.types][] module.
       
       :param pipeline: The fitted scikit-learn pipeline
-      :param features: Dictionary mapping feature names to :class:`ColumnType` objects
+      :param features: Dictionary mapping feature names to [orbital.types.ColumnType][] objects
       """
-  ```
+  ```orking on the Orbital project.

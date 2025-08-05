@@ -18,7 +18,7 @@ class TreeEnsembleClassifierTranslator(Translator):
     - Gradient Boosted Trees
     - Decision Trees
 
-    The parsing of the tree is done by the :func:`build_tree` function,
+    The parsing of the tree is done by the [orbital.translation.steps.trees.classifier.build_tree][] function,
     which results in a dictionary of trees.
 
     The class parses the trees to generate a set of `CASE WHEN THEN ELSE`

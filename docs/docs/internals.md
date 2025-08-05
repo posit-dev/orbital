@@ -11,6 +11,9 @@
 ::: orbital.translation.optimizer
 
 ::: orbital.ast
+    options:
+        members:
+            - EnsureConcatenatedInputs
 
 ::: orbital.translation.steps
     options:

@@ -58,12 +58,13 @@ class ColumnType(abc.ABC):
 
 
 FeaturesTypes = typing.Dict[str, ColumnType]
+"""Mapping of feature names to their types."""
 
 
 def guess_datatypes(dataframe: typing.Any) -> FeaturesTypes:
     """Given a DataFrame, try to guess the types of each feature in it.
 
-    This procudes a :class:`.FeaturesTypes` dictionary that can be used by
+    This procudes a [orbital.types.FeaturesTypes][] dictionary that can be used by
     parse_pipeline to generate the SQL queries from the sklearn pipeline.
 
     In most cases this shouldn't be necessary as the user should know

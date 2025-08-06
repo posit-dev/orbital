@@ -47,7 +47,7 @@ def export_sql(
     with the specified SQL dialect.
 
     `dialect` can be any of the SQL dialects supported by sqlglot,
-    see :class:`sqlglot.dialects.DIALECTS` for a complete list of supported dialects.
+    see `sqlglot.dialects.DIALECTS` for a complete list of supported dialects.
 
     If `optimize` is set to True, the SQL query will be optimized using
     sqlglot's optimizer. This can improve performance, but may fail if

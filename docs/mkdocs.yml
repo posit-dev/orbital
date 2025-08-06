@@ -25,6 +25,8 @@ plugins:
           show_symbol_type_heading: true
           show_symbol_type_toc: true
           docstring_style: sphinx
+          relative_crossrefs: true
+          scoped_crossrefs: true
           separate_signature: true
           show_signature_annotations: true
           signature_crossrefs: true

@@ -31,7 +31,7 @@ class ParsedPipeline:
     features: FeaturesTypes  # type: ignore[assignment]
 
     def __init__(self) -> None:
-        """[ParsedPipeline] objects can only be created by the [orbital.ast.parse_pipeline][] function."""
+        """[orbital.ast.ParsedPipeline][] objects can only be created by the [orbital.ast.parse_pipeline][] function."""
 
         raise NotImplementedError(
             "parse_pipeline must be used to create a ParsedPipeline object."

@@ -278,7 +278,7 @@ class EnsureConcatenatedInputs:
 
         Pipelines starting with models create a single "input" tensor, but SQL generation expects
         individual feature columns. This function modifies the ONNX graph to:
-        
+
         1. Replace the single "input" with individual feature inputs
         2. Add a Concat operation to combine them back into "input"
 

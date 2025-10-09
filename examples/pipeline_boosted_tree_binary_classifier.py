@@ -15,10 +15,8 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 import orbital
 import orbital.types
 
-PRINT_SQL = int(os.environ.get("PRINTSQL", "0"))
+PRINT_SQL = int(os.environ.get("PRINT_SQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
-
-
 BACKEND = os.environ.get("BACKEND", "duckdb").lower()
 
 if BACKEND not in {"duckdb", "sqlite"}:
@@ -112,7 +110,7 @@ if PRINT_SQL:
     print(sql)
     print("\nPrediction with SQL")
     con.create_table(ibis_table.get_name(), obj=data_sample)
-    print(con.execute(con.sql(sql)))
+    print(con.raw_sql(sql).fetchall())
 
 print("\nPrediction with SKLearn")
 sklearn_predictions = model.predict(data_sample)

@@ -15,10 +15,8 @@ from sklearn.tree import DecisionTreeClassifier
 import orbital
 import orbital.types
 
-PRINT_SQL = int(os.environ.get("PRINTSQL", "0"))
+PRINT_SQL = int(os.environ.get("PRINT_SQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
-
-
 BACKEND = os.environ.get("BACKEND", "duckdb").lower()
 
 if BACKEND not in {"duckdb", "sqlite"}:
@@ -120,7 +118,7 @@ if PRINT_SQL:
     print("\nPrediction with SQL")
     # We need to create the table for the SQL to query it.
     con.create_table(ibis_table.get_name(), obj=example_data)
-    print(con.execute(con.sql(sql)))
+    print(con.raw_sql(sql).fetchall())
 
 print("\nPrediction with Ibis")
 ibis_target = con.execute(ibis_expression)

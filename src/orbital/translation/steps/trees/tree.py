@@ -18,7 +18,6 @@ class BranchConditionCreator:
     ) -> None:
         self._translator = translator
         self._ordered_features = self._prepare_features(input_expr)
-        self._preserved_thresholds = self._prepare_thresholds()
         self._conditions = self._prepare_conditions()
 
     def _prepare_features(
@@ -36,31 +35,6 @@ class BranchConditionCreator:
         # `node["feature_id"]` is a 0-based index into this preserved list, so we
         # return it directly instead of building a mapping keyed by feature id.
         return self._translator.preserve(*renamed_features)
-
-    def _prepare_thresholds(self) -> dict[float, ibis.Expr]:
-        node_thresholds = typing.cast(
-            list[float], self._translator._attributes["nodes_values"]
-        )
-        node_modes = typing.cast(
-            list[str], self._translator._attributes["nodes_modes"]
-        )
-        unique_thresholds = list(
-            {
-                value
-                for value, mode in zip(node_thresholds, node_modes)
-                if mode != "LEAF"
-            }
-        )
-
-        preserved_literals = self._translator.preserve(
-            *[
-                ibis.literal(value).name(
-                    self._translator.variable_unique_short_alias("cnt")
-                )
-                for value in unique_thresholds
-            ]
-        )
-        return dict(zip(unique_thresholds, preserved_literals))
 
     def _condition_expression(
         self,
@@ -106,9 +80,7 @@ class BranchConditionCreator:
                 continue
 
             feature_expr = self._ordered_features[feature_id]
-            threshold_expr = self._preserved_thresholds.get(
-                threshold, ibis.literal(threshold)
-            )
+            threshold_expr = ibis.literal(threshold)
             raw_condition = self._condition_expression(
                 feature_expr, threshold_expr, mode
             )

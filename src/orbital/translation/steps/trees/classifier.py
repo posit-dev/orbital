@@ -126,6 +126,14 @@ class TreeEnsembleClassifierTranslator(Translator):
                 total_votes[clslabel] = optimizer.fold_operation(
                     total_votes[clslabel] + votes.get(clslabel, ibis.literal(0.0))
                 )
+        # Preserve the aggregated votes once so that downstream expressions can reuse the aliases.
+        vote_aliases = [
+            total_votes[clslabel].name(self.variable_unique_short_alias("vte"))
+            for clslabel in classlabels
+        ]
+        preserved_votes = self.preserve(*vote_aliases)
+        for clslabel, preserved_expr in zip(classlabels, preserved_votes):
+            total_votes[clslabel] = preserved_expr
 
         # Compute prediction of class itself.
         if is_binary:

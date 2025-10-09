@@ -4,7 +4,6 @@ Primarily it takes care of folding constant expressions
 and removing unnecessary casts.
 """
 
-import functools
 import itertools
 import operator
 import typing

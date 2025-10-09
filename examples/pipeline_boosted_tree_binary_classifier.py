@@ -109,7 +109,7 @@ if PRINT_SQL:
     print(f"\nGenerated Query for {BACKEND.upper()}:")
     print(sql)
     print("\nPrediction with SQL")
-    con.create_table(ibis_table.get_name(), obj=data_sample)
+    con.create_table(ibis_table.get_name(), obj=ibis_table)
     print(con.raw_sql(sql).fetchall())
 
 print("\nPrediction with SKLearn")

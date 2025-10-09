@@ -80,7 +80,7 @@ if PRINT_SQL:
     print(sql)
     print("\nPrediction with SQL")
     # We need to create the table for the SQL to query it.
-    con.create_table(ibis_table.get_name(), obj=example_data)
+    con.create_table(ibis_table.get_name(), obj=ibis_table)
     print(con.raw_sql(sql).fetchall())
 
 print("\nPrediction with Ibis")

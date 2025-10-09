@@ -59,15 +59,13 @@ orbital_pipeline = orbital.parse_pipeline(pipeline, features=features)
 print(orbital_pipeline)
 
 # Dati di test
-example_data = pa.table(
-    {
-        "sepal_length": [5.0, 6.1, 7.2, 5.843333],
-        "sepal_width": [3.2, 2.8, 3.0, 3.057333],
-        "petal_length": [1.2, 4.7, 6.1, 3.758000],
-        "petal_width": [0.2, 1.2, 2.3, 1.199333],
-        "petal_width_cat": ["narrow", "wide", "wide", "wide"],
-    }
-)
+example_data = pa.table({
+    "sepal_length": [5.0, 6.1, 7.2, 5.843333],
+    "sepal_width": [3.2, 2.8, 3.0, 3.057333],
+    "petal_length": [1.2, 4.7, 6.1, 3.758000],
+    "petal_width": [0.2, 1.2, 2.3, 1.199333],
+    "petal_width_cat": ["narrow", "wide", "wide", "wide"],
+})
 
 ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
 ibis_expression = orbital.translate(ibis_table, orbital_pipeline)

@@ -109,8 +109,6 @@ class Optimizer:
         if self.ENABLED is False:
             return list(lst)
 
-        lst = list(lst)
-
         if pyop not in {operator.add, operator.mul}:
             raise NotImplementedError(
                 "Only addition and multiplication folding are supported."
@@ -123,7 +121,7 @@ class Optimizer:
         while items:
             expr = items.pop(0)
             if isinstance(expr, NumericScalar):
-                value = expr.execute()
+                value = expr.op().value
                 if folded_value is None:
                     folded_value = value
                 else:

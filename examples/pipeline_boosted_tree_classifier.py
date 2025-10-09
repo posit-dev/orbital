@@ -108,10 +108,6 @@ data_sample = X.head(5)
 orbital_pipeline = orbital.parse_pipeline(model, features=features)
 print(orbital_pipeline)
 
-# Translate the pipeline to a query
-ibis_table = ibis.memtable(data_sample, name="DATA_TABLE")
-ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
-
 con = {
     "sqlite": lambda: ibis.sqlite.connect(":memory:"),
     "duckdb": lambda: ibis.duckdb.connect(),
@@ -121,15 +117,19 @@ if PRINT_SQL:
     print(f"\nGenerated Query for {BACKEND.upper()}:")
     print(sql)
     print("\nPrediction with SQL")
-    # We need to create the table for the SQL to query it.
-    con.create_table(ibis_table.get_name(), obj=ibis_table)
-    print(con.raw_sql(sql).fetchall())
+    if BACKEND != "sqlite":
+        # FIXME: Sqlite currently can't handle the boosted tree classifier SQL
+        # We need to create the table for the SQL to query it.
+        con.create_table("DATA_TABLE", obj=data_sample)
+        print(con.raw_sql(sql).fetchall())
 
 print("\nPrediction with SKLearn")
 target = model.predict(data_sample)
 print(target)
 
 print("\nPrediction with Ibis")
+ibis_table = ibis.memtable(data_sample, name="DATA_TABLE")
+ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
 ibis_target = con.execute(ibis_expression)
 print(ibis_target)
 

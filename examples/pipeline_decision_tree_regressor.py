@@ -86,10 +86,6 @@ example_data = pa.table(
     }
 )
 
-# Genera la query SQL con orbital
-ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
-ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
-
 con = {
     "sqlite": lambda: ibis.sqlite.connect(":memory:"),
     "duckdb": lambda: ibis.duckdb.connect(),
@@ -100,7 +96,7 @@ if PRINT_SQL:
     print(sql)
     print("\nPrediction with SQL")
     # We need to create the table for the SQL to query it.
-    con.create_table(ibis_table.get_name(), obj=ibis_table)
+    con.create_table("DATA_TABLE", obj=example_data)
     print(con.raw_sql(sql).fetchall())
 
 
@@ -110,6 +106,8 @@ target = pipeline.predict(test_df)
 print(target)
 
 print("\nPrediction with Ibis")
+ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
+ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
 ibis_target = con.execute(ibis_expression)["variable"].to_numpy()
 print(ibis_target)
 

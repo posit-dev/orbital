@@ -63,8 +63,6 @@ example_data = pa.table(
         "petal_width": [0.2, 1.2, 2.3, 1.199333],
     }
 )
-ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
-ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
 
 con = {
     "sqlite": lambda: ibis.sqlite.connect(":memory:"),
@@ -76,10 +74,12 @@ if PRINT_SQL:
     print(sql)
     print("\nPrediction with SQL")
     # We need to create the table for the SQL to query it.
-    con.create_table(ibis_table.get_name(), obj=ibis_table)
+    con.create_table("DATA_TABLE", obj=example_data)
     print(con.raw_sql(sql).fetchall())
 
 print("\nPrediction with Ibis")
+ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
+ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
 ibis_predictions = con.execute(ibis_expression)
 print(ibis_predictions)
 

@@ -5,13 +5,89 @@ import typing
 import ibis
 
 from ...translator import Translator
+from ...variables import VariablesGroup
+
+
+class BranchConditionCreator:
+    """Factory for branch conditions that reuses preserved feature and threshold columns."""
+
+    def __init__(
+        self,
+        translator: Translator,
+        input_expr: typing.Union[ibis.Expr, VariablesGroup],
+    ) -> None:
+        self._translator = translator
+        self._ordered_features = self._prepare_features(input_expr)
+        self._preserved_thresholds = self._prepare_thresholds()
+
+    def _prepare_features(
+        self, input_expr: typing.Union[ibis.Expr, VariablesGroup]
+    ) -> list[ibis.Expr]:
+        if isinstance(input_expr, VariablesGroup):
+            features: list[ibis.Expr] = input_expr.values_value()
+        else:
+            features = typing.cast(list[ibis.Expr], [input_expr])
+
+        renamed_features = [
+            feature.name(self._translator.variable_unique_short_alias("cnf"))
+            for feature in features
+        ]
+        # `node["feature_id"]` is a 0-based index into this preserved list, so we
+        # return it directly instead of building a mapping keyed by feature id.
+        return self._translator.preserve(*renamed_features)
+
+    def _prepare_thresholds(self) -> dict[float, ibis.Expr]:
+        node_thresholds = typing.cast(
+            list[float], self._translator._attributes["nodes_values"]
+        )
+        node_modes = typing.cast(
+            list[str], self._translator._attributes["nodes_modes"]
+        )
+        unique_thresholds = list(
+            {
+                value
+                for value, mode in zip(node_thresholds, node_modes)
+                if mode != "LEAF"
+            }
+        )
+
+        preserved_literals = self._translator.preserve(
+            *[
+                ibis.literal(value).name(
+                    self._translator.variable_unique_short_alias("cnt")
+                )
+                for value in unique_thresholds
+            ]
+        )
+        return dict(zip(unique_thresholds, preserved_literals))
+
+    def create_condition(self, node: dict) -> ibis.Expr:
+        """Return the comparison expression for the given branch node."""
+        feature_expr = self._ordered_features[node["feature_id"]]
+        threshold = node["treshold"]
+        threshold_expr = self._preserved_thresholds.get(
+            threshold, ibis.literal(threshold)
+        )
+
+        mode = node["mode"]
+        if mode == "BRANCH_LEQ":
+            return feature_expr <= threshold_expr
+        if mode == "BRANCH_LT":
+            return feature_expr < threshold_expr
+        if mode == "BRANCH_GTE":
+            return feature_expr >= threshold_expr
+        if mode == "BRANCH_GT":
+            return feature_expr > threshold_expr
+        if mode == "BRANCH_EQ":
+            return feature_expr == threshold_expr
+        if mode == "BRANCH_NEQ":
+            return feature_expr != threshold_expr
+
+        raise NotImplementedError(f"Unsupported node mode: {mode}")
 
 
 def build_tree(translator: Translator) -> dict[int, dict[int, dict]]:
-    """Build a tree based on nested dictionaries of nodes.
-
-    The tree is built based on the node and attributes of the translator.
-    """
+    """Build a tree based on nested dictionaries of nodes."""
     nodes_treeids = typing.cast(list[int], translator._attributes["nodes_treeids"])
     nodes_nodeids = typing.cast(list[int], translator._attributes["nodes_nodeids"])
     nodes_modes = typing.cast(list[str], translator._attributes["nodes_modes"])
@@ -148,35 +224,3 @@ def build_tree(translator: Translator) -> dict[int, dict[int, dict]]:
                 node_dict["false"] = trees[tree_id][false_id]
 
     return {tree_id: trees[tree_id][0] for tree_id in trees}
-
-
-def mode_to_condition(
-    node: dict, feature_expr: ibis.Expr, preserved_thresholds: typing.Optional[dict[float, ibis.Expr]] = None
-) -> ibis.Expr:
-    """Build a comparison expression for a branch node.
-
-    The comparison is based on the mode of the node and the threshold
-    for that noode. The feature will be compared to the threshold
-    using the operator defined by the mode.
-    """
-    threshold = node["treshold"]
-    if preserved_thresholds and threshold in preserved_thresholds:
-        threshold_expr: ibis.Expr = preserved_thresholds[threshold]
-    else:
-        threshold_expr = ibis.literal(threshold)
-
-    if node["mode"] == "BRANCH_LEQ":
-        condition = feature_expr <= threshold_expr
-    elif node["mode"] == "BRANCH_LT":
-        condition = feature_expr < threshold_expr
-    elif node["mode"] == "BRANCH_GTE":
-        condition = feature_expr >= threshold_expr
-    elif node["mode"] == "BRANCH_GT":
-        condition = feature_expr > threshold_expr
-    elif node["mode"] == "BRANCH_EQ":
-        condition = feature_expr == threshold_expr
-    elif node["mode"] == "BRANCH_NEQ":
-        condition = feature_expr != threshold_expr
-    else:
-        raise NotImplementedError(f"Unsupported node mode: {node['mode']}")
-    return condition

@@ -7,7 +7,7 @@ import ibis
 from ...transformations import apply_post_transform
 from ...translator import Translator
 from ...variables import NumericVariablesGroup, VariablesGroup
-from .tree import build_tree, mode_to_condition
+from .tree import BranchConditionCreator, build_tree
 
 
 class TreeEnsembleClassifierTranslator(Translator):
@@ -54,17 +54,6 @@ class TreeEnsembleClassifierTranslator(Translator):
         optimizer = self._optimizer
         ensemble_trees = build_tree(self)
 
-        unique_thresholds = list(set(self._attributes['nodes_values']))
-        preserved_thresholds: dict[float, ibis.Expr] = {}
-        if unique_thresholds:
-            preserved_literals = self.preserve(
-                *[
-                    ibis.literal(value).name(self.variable_unique_short_alias('thr'))
-                    for value in unique_thresholds
-                ]
-            )
-            preserved_thresholds = dict(zip(unique_thresholds, preserved_literals))
-
         classlabels = self._attributes.get(
             "classlabels_strings"
         ) or self._attributes.get("classlabels_int64s")
@@ -89,15 +78,7 @@ class TreeEnsembleClassifierTranslator(Translator):
                 typing.Union[list[str], list[int]], [classlabels[0]]
             )
 
-        if isinstance(input_expr, VariablesGroup):
-            ordered_features = input_expr.values_value()
-        else:
-            ordered_features = typing.cast(list[ibis.Value], [input_expr])
-        ordered_features = [
-            feature.name(self.variable_unique_short_alias("tcl"))
-            for feature in ordered_features
-        ]
-        ordered_features = self.preserve(*ordered_features)
+        condition_creator = BranchConditionCreator(self, input_expr)
 
         def build_tree_case(node: dict) -> dict[typing.Union[str, int], ibis.Expr]:
             # Leaf node, return the votes
@@ -110,8 +91,7 @@ class TreeEnsembleClassifierTranslator(Translator):
                 }
 
             # Branch node, build a CASE statement
-            feature_expr = ordered_features[node["feature_id"]]
-            condition = mode_to_condition(node, feature_expr, preserved_thresholds)
+            condition = condition_creator.create_condition(node)
 
             true_votes = build_tree_case(node["true"])
             false_votes = build_tree_case(node["false"])

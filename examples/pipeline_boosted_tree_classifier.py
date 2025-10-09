@@ -108,6 +108,12 @@ data_sample = X.head(5)
 orbital_pipeline = orbital.parse_pipeline(model, features=features)
 print(orbital_pipeline)
 
+if BACKEND == "sqlite":
+    # FIXME: Sqlite currently can't handle the boosted tree classifier SQL
+    print("Skipping sqlite as it can't handle the query")
+    import sys
+    sys.exit(0)
+
 con = {
     "sqlite": lambda: ibis.sqlite.connect(":memory:"),
     "duckdb": lambda: ibis.duckdb.connect(),
@@ -117,11 +123,9 @@ if PRINT_SQL:
     print(f"\nGenerated Query for {BACKEND.upper()}:")
     print(sql)
     print("\nPrediction with SQL")
-    if BACKEND != "sqlite":
-        # FIXME: Sqlite currently can't handle the boosted tree classifier SQL
-        # We need to create the table for the SQL to query it.
-        con.create_table("DATA_TABLE", obj=data_sample)
-        print(con.raw_sql(sql).fetchall())
+    # We need to create the table for the SQL to query it.
+    con.create_table("DATA_TABLE", obj=data_sample)
+    print(con.raw_sql(sql).fetchall())
 
 print("\nPrediction with SKLearn")
 target = model.predict(data_sample)

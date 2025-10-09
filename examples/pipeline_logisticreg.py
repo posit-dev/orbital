@@ -16,6 +16,10 @@ import orbital.types
 
 PRINT_SQL = int(os.environ.get("PRINTSQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
+BACKEND = os.environ.get("BACKEND", "duckdb").lower()
+
+if BACKEND not in {"duckdb", "sqlite"}:
+    raise ValueError(f"Unsupported backend {BACKEND!r}")
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("orbital").setLevel(logging.INFO)  # Set DEBUG to see translation process.
@@ -55,30 +59,35 @@ orbital_pipeline = orbital.parse_pipeline(pipeline, features=features)
 print(orbital_pipeline)
 
 # Dati di test
-example_data = pa.table({
-    "sepal_length": [5.0, 6.1, 7.2, 5.843333],
-    "sepal_width": [3.2, 2.8, 3.0, 3.057333],
-    "petal_length": [1.2, 4.7, 6.1, 3.758000],
-    "petal_width": [0.2, 1.2, 2.3, 1.199333],
-    "petal_width_cat": ["narrow", "wide", "wide", "wide"]
-})
+example_data = pa.table(
+    {
+        "sepal_length": [5.0, 6.1, 7.2, 5.843333],
+        "sepal_width": [3.2, 2.8, 3.0, 3.057333],
+        "petal_length": [1.2, 4.7, 6.1, 3.758000],
+        "petal_width": [0.2, 1.2, 2.3, 1.199333],
+        "petal_width_cat": ["narrow", "wide", "wide", "wide"],
+    }
+)
 
 ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
 ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
 
-con = ibis.duckdb.connect()
+con = {
+    "sqlite": lambda: ibis.sqlite.connect(":memory:"),
+    "duckdb": ibis.duckdb.connect,
+}[BACKEND]()
 if PRINT_SQL:
-    sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect="duckdb")
-    print("\nGenerated Query for DuckDB:")
+    sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
+    print(f"\nGenerated Query for {BACKEND.upper()}:")
     print(sql)
     print("\nPrediction with SQL")
     # We need to create the table for the SQL to query it.
-    con.create_table(ibis_table.get_name(), obj=ibis_table)
-    print(con.raw_sql(sql).df())
+    con.create_table(ibis_table.get_name(), obj=example_data)
+    print(con.execute(con.sql(sql)))
 
 
 print("\nPrediction with Ibis")
-ibis_target = ibis_expression.execute()
+ibis_target = con.execute(ibis_expression)
 print(ibis_target)
 
 print("\nPrediction with SKLearn")

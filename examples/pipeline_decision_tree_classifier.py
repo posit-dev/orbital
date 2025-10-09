@@ -108,7 +108,7 @@ example_data = pa.table(
 
 con = {
     "sqlite": lambda: ibis.sqlite.connect(":memory:"),
-    "duckdb": ibis.duckdb.connect,
+    "duckdb": lambda: ibis.duckdb.connect(),
 }[BACKEND]()
 ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
 ibis_expression = orbital.translate(ibis_table, orbital_pipeline)

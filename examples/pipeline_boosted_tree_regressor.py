@@ -102,7 +102,7 @@ ibis_table = ibis.memtable(data_sample, name="DATA_TABLE")
 ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
 con = {
     "sqlite": lambda: ibis.sqlite.connect(":memory:"),
-    "duckdb": ibis.duckdb.connect,
+    "duckdb": lambda: ibis.duckdb.connect(),
 }[BACKEND]()
 
 if PRINT_SQL:

@@ -76,7 +76,7 @@ ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
 
 con = {
     "sqlite": lambda: ibis.sqlite.connect(":memory:"),
-    "duckdb": ibis.duckdb.connect,
+    "duckdb": lambda: ibis.duckdb.connect(),
 }[BACKEND]()
 if PRINT_SQL:
     sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)

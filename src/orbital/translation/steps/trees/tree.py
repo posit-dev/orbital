@@ -9,7 +9,7 @@ from ...variables import VariablesGroup
 
 
 class BranchConditionCreator:
-    """Factory for branch conditions that reuses preserved feature and threshold columns."""
+    """Factory for branch conditions that reuses preserved feature columns."""
 
     def __init__(
         self,

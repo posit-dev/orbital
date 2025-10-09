@@ -15,8 +15,13 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 import orbital
 import orbital.types
 
-PRINT_SQL = int(os.environ.get("PRINTSQL", "0"))
+PRINT_SQL = int(os.environ.get("PRINT_SQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
+BACKEND = os.environ.get("BACKEND", "duckdb").lower()
+
+if BACKEND not in {"duckdb", "sqlite"}:
+    raise ValueError(f"Unsupported backend {BACKEND!r}")
+
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("orbital").setLevel(logging.INFO)  # Set DEBUG to see translation process.
@@ -36,10 +41,11 @@ numeric_features = [
 ]
 ames[numeric_features] = ames[numeric_features].astype(np.float64)
 
-# Fill the categorical types with a value for missing values 
+# Fill the categorical types with a value for missing values
 # (NaN is not a string and we can't mix types in the same column)
 categorical_features = ames.select_dtypes(include=["object", "category"]).columns
 ames[categorical_features] = ames[categorical_features].fillna("missing")
+
 
 # Let's create classes of prices, we will divide prices in 3 categories
 # We will use this as the target of the prediction
@@ -102,25 +108,32 @@ data_sample = X.head(5)
 orbital_pipeline = orbital.parse_pipeline(model, features=features)
 print(orbital_pipeline)
 
-# Translate the pipeline to a query
-ibis_table = ibis.memtable(data_sample, name="DATA_TABLE")
-ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
+if BACKEND == "sqlite":
+    # FIXME: Sqlite currently can't handle the boosted tree classifier SQL
+    print("Skipping sqlite as it can't handle the query")
+    import sys
+    sys.exit(0)
 
-con = ibis.duckdb.connect()
+con = {
+    "sqlite": lambda: ibis.sqlite.connect(":memory:"),
+    "duckdb": lambda: ibis.duckdb.connect(),
+}[BACKEND]()
 if PRINT_SQL:
-    sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect="duckdb")
-    print("\nGenerated Query for DuckDB:")
+    sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
+    print(f"\nGenerated Query for {BACKEND.upper()}:")
     print(sql)
     print("\nPrediction with SQL")
     # We need to create the table for the SQL to query it.
-    con.create_table(ibis_table.get_name(), obj=ibis_table)
-    print(con.raw_sql(sql).df())
+    con.create_table("DATA_TABLE", obj=data_sample)
+    print(con.raw_sql(sql).fetchall())
 
 print("\nPrediction with SKLearn")
 target = model.predict(data_sample)
 print(target)
 
 print("\nPrediction with Ibis")
+ibis_table = ibis.memtable(data_sample, name="DATA_TABLE")
+ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
 ibis_target = con.execute(ibis_expression)
 print(ibis_target)
 

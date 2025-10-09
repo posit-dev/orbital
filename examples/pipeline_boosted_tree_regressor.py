@@ -15,8 +15,13 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 import orbital
 import orbital.types
 
-PRINT_SQL = int(os.environ.get("PRINTSQL", "0"))
+PRINT_SQL = int(os.environ.get("PRINT_SQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
+BACKEND = os.environ.get("BACKEND", "duckdb").lower()
+
+if BACKEND not in {"duckdb", "sqlite"}:
+    raise ValueError(f"Unsupported backend {BACKEND!r}")
+
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("orbital").setLevel(logging.INFO)  # Set DEBUG to see translation process.
@@ -91,33 +96,27 @@ features = orbital.types.guess_datatypes(X)
 orbital_pipeline = orbital.parse_pipeline(model, features=features)
 print(orbital_pipeline)
 
-ibis_table = ibis.memtable(data_sample, name="DATA_TABLE")
-ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
-con = ibis.duckdb.connect()
+con = {
+    "sqlite": lambda: ibis.sqlite.connect(":memory:"),
+    "duckdb": lambda: ibis.duckdb.connect(),
+}[BACKEND]()
 
 if PRINT_SQL:
-    con = ibis.duckdb.connect()
-    print(con.compile(ibis_expression))
-
-    sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect="duckdb")
-    print("\nGenerated Query for DuckDB:")
+    sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
+    print(f"\nGenerated Query for {BACKEND.upper()}:")
     print(sql)
     print("\nPrediction with SQL")
     # We need to create the table for the SQL to query it.
-    con.create_table(ibis_table.get_name(), obj=ibis_table)
-    print(con.raw_sql(sql).df())
+    con.create_table("DATA_TABLE", obj=data_sample)
+    print(con.raw_sql(sql).fetchall())
 
 print("\nPrediction with SKLearn")
 target = model.predict(data_sample)
 print(target)
 
-# NOTE: Interestingly the DuckDB optimizer has a bug on this query too
-#       and unless disabled the query never completes.
-#       That's why we run using SQLite.
-#       The orbital optimizer when enabled is able to preoptimize the query
-#       which seems to allow DuckDB to complete the query as probably the DuckDB
-#       optimizer has less work to do in that case.
 print("\nPrediction with Ibis")
+ibis_table = ibis.memtable(data_sample, name="DATA_TABLE")
+ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
 ibis_target = con.execute(ibis_expression)["variable"].to_numpy()
 print(ibis_target)
 

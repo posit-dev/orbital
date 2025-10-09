@@ -51,4 +51,3 @@ print(target)
 
 print("\nPrediction with Ibis")
 print(con.execute(ibis_expression))
-

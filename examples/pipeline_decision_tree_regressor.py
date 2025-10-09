@@ -15,8 +15,13 @@ from sklearn.tree import DecisionTreeRegressor
 import orbital
 import orbital.types
 
-PRINT_SQL = int(os.environ.get("PRINTSQL", "0"))
+PRINT_SQL = int(os.environ.get("PRINT_SQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
+BACKEND = os.environ.get("BACKEND", "duckdb").lower()
+
+if BACKEND not in {"duckdb", "sqlite"}:
+    raise ValueError(f"Unsupported backend {BACKEND!r}")
+
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("orbital").setLevel(logging.INFO)  # Set DEBUG to see translation process.
@@ -81,19 +86,18 @@ example_data = pa.table(
     }
 )
 
-# Genera la query SQL con orbital
-ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
-ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
-
-con = ibis.duckdb.connect()
+con = {
+    "sqlite": lambda: ibis.sqlite.connect(":memory:"),
+    "duckdb": lambda: ibis.duckdb.connect(),
+}[BACKEND]()
 if PRINT_SQL:
-    sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect="duckdb")
-    print("\nGenerated Query for DuckDB:")
+    sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
+    print(f"\nGenerated Query for {BACKEND.upper()}:")
     print(sql)
     print("\nPrediction with SQL")
     # We need to create the table for the SQL to query it.
-    con.create_table(ibis_table.get_name(), obj=ibis_table)
-    print(con.raw_sql(sql).df())
+    con.create_table("DATA_TABLE", obj=example_data)
+    print(con.raw_sql(sql).fetchall())
 
 
 print("\nPrediction with SKLearn")
@@ -102,6 +106,8 @@ target = pipeline.predict(test_df)
 print(target)
 
 print("\nPrediction with Ibis")
+ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
+ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
 ibis_target = con.execute(ibis_expression)["variable"].to_numpy()
 print(ibis_target)
 

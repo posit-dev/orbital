@@ -27,7 +27,14 @@ jobs:
         run: |
           uv sync --dev
 
-      - name: Check Examples
+      - name: Check Examples on DuckDB
+        env:
+          BACKEND: duckdb
         run: |
           uv run examples/test_examples.sh
 
+      - name: Check Examples on SQLite
+        env:
+          BACKEND: sqlite
+        run: |
+          uv run examples/test_examples.sh

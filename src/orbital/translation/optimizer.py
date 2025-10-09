@@ -4,7 +4,6 @@ Primarily it takes care of folding constant expressions
 and removing unnecessary casts.
 """
 
-import functools
 import itertools
 import operator
 import typing
@@ -109,19 +108,30 @@ class Optimizer:
         if self.ENABLED is False:
             return list(lst)
 
-        lst = list(lst)
+        if pyop not in {operator.add, operator.mul}:
+            raise NotImplementedError(
+                "Only addition and multiplication folding are supported."
+            )
 
-        result = []
-        for is_number, group in itertools.groupby(
-            lst, key=lambda x: isinstance(x, NumericScalar)
-        ):
-            if is_number:
-                values = [scalar.execute() for scalar in group]
-                folded_value = ibis.literal(functools.reduce(pyop, values, 0))
-                result.append(folded_value)
+        resulting_items = []
+        items = list(lst)
+        folded_value = None
+
+        while items:
+            expr = items.pop(0)
+            if isinstance(expr, NumericScalar):
+                value = expr.op().value
+                if folded_value is None:
+                    folded_value = value
+                else:
+                    folded_value = pyop(folded_value, value)
             else:
-                result.extend(group)
-        return result
+                resulting_items.append(expr)
+
+        if folded_value is not None:
+            resulting_items.append(ibis.literal(folded_value))
+
+        return resulting_items
 
     def fold_contiguous_sum(
         self, lst: list[ibis.expr.types.NumericValue]

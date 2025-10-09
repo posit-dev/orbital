@@ -150,7 +150,9 @@ def build_tree(translator: Translator) -> dict[int, dict[int, dict]]:
     return {tree_id: trees[tree_id][0] for tree_id in trees}
 
 
-def mode_to_condition(node: dict, feature_expr: ibis.Expr) -> ibis.Expr:
+def mode_to_condition(
+    node: dict, feature_expr: ibis.Expr, preserved_thresholds: typing.Optional[dict[float, ibis.Expr]] = None
+) -> ibis.Expr:
     """Build a comparison expression for a branch node.
 
     The comparison is based on the mode of the node and the threshold
@@ -158,18 +160,23 @@ def mode_to_condition(node: dict, feature_expr: ibis.Expr) -> ibis.Expr:
     using the operator defined by the mode.
     """
     threshold = node["treshold"]
+    if preserved_thresholds and threshold in preserved_thresholds:
+        threshold_expr: ibis.Expr = preserved_thresholds[threshold]
+    else:
+        threshold_expr = ibis.literal(threshold)
+
     if node["mode"] == "BRANCH_LEQ":
-        condition = feature_expr <= threshold
+        condition = feature_expr <= threshold_expr
     elif node["mode"] == "BRANCH_LT":
-        condition = feature_expr < threshold
+        condition = feature_expr < threshold_expr
     elif node["mode"] == "BRANCH_GTE":
-        condition = feature_expr >= threshold
+        condition = feature_expr >= threshold_expr
     elif node["mode"] == "BRANCH_GT":
-        condition = feature_expr > threshold
+        condition = feature_expr > threshold_expr
     elif node["mode"] == "BRANCH_EQ":
-        condition = feature_expr == threshold
+        condition = feature_expr == threshold_expr
     elif node["mode"] == "BRANCH_NEQ":
-        condition = feature_expr != threshold
+        condition = feature_expr != threshold_expr
     else:
         raise NotImplementedError(f"Unsupported node mode: {node['mode']}")
     return condition

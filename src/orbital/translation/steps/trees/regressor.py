@@ -43,6 +43,17 @@ class TreeEnsembleRegressorTranslator(Translator):
         optimizer = self._optimizer
         ensemble_trees = build_tree(self)
 
+        unique_thresholds = list(set(self._attributes['nodes_values']))
+        preserved_thresholds: dict[float, ibis.Expr] = {}
+        if unique_thresholds:
+            preserved_literals = self.preserve(
+                *[
+                    ibis.literal(value).name(self.variable_unique_short_alias('thr'))
+                    for value in unique_thresholds
+                ]
+            )
+            preserved_thresholds = dict(zip(unique_thresholds, preserved_literals))
+
         if isinstance(input_expr, VariablesGroup):
             ordered_features = input_expr.values_value()
         else:
@@ -60,7 +71,7 @@ class TreeEnsembleRegressorTranslator(Translator):
 
             # BRANCH node, should return a CASE statement
             feature_expr = ordered_features[node["feature_id"]]
-            condition = mode_to_condition(node, feature_expr)
+            condition = mode_to_condition(node, feature_expr, preserved_thresholds)
 
             if node["missing_tracks_true"]:
                 raise NotImplementedError("Missing value tracks true not supported")

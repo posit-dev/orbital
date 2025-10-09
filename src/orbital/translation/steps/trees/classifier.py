@@ -54,6 +54,17 @@ class TreeEnsembleClassifierTranslator(Translator):
         optimizer = self._optimizer
         ensemble_trees = build_tree(self)
 
+        unique_thresholds = list(set(self._attributes['nodes_values']))
+        preserved_thresholds: dict[float, ibis.Expr] = {}
+        if unique_thresholds:
+            preserved_literals = self.preserve(
+                *[
+                    ibis.literal(value).name(self.variable_unique_short_alias('thr'))
+                    for value in unique_thresholds
+                ]
+            )
+            preserved_thresholds = dict(zip(unique_thresholds, preserved_literals))
+
         classlabels = self._attributes.get(
             "classlabels_strings"
         ) or self._attributes.get("classlabels_int64s")
@@ -100,7 +111,7 @@ class TreeEnsembleClassifierTranslator(Translator):
 
             # Branch node, build a CASE statement
             feature_expr = ordered_features[node["feature_id"]]
-            condition = mode_to_condition(node, feature_expr)
+            condition = mode_to_condition(node, feature_expr, preserved_thresholds)
 
             true_votes = build_tree_case(node["true"])
             false_votes = build_tree_case(node["false"])

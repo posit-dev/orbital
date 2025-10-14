@@ -45,6 +45,11 @@ class ArrayFeatureExtractorTranslator(Translator):
             # AND that all values of the dictionary are columns.
             data_keys: list[str] = list(data.keys())
             data_values: list[ibis.Expr] = list(data.values())
+            single_item: bool = False
+
+            if isinstance(indices, (int, float)):
+                indices = [int(indices)]
+                single_item = True
 
             if not isinstance(indices, (list, tuple)):
                 raise ValueError(
@@ -58,9 +63,12 @@ class ArrayFeatureExtractorTranslator(Translator):
                 )
 
             # Pick only the columns that are in the list of indicies.
-            result = ValueVariablesGroup(
-                {data_keys[i]: data_values[i] for i in indices}
-            )
+            if single_item:
+                result = data_values[indices[0]]
+            else:
+                result = ValueVariablesGroup(
+                    {data_keys[i]: data_values[i] for i in indices}
+                )
         elif isinstance(data, (tuple, list)):
             # We are selecting values out of a list of values
             # This is usually used to select "classes" out of a list of

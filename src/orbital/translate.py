@@ -178,7 +178,9 @@ def _log_debug_start(translator: Translator, variables: GraphVariables) -> None:
         value: typing.Any = None
         if (feature_value := translator._variables.peek_variable(inp)) is not None:
             value = type(feature_value)
-        elif initializer := translator._variables.get_initializer_value(inp):
+        elif (
+            initializer := translator._variables.get_initializer_value(inp)
+        ) is not None:
             value = initializer
         else:
             raise ValueError(

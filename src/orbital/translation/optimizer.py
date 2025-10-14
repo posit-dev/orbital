@@ -38,6 +38,9 @@ from ibis.expr.operations import (
 )
 from ibis.expr.types import NumericScalar
 
+# Alias to avoid long references when checking for nested casts.
+CastOp = ibis.expr.operations.Cast
+
 
 class Optimizer:
     """Optimizer for Ibis expressions.
@@ -200,7 +203,7 @@ class Optimizer:
             return expr
 
         op_instance = expr.op()
-        if not isinstance(op_instance, ibis.expr.operations.Cast):
+        if not isinstance(op_instance, CastOp):
             # Not a cast, ignore
             # This can happen when a Field (a column) is casted to a type
             # and the Column is already of the same type.
@@ -208,10 +211,14 @@ class Optimizer:
             return expr
 
         target_type = op_instance.to
-        arg = op_instance.arg
+        arg_op = op_instance.arg
 
-        if isinstance(arg, Literal):
-            value = arg.value
+        # Collapse nested casts so we only apply the outermost cast once.
+        while isinstance(arg_op, CastOp):
+            arg_op = arg_op.arg
+
+        if isinstance(arg_op, Literal):
+            value = arg_op.value
             if target_type == dt.int64:
                 return ibis.literal(int(value))
             elif target_type == dt.float64:
@@ -224,12 +231,14 @@ class Optimizer:
                 raise NotImplementedError(
                     f"Literal Cast to {target_type} not supported"
                 )
-        elif arg.dtype() == target_type:
+
+        arg_expr = arg_op.to_expr()
+        if arg_expr.type() == target_type:
             # The expression is already of the target type
             # No need to cast it again.
-            return expr
+            return arg_expr
 
-        return expr
+        return arg_expr.cast(target_type)
 
     def fold_zeros(self, expr: ibis.Expr) -> ibis.Expr:
         """Given a binary expression, precompute the result if it contains zeros.

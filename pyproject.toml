@@ -99,6 +99,7 @@ testpaths = ["tests"]
 ignore_missing_imports = true
 mypy_path = "$MYPY_CONFIG_FILE_DIR/src"
 packages = ["orbital"]
+exclude = "(?x)(^build/|^venv.+)"
 
 [tool.ruff]
 target-version = "py39"

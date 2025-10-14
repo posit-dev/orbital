@@ -16,6 +16,14 @@ class BranchConditionCreator:
         translator: Translator,
         input_expr: typing.Union[ibis.Expr, VariablesGroup],
     ) -> None:
+        """Set up reusable branch conditions for tree traversal.
+
+        :param translator: The [orbital.translation.translator.Translator][] instance
+            that preserves intermediate expressions and holds ONNX node metadata.
+        :param input_expr: The expression or
+            [orbital.translation.variables.VariablesGroup][] providing the features
+            consumed by the tree.
+        """
         self._translator = translator
         self._ordered_features = self._prepare_features(input_expr)
         self._conditions = self._prepare_conditions()
@@ -58,9 +66,7 @@ class BranchConditionCreator:
         raise NotImplementedError(f"Unsupported node mode: {mode}")
 
     def _prepare_conditions(self) -> dict[tuple[int, str, float], ibis.Expr]:
-        node_modes = typing.cast(
-            list[str], self._translator._attributes["nodes_modes"]
-        )
+        node_modes = typing.cast(list[str], self._translator._attributes["nodes_modes"])
         node_featureids = typing.cast(
             list[int], self._translator._attributes["nodes_featureids"]
         )

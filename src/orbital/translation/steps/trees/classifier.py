@@ -61,11 +61,9 @@ class TreeEnsembleClassifierTranslator(Translator):
         ) or self._attributes.get("classlabels_int64s")
         if raw_classlabels is None:
             raise ValueError("Unable to detect classlabels for classification")
-        classlabels_seq = typing.cast(
-            typing.Sequence[ClassLabel],
-            raw_classlabels,
+        classlabels: list[ClassLabel] = list(
+            typing.cast(typing.Sequence[ClassLabel], raw_classlabels)
         )
-        classlabels: list[ClassLabel] = list(classlabels_seq)
         output_classlabels: list[ClassLabel] = list(classlabels)
 
         # ONNX treats binary classification as a special case:

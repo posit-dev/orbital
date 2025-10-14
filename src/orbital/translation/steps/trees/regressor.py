@@ -6,7 +6,7 @@ import ibis
 
 from ...translator import Translator
 from ...variables import VariablesGroup
-from .tree import build_tree, mode_to_condition
+from .tree import BranchConditionCreator, build_tree
 
 
 class TreeEnsembleRegressorTranslator(Translator):
@@ -43,15 +43,7 @@ class TreeEnsembleRegressorTranslator(Translator):
         optimizer = self._optimizer
         ensemble_trees = build_tree(self)
 
-        if isinstance(input_expr, VariablesGroup):
-            ordered_features = input_expr.values_value()
-        else:
-            ordered_features = typing.cast(list[ibis.Value], [input_expr])
-        ordered_features = [
-            feature.name(self.variable_unique_short_alias("tcl"))
-            for feature in ordered_features
-        ]
-        ordered_features = self.preserve(*ordered_features)
+        condition_creator = BranchConditionCreator(self, input_expr)
 
         def build_tree_value(node: dict) -> ibis.Expr:
             # Leaf node, should return the prediction weight
@@ -59,8 +51,7 @@ class TreeEnsembleRegressorTranslator(Translator):
                 return ibis.literal(node["weight"])
 
             # BRANCH node, should return a CASE statement
-            feature_expr = ordered_features[node["feature_id"]]
-            condition = mode_to_condition(node, feature_expr)
+            condition = condition_creator.create_condition(node)
 
             if node["missing_tracks_true"]:
                 raise NotImplementedError("Missing value tracks true not supported")

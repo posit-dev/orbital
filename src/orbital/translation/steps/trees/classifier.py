@@ -7,7 +7,9 @@ import ibis
 from ...transformations import apply_post_transform
 from ...translator import Translator
 from ...variables import NumericVariablesGroup, VariablesGroup
-from .tree import build_tree, mode_to_condition
+from .tree import BranchConditionCreator, build_tree
+
+ClassLabel = typing.Union[str, int]
 
 
 class TreeEnsembleClassifierTranslator(Translator):
@@ -54,14 +56,15 @@ class TreeEnsembleClassifierTranslator(Translator):
         optimizer = self._optimizer
         ensemble_trees = build_tree(self)
 
-        classlabels = self._attributes.get(
+        raw_classlabels = self._attributes.get(
             "classlabels_strings"
         ) or self._attributes.get("classlabels_int64s")
-        if classlabels is None:
+        if raw_classlabels is None:
             raise ValueError("Unable to detect classlabels for classification")
-        output_classlabels = classlabels = typing.cast(
-            typing.Union[list[str], list[int]], classlabels
+        classlabels: list[ClassLabel] = list(
+            typing.cast(typing.Sequence[ClassLabel], raw_classlabels)
         )
+        output_classlabels: list[ClassLabel] = list(classlabels)
 
         # ONNX treats binary classification as a special case:
         # https://github.com/microsoft/onnxruntime/blob/5982430af66f52a288cb8b2181e0b5b2e09118c8/onnxruntime/core/providers/cpu/ml/tree_ensemble_common.h#L854C1-L871C4
@@ -74,19 +77,9 @@ class TreeEnsembleClassifierTranslator(Translator):
             # In this case there is only one label, the first one
             # which actually acts as the score of the prediction.
             # When > 0.5 then class 1, when < 0.5 then class 0
-            classlabels = typing.cast(
-                typing.Union[list[str], list[int]], [classlabels[0]]
-            )
+            classlabels = [classlabels[0]]
 
-        if isinstance(input_expr, VariablesGroup):
-            ordered_features = input_expr.values_value()
-        else:
-            ordered_features = typing.cast(list[ibis.Value], [input_expr])
-        ordered_features = [
-            feature.name(self.variable_unique_short_alias("tcl"))
-            for feature in ordered_features
-        ]
-        ordered_features = self.preserve(*ordered_features)
+        condition_creator = BranchConditionCreator(self, input_expr)
 
         def build_tree_case(node: dict) -> dict[typing.Union[str, int], ibis.Expr]:
             # Leaf node, return the votes
@@ -99,8 +92,7 @@ class TreeEnsembleClassifierTranslator(Translator):
                 }
 
             # Branch node, build a CASE statement
-            feature_expr = ordered_features[node["feature_id"]]
-            condition = mode_to_condition(node, feature_expr)
+            condition = condition_creator.create_condition(node)
 
             true_votes = build_tree_case(node["true"])
             false_votes = build_tree_case(node["false"])
@@ -115,7 +107,7 @@ class TreeEnsembleClassifierTranslator(Translator):
             return votes
 
         # Generate the votes for each tree
-        tree_votes = []
+        tree_votes: list[dict[ClassLabel, ibis.Expr]] = []
         for tree in ensemble_trees.values():
             tree_votes.append(build_tree_case(tree))
 
@@ -126,15 +118,22 @@ class TreeEnsembleClassifierTranslator(Translator):
             base_values = [0.0] * len(classlabels)
 
         # Aggregate votes from all trees.
-        total_votes = {}
+        total_votes: dict[ClassLabel, ibis.Expr] = {}
         for i, clslabel in enumerate(classlabels):
-            clslabel = typing.cast(typing.Union[str, int], clslabel)
             # Initialize with base value if available, otherwise 0.0
             total_votes[clslabel] = ibis.literal(base_values[i])
             for votes in tree_votes:
                 total_votes[clslabel] = optimizer.fold_operation(
                     total_votes[clslabel] + votes.get(clslabel, ibis.literal(0.0))
                 )
+        # Preserve the aggregated votes once so that downstream expressions can reuse the aliases.
+        vote_aliases = [
+            total_votes[clslabel].name(self.variable_unique_short_alias("vte"))
+            for clslabel in classlabels
+        ]
+        preserved_votes = self.preserve(*vote_aliases)
+        for clslabel, preserved_expr in zip(classlabels, preserved_votes):
+            total_votes[clslabel] = preserved_expr
 
         # Compute prediction of class itself.
         if is_binary:

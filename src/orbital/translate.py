@@ -126,11 +126,17 @@ def translate(
 ) -> ibis.Table:
     """Translate a pipeline into an Ibis expression.
 
-    This function takes a pipeline and a table and translates the pipeline
-    into an Ibis expression applied to the table.
+    Converts the provided ``orbital.ast.ParsedPipeline`` into an Ibis
+    expression that reproduces the same transformations. The expression can be
+    executed directly or further composed before exporting to SQL.
 
-    It is possible to further chain operations on the result
-    to allow post processing of the prediction.
+    :param table: Source ibis table used as the translation input.
+    :param pipeline: Parsed pipeline to be translated.
+    :param projection: Optional result projection helper.
+    :param allow_text_tensors: When ``False`` (default) skip ONNX casts that
+        promote numeric/bool tensors to strings solely to coexist with
+        passthrough text features. Set to ``True`` to preserve the casts
+        exactly as exported.
     """
     optimizer = Optimizer(enabled=True)
     options = TranslationOptions(allow_text_tensors=allow_text_tensors)

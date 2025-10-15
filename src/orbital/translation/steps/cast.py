@@ -47,6 +47,12 @@ class CastTranslator(Translator):
             self._options.allow_text_tensors is False
             and target_type == ibis.expr.datatypes.string
         ):
+            # When sklearn2onnx needs to concatenate features into a single tensor
+            # it homogenizes their dtype (e.g. casts numeric target-encoder output to
+            # string so it can sit alongside passthrough string columns). Besides being
+            # redundant for SQL consumers, promoting one column to text forces the whole
+            # encoded block to become text as well, so we drop it unless the caller
+            # explicitly opts in.
             if isinstance(expr, VariablesGroup):
                 if all(_is_numeric_or_bool(expr.as_value(k)) for k in expr):
                     self.set_output(expr)

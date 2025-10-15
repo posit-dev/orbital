@@ -39,6 +39,7 @@ def export_sql(
     dialect: str = "duckdb",
     projection: ResultsProjection = ResultsProjection(),
     optimize: bool = True,
+    allow_text_tensors: bool = False,
 ) -> str:
     """Export SQL for a given pipeline.
 
@@ -65,7 +66,12 @@ def export_sql(
             "Projection is empty. Please provide a projection to export SQL."
         )
 
-    ibis_expr = translate(unbound_table, pipeline, projection=projection)
+    ibis_expr = translate(
+        unbound_table,
+        pipeline,
+        projection=projection,
+        allow_text_tensors=allow_text_tensors,
+    )
     sqlglot_expr = getattr(sc, dialect).compiler.to_sqlglot(ibis_expr)
 
     if optimize:

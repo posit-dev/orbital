@@ -7,6 +7,7 @@ import pytest
 from orbital.translation.steps.softmax import SoftmaxTranslator
 from orbital.translation.variables import GraphVariables, NumericVariablesGroup
 from orbital.translation.optimizer import Optimizer
+from orbital.translation.options import TranslationOptions
 
 
 class TestSoftmaxTranslator:
@@ -23,7 +24,9 @@ class TestSoftmaxTranslator:
 
         variables = GraphVariables(table, model)
 
-        translator = SoftmaxTranslator(table, model.node[0], variables, self.optimizer)
+        translator = SoftmaxTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
         translator.process()
 
         assert "output" in variables
@@ -62,7 +65,11 @@ class TestSoftmaxTranslator:
         )
 
         translator = SoftmaxTranslator(
-            multi_table, model.node[0], variables, self.optimizer
+            multi_table,
+            model.node[0],
+            variables,
+            self.optimizer,
+            TranslationOptions(),
         )
         translator.process()
 
@@ -102,7 +109,9 @@ class TestSoftmaxTranslator:
 
         variables = GraphVariables(table, model)
 
-        translator = SoftmaxTranslator(table, model.node[0], variables, self.optimizer)
+        translator = SoftmaxTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
 
         with pytest.raises(
             ValueError, match="SoftmaxTranslator supports only axis=-1 or axis=1"
@@ -123,7 +132,9 @@ class TestSoftmaxTranslator:
         # Intentionally set invalid input type to test error handling
         variables["input"] = "invalid_string_input"  # type: ignore[assignment]
 
-        translator = SoftmaxTranslator(table, model.node[0], variables, self.optimizer)
+        translator = SoftmaxTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
 
         with pytest.raises(
             ValueError, match="Softmax: The first operand must be a numeric column"
@@ -148,7 +159,9 @@ class TestSoftmaxTranslator:
             }
         )
 
-        translator = SoftmaxTranslator(table, model.node[0], variables, self.optimizer)
+        translator = SoftmaxTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
 
         translator.process()
 

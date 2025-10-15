@@ -39,7 +39,9 @@ class ParsedPipeline:
 
     @classmethod
     def _from_onnx_model(
-        cls, model: _onnx.ModelProto, features: FeaturesTypes
+        cls,
+        model: _onnx.ModelProto,
+        features: FeaturesTypes,
     ) -> "ParsedPipeline":
         """Create a [orbital.ast.ParsedPipeline][] from an ONNX model.
 

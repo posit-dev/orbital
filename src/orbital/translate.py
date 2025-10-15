@@ -7,6 +7,7 @@ import ibis
 
 from .ast import ParsedPipeline
 from .translation.optimizer import Optimizer
+from .translation.options import TranslationOptions
 from .translation.steps.add import AddTranslator
 from .translation.steps.argmax import ArgMaxTranslator
 from .translation.steps.arrayfeatureextractor import ArrayFeatureExtractorTranslator
@@ -120,6 +121,8 @@ def translate(
     table: ibis.Table,
     pipeline: ParsedPipeline,
     projection: ResultsProjection = ResultsProjection(),
+    *,
+    allow_text_tensors: bool = False,
 ) -> ibis.Table:
     """Translate a pipeline into an Ibis expression.
 
@@ -130,6 +133,7 @@ def translate(
     to allow post processing of the prediction.
     """
     optimizer = Optimizer(enabled=True)
+    options = TranslationOptions(allow_text_tensors=allow_text_tensors)
     features = {colname: table[colname] for colname in table.columns}
     variables = GraphVariables(features, pipeline._model.graph)
     nodes = list(pipeline._model.graph.node)
@@ -137,7 +141,7 @@ def translate(
         op_type = node.op_type
         if op_type not in TRANSLATORS:
             raise NotImplementedError(f"Translation for {op_type} not implemented")
-        translator = TRANSLATORS[op_type](table, node, variables, optimizer)  # type: ignore[abstract]
+        translator = TRANSLATORS[op_type](table, node, variables, optimizer, options)  # type: ignore[abstract]
         _log_debug_start(translator, variables)
         translator.process()
         table = translator.mutated_table  # Translator might return a new table.

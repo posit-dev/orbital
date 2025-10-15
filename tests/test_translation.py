@@ -1,6 +1,7 @@
 import ibis
 import onnx
 
+from orbital.translation.options import TranslationOptions
 from orbital.translation.translator import Translator
 from orbital.translation.variables import GraphVariables
 
@@ -38,5 +39,7 @@ class TestGraphVariables:
 class TestTranslator:
     def test_creation(self):
         variables = GraphVariables(BASIC_TABLE, BASIC_MODEL)
-        translator = FakeTranslator(None, BASIC_MODEL.node[0], variables, None)
+        translator = FakeTranslator(
+            None, BASIC_MODEL.node[0], variables, None, TranslationOptions()
+        )
         assert translator._attributes == {"alpha": 0.5}

@@ -8,6 +8,7 @@ import onnx
 
 from .._utils import onnx as onnx_utils
 from .optimizer import Optimizer
+from .options import TranslationOptions
 from .variables import GraphVariables, VariablesGroup
 
 
@@ -23,6 +24,7 @@ class Translator(abc.ABC):
         node: onnx.NodeProto,
         variables: GraphVariables,
         optimizer: Optimizer,
+        options: TranslationOptions,
     ) -> None:
         """
         :param table: The table the generated query should target.
@@ -34,6 +36,7 @@ class Translator(abc.ABC):
         self._variables = variables
         self._node = node
         self._optimizer = optimizer
+        self._options = options
         self._inputs = node.input
         self._outputs = node.output
         self._attributes = {

@@ -33,6 +33,34 @@ class CastTranslator(Translator):
             raise NotImplementedError(f"Cast: type {to_type} not supported")
 
         target_type = ONNX_TYPES_TO_IBIS[to_type]
+
+        def _is_numeric_or_bool(value: ibis.Value) -> bool:
+            vtype = value.type()
+            return (
+                hasattr(vtype, "is_numeric")
+                and vtype.is_numeric()
+                or hasattr(vtype, "is_boolean")
+                and vtype.is_boolean()
+            )
+
+        if (
+            self._options.allow_text_tensors is False
+            and target_type == ibis.expr.datatypes.string
+        ):
+            # When sklearn2onnx needs to concatenate features into a single tensor
+            # it homogenizes their dtype (e.g. casts numeric target-encoder output to
+            # string so it can sit alongside passthrough string columns). Besides being
+            # redundant for SQL consumers, promoting one column to text forces the whole
+            # encoded block to become text as well, so we drop it unless the caller
+            # explicitly opts in.
+            if isinstance(expr, VariablesGroup):
+                if all(_is_numeric_or_bool(expr.as_value(k)) for k in expr):
+                    self.set_output(expr)
+                    return
+            elif isinstance(expr, ibis.Value) and _is_numeric_or_bool(expr):
+                self.set_output(expr)
+                return
+
         if isinstance(expr, VariablesGroup):
             casted = ValueVariablesGroup(
                 {

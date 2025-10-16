@@ -7,6 +7,7 @@ import ibis
 
 from .ast import ParsedPipeline
 from .translation.optimizer import Optimizer
+from .translation.options import TranslationOptions
 from .translation.steps.add import AddTranslator
 from .translation.steps.argmax import ArgMaxTranslator
 from .translation.steps.arrayfeatureextractor import ArrayFeatureExtractorTranslator
@@ -120,16 +121,25 @@ def translate(
     table: ibis.Table,
     pipeline: ParsedPipeline,
     projection: ResultsProjection = ResultsProjection(),
+    *,
+    allow_text_tensors: bool = False,
 ) -> ibis.Table:
     """Translate a pipeline into an Ibis expression.
 
-    This function takes a pipeline and a table and translates the pipeline
-    into an Ibis expression applied to the table.
+    Converts the provided ``orbital.ast.ParsedPipeline`` into an Ibis
+    expression that reproduces the same transformations. The expression can be
+    executed directly or further composed before exporting to SQL.
 
-    It is possible to further chain operations on the result
-    to allow post processing of the prediction.
+    :param table: Source ibis table used as the translation input.
+    :param pipeline: Parsed pipeline to be translated.
+    :param projection: Optional result projection helper.
+    :param allow_text_tensors: When ``False`` (default) skip ONNX casts that
+        promote numeric/bool tensors to strings solely to coexist with
+        passthrough text features. Set to ``True`` to preserve the casts
+        exactly as exported.
     """
     optimizer = Optimizer(enabled=True)
+    options = TranslationOptions(allow_text_tensors=allow_text_tensors)
     features = {colname: table[colname] for colname in table.columns}
     variables = GraphVariables(features, pipeline._model.graph)
     nodes = list(pipeline._model.graph.node)
@@ -137,7 +147,7 @@ def translate(
         op_type = node.op_type
         if op_type not in TRANSLATORS:
             raise NotImplementedError(f"Translation for {op_type} not implemented")
-        translator = TRANSLATORS[op_type](table, node, variables, optimizer)  # type: ignore[abstract]
+        translator = TRANSLATORS[op_type](table, node, variables, optimizer, options)  # type: ignore[abstract]
         _log_debug_start(translator, variables)
         translator.process()
         table = translator.mutated_table  # Translator might return a new table.
@@ -178,7 +188,9 @@ def _log_debug_start(translator: Translator, variables: GraphVariables) -> None:
         value: typing.Any = None
         if (feature_value := translator._variables.peek_variable(inp)) is not None:
             value = type(feature_value)
-        elif initializer := translator._variables.get_initializer_value(inp):
+        elif (
+            initializer := translator._variables.get_initializer_value(inp)
+        ) is not None:
             value = initializer
         else:
             raise ValueError(

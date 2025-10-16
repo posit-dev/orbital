@@ -30,9 +30,7 @@ class TestOptimizerFold:
         table = ibis.memtable({"a": [1.0], "b": [2.0]})
         a_col = table["a"]
         b_col = table["b"]
-        result = self.optimizer.fold_contiguous_sum(
-            [a_col, ibis.literal(5), b_col]
-        )
+        result = self.optimizer.fold_contiguous_sum([a_col, ibis.literal(5), b_col])
         assert len(result) == 3
         assert result[0] is a_col
         assert result[1] is b_col
@@ -70,9 +68,7 @@ class TestOptimizerFold:
         table = ibis.memtable({"a": [1.0], "b": [2.0]})
         a_col = table["a"]
         b_col = table["b"]
-        result = self.optimizer.fold_contiguous_product(
-            [a_col, ibis.literal(4), b_col]
-        )
+        result = self.optimizer.fold_contiguous_product([a_col, ibis.literal(4), b_col])
         assert len(result) == 3
         assert result[0] is a_col
         assert result[1] is b_col
@@ -91,3 +87,11 @@ class TestOptimizerFold:
             self.optimizer._fold_associative_op_contiguous(
                 [ibis.literal(1), ibis.literal(2)], operator.sub
             )
+
+    def test_fold_cast_merges_nested_casts(self):
+        table = ibis.memtable({"a": [1.0]})
+        expr = table["a"].cast("float32").cast("string")
+        folded = self.optimizer.fold_cast(expr)
+        assert isinstance(folded.op(), ibis.expr.operations.Cast)
+        assert not isinstance(folded.op().arg, ibis.expr.operations.Cast)
+        assert folded.type().is_string()

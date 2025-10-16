@@ -1,10 +1,12 @@
+import ibis
 import onnx
 import pandas as pd
 import pytest
 from sklearn.datasets import load_iris
+from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, TargetEncoder
 
 import orbital
 from orbital import types
@@ -137,3 +139,115 @@ class TestSQLExport:
         )
         assert 'AS "variable.target_0"' in unoptimized_sql
         assert '"t0"."ID"' in unoptimized_sql
+
+    def test_target_encoder_multiple_columns(self):
+        df = pd.DataFrame(
+            {
+                "a": ["a"] * 5 + ["b"] * 5,
+                "x": ["a"] * 5 + ["b"] * 5,
+            }
+        )
+        y = [1] * 4 + [0] * 5 + [1]
+
+        pipeline = Pipeline(
+            [
+                (
+                    "encoder",
+                    ColumnTransformer(
+                        [("te", TargetEncoder(), ["a", "x"])], remainder="passthrough"
+                    ),
+                )
+            ]
+        )
+        pipeline.fit(df, y)
+
+        features = {name: types.StringColumnType() for name in df.columns}
+        parsed_pipeline = orbital.parse_pipeline(pipeline, features=features)
+
+        sql = orbital.export_sql(
+            "data", parsed_pipeline, dialect="duckdb", allow_text_tensors=False
+        )
+        assert '"variable.ordinal_output"' in sql
+        assert '"variable.ordinal_output1"' in sql
+
+    def test_target_encoder_outputs_numeric_values(self):
+        df = pd.DataFrame(
+            {
+                "a": ["a"] * 5 + ["b"] * 5,
+                "x": ["a"] * 5 + ["b"] * 5,
+            }
+        )
+        y = [1] * 4 + [0] * 5 + [1]
+
+        pipeline = Pipeline(
+            [
+                (
+                    "encoder",
+                    ColumnTransformer(
+                        [("te", TargetEncoder(), ["a"])], remainder="passthrough"
+                    ),
+                )
+            ]
+        )
+        pipeline.fit(df, y)
+
+        features = {name: types.StringColumnType() for name in df.columns}
+        parsed_pipeline = orbital.parse_pipeline(pipeline, features=features)
+
+        unbound_table = ibis.table(
+            {
+                fname: ftype._to_ibistype()
+                for fname, ftype in parsed_pipeline.features.items()
+            },
+            name="data",
+        )
+        translated = orbital.translate(
+            unbound_table, parsed_pipeline, allow_text_tensors=False
+        )
+        schema = translated.schema()
+        dtype = schema["transformed_column.variable_cast.ordinal_output"]
+        assert dtype.is_numeric()
+
+        sql = orbital.export_sql(
+            "data", parsed_pipeline, dialect="duckdb", allow_text_tensors=False
+        )
+        assert "AS TEXT" not in sql
+
+    def test_allow_text_tensors_toggle(self):
+        model = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                nodes=[
+                    onnx.helper.make_node(
+                        "Cast",
+                        inputs=["input"],
+                        outputs=["casted"],
+                        name="string_cast",
+                        to=onnx.TensorProto.STRING,
+                    )
+                ],
+                name="cast_graph",
+                inputs=[
+                    onnx.helper.make_tensor_value_info(
+                        "input", onnx.TensorProto.FLOAT, [None, 1]
+                    )
+                ],
+                outputs=[
+                    onnx.helper.make_tensor_value_info(
+                        "casted", onnx.TensorProto.STRING, [None, 1]
+                    )
+                ],
+            )
+        )
+
+        features = {"input": types.FloatColumnType()}
+        parsed_pipeline = ParsedPipeline._from_onnx_model(model, features)
+
+        sql_numeric = orbital.export_sql(
+            "data", parsed_pipeline, dialect="duckdb", allow_text_tensors=False
+        )
+        assert "CAST(" not in sql_numeric
+
+        sql_text = orbital.export_sql(
+            "data", parsed_pipeline, dialect="duckdb", allow_text_tensors=True
+        )
+        assert "CAST(" in sql_text and "AS TEXT" in sql_text

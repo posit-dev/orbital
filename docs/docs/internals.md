@@ -10,6 +10,8 @@
 
 ::: orbital.translation.optimizer
 
+::: orbital.translation.options
+
 ::: orbital.ast
     options:
         members:

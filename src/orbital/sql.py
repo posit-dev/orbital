@@ -39,19 +39,27 @@ def export_sql(
     dialect: str = "duckdb",
     projection: ResultsProjection = ResultsProjection(),
     optimize: bool = True,
+    allow_text_tensors: bool = False,
 ) -> str:
     """Export SQL for a given pipeline.
 
-    Given a orbital pipeline, this function generates a SQL query that can be
-    used to execute the pipeline on a database. The generated SQL is compatible
-    with the specified SQL dialect.
+    Generates a SQL statement equivalent to the provided pipeline for the
+    requested dialect. The statement can be executed directly on a database
+    that exposes a table matching ``table_name``. Dialect names correspond to
+    those listed in ``sqlglot.dialects.DIALECTS``.
 
-    `dialect` can be any of the SQL dialects supported by sqlglot,
-    see `sqlglot.dialects.DIALECTS` for a complete list of supported dialects.
+    If ``optimize`` is ``True`` the statement is post-processed by sqlglot's
+    optimizer, which often produces more compact SQL but may fail on complex
+    expressions.
 
-    If `optimize` is set to True, the SQL query will be optimized using
-    sqlglot's optimizer. This can improve performance, but may fail if
-    the query is complex.
+    :param table_name: Name of the source table used in generated SQL.
+    :param pipeline: Parsed pipeline to export.
+    :param dialect: Target SQL dialect (any supported by sqlglot).
+    :param projection: Optional result projection helper.
+    :param optimize: Whether to run the sqlglot optimizer (default ``True``).
+    :param allow_text_tensors: Forwarded to [orbital.translate.translate][]; controls whether
+        numeric/bool tensors coerced to text in ONNX should remain text in the
+        resulting SQL. Defaults to ``False`` to keep encoded columns numeric.
     """
     unbound_table = ibis.table(
         schema={
@@ -65,7 +73,12 @@ def export_sql(
             "Projection is empty. Please provide a projection to export SQL."
         )
 
-    ibis_expr = translate(unbound_table, pipeline, projection=projection)
+    ibis_expr = translate(
+        unbound_table,
+        pipeline,
+        projection=projection,
+        allow_text_tensors=allow_text_tensors,
+    )
     sqlglot_expr = getattr(sc, dialect).compiler.to_sqlglot(ibis_expr)
 
     if optimize:

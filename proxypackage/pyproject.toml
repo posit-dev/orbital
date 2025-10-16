@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orbitalml"
-version = "0.2.2"
+version = "0.3.0"
 description = "Machine Learning pipeline to SQL converter (proxy for orbital)"
 authors = [
   { name = "Alessandro Molina", email = "alessandro.molina@posit.co" },
@@ -26,7 +26,7 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-    "orbital==0.2.2",
+    "orbital==0.3.0",
 ]
 
 [project.urls]

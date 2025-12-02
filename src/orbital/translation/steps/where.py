@@ -50,7 +50,7 @@ class WhereTranslator(Translator):
                 true_values, false_values, itertools.count()
             ):
                 result[f"c{idx}"] = self._optimizer.fold_case(
-                    ibis.case().when(condition_expr, true_val).else_(false_val).end()
+                    ibis.cases((condition_expr, true_val), else_=false_val)
                 )
         elif isinstance(true_expr, VariablesGroup) and not isinstance(
             false_expr, VariablesGroup
@@ -58,7 +58,7 @@ class WhereTranslator(Translator):
             result = ValueVariablesGroup()
             for idx, true_val in enumerate(true_expr.values()):
                 result[f"c{idx}"] = self._optimizer.fold_case(
-                    ibis.case().when(condition_expr, true_val).else_(false_expr).end()
+                    ibis.cases((condition_expr, true_val), else_=false_expr)
                 )
         elif not isinstance(true_expr, VariablesGroup) and isinstance(
             false_expr, VariablesGroup
@@ -66,11 +66,11 @@ class WhereTranslator(Translator):
             result = ValueVariablesGroup()
             for idx, false_val in enumerate(false_expr.values()):
                 result[f"c{idx}"] = self._optimizer.fold_case(
-                    ibis.case().when(condition_expr, true_expr).else_(false_val).end()
+                    ibis.cases((condition_expr, true_expr), else_=false_val)
                 )
         else:
             result = self._optimizer.fold_case(
-                ibis.case().when(condition_expr, true_expr).else_(false_expr).end()
+                ibis.cases((condition_expr, true_expr), else_=false_expr)
             )
 
         self.set_output(result)

@@ -115,7 +115,7 @@ print(f"Predictions: {sklearn_predictions}")
 print(f"Probabilities: {sklearn_probabilities}")
 
 print("\nPrediction with Ibis")
-ibis_table = ibis.memtable(data_sample, name="DATA_TABLE")
+ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
 ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
 ibis_result = con.execute(ibis_expression)
 print(ibis_result)

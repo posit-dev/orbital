@@ -54,10 +54,16 @@ class ArgMaxTranslator(Translator):
             )
 
         keys = list(data.keys())
+        if len(keys) == 0:
+            raise ValueError("ArgMaxTranslator requires at least one column")
+
+        if len(keys) == 1:
+            self.set_output(data[keys[0]])
+            return
 
         # Generate a CASE THEN ELSE expression to find
         # which out of all the columns has the maximum value.
-        case_expr = ibis.case()
+        cases: list[tuple[ibis.Expr, int]] = []
         for idx, key in enumerate(keys):
             cond = None
             # Compare the current column with all other columns
@@ -73,7 +79,7 @@ class ArgMaxTranslator(Translator):
                     else data[key] >= data[other]
                 )
                 cond = cmp_expr if cond is None else cond & cmp_expr
-            case_expr = case_expr.when(cond, idx)
-        argmax_expr = case_expr.else_(0).end()
+            cases.append((cond, idx))
+        argmax_expr = ibis.cases(*cases, else_=0)
 
         self.set_output(argmax_expr)

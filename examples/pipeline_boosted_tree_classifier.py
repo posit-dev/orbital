@@ -132,7 +132,7 @@ target = model.predict(data_sample)
 print(target)
 
 print("\nPrediction with Ibis")
-ibis_table = ibis.memtable(data_sample, name="DATA_TABLE")
+ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
 ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
 ibis_target = con.execute(ibis_expression)
 print(ibis_target)

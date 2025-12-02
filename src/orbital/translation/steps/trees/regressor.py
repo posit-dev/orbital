@@ -59,7 +59,7 @@ class TreeEnsembleRegressorTranslator(Translator):
             true_val = build_tree_value(node["true"])
             false_val = build_tree_value(node["false"])
             case_expr = optimizer.fold_case(
-                ibis.case().when(condition, true_val).else_(false_val).end()
+                ibis.cases((condition, true_val), else_=false_val)
             )
             return case_expr
 

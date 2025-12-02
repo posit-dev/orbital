@@ -1,6 +1,6 @@
 # Welcome to Orbital
 
-![Orbital](images/orbital_logo.png){ align=left width=52 }
+![Orbital](images/orbital_logo.png){ align=left width=128 }
 
 Orbital lets you convert scikit-learn pipelines into pure SQL, 
 allowing execution of machine learning models directly in your database, 

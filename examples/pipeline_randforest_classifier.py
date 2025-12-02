@@ -81,7 +81,7 @@ if PRINT_SQL:
     print(con.raw_sql(sql).fetchall())
 
 print("\nPrediction with Ibis")
-ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
+ibis_table = ibis.memtable(example_data).alias("DATA_TABLE")
 ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
 ibis_target = con.execute(ibis_expression)
 print(ibis_target)

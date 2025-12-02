@@ -106,7 +106,7 @@ target = pipeline.predict(test_df)
 print(target)
 
 print("\nPrediction with Ibis")
-ibis_table = ibis.memtable(example_data, name="DATA_TABLE")
+ibis_table = ibis.memtable(example_data).alias("DATA_TABLE")
 ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
 ibis_target = con.execute(ibis_expression)["variable"].to_numpy()
 print(ibis_target)

@@ -4,7 +4,7 @@ repo_name: posit-dev/orbital
 repo_url: https://github.com/posit-dev/orbital
 theme:
   name: material
-  logo: images/orbital_white.png
+  logo: images/orbital_logo.png
   font:
     text: Source Sans Pro
     code: Source Code Pro

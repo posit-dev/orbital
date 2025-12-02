@@ -52,6 +52,10 @@ body {
   box-shadow: none;
 }
 
+.md-header__title {
+  margin-left: 0 !important;
+}
+
 .md-header__title,
 .md-tabs__link {
   color: var(--orbital-text);

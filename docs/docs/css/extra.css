@@ -1,4 +1,141 @@
-.doc-heading .doc-object-name {
-  font-size: 1.2em;
-  color: var(--md-mermaid-node-fg-color);
+@import url("https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600&family=Source+Code+Pro:wght@400&display=swap");
+
+:root {
+  --orbital-primary: #ca225e;
+  --orbital-primary-hover: #a21b4b;
+  --orbital-bg: #fcfcfc;
+  --orbital-bg-muted: #f9f9f9;
+  --orbital-border: #efefef;
+  --orbital-text: #2e3a45;
+  --orbital-heading: #3e3848;
+  --orbital-gray-100: #e5e6e8;
+  --orbital-gray-200: #ced1d3;
+  --orbital-gray-300: #b7bbbf;
+  --orbital-gray-500: #8a9096;
+  --orbital-gray-600: #737a82;
+
+  --md-primary-fg-color: var(--orbital-primary);
+  --md-primary-fg-color--light: #eaa7bf;
+  --md-primary-fg-color--dark: var(--orbital-primary-hover);
+  --md-accent-fg-color: var(--orbital-primary);
+  --md-accent-bg-color: var(--orbital-bg);
+  --md-default-bg-color: var(--orbital-bg);
+  --md-default-bg-color--light: var(--orbital-bg-muted);
+  --md-default-fg-color: var(--orbital-text);
+  --md-default-fg-color--light: #5c656e;
+  --md-default-fg-color--lighter: var(--orbital-gray-600);
+  --md-default-fg-color--lightest: #a0a6ab;
+  --md-typeset-color: var(--orbital-text);
+  --md-typeset-a-color: var(--orbital-primary);
+  --md-typeset-a-hover-color: var(--orbital-primary-hover);
+  --md-code-bg-color: #f1f1f1;
+  --md-code-fg-color: #003b4f;
+}
+
+html {
+  font-size: 24px;
+}
+
+body {
+  background-color: var(--orbital-bg);
+  color: var(--orbital-text);
+  font-family: "Source Sans Pro", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.md-header,
+.md-tabs {
+  background-color: var(--orbital-bg-muted);
+  border-bottom: 1px solid var(--orbital-border);
+  color: var(--orbital-text);
+  box-shadow: none;
+}
+
+.md-header__title,
+.md-tabs__link {
+  color: var(--orbital-text);
+}
+
+.md-tabs__link:hover,
+.md-tabs__link--active {
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4,
+.md-typeset h5,
+.md-typeset h6 {
+  color: var(--orbital-heading);
+  font-weight: 500;
+}
+
+.md-typeset a {
+  text-decoration: underline;
+}
+
+.md-typeset a:hover {
+  color: var(--orbital-primary-hover);
+}
+
+.md-typeset blockquote {
+  border-left: 0.25rem solid var(--orbital-gray-200);
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+}
+
+.md-typeset mark {
+  background: linear-gradient(
+    -135deg,
+    rgba(237, 187, 205, 0.2),
+    rgba(237, 187, 205, 0.7) 95%,
+    rgba(237, 187, 205, 0.1)
+  );
+}
+
+.md-typeset pre,
+.md-typeset code {
+  background: linear-gradient(-160deg, #f8f8f8 0%, #f1f1f1 100%);
+  border: none;
+}
+
+.md-typeset code {
+  color: var(--md-code-fg-color);
+  font-family: "Source Code Pro", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+}
+
+.md-typeset pre {
+  color: var(--md-code-fg-color);
+  font-size: 0.85em;
+  max-height: 500px;
+  overflow: auto;
+}
+
+.md-typeset pre code {
+  background: transparent;
+}
+
+.md-typeset table {
+  display: block;
+  overflow: auto;
+}
+
+.md-typeset img {
+  max-width: 100%;
+  height: auto;
+}
+
+.md-typeset li {
+  margin-bottom: 0.25rem;
+}
+
+.md-typeset ul ul,
+.md-typeset ol ol,
+.md-typeset ul ol,
+.md-typeset ol ul {
+  margin: 0.5rem 0;
 }

@@ -79,7 +79,6 @@ dev-dependencies = [
     "mkdocs-material",
     "mkdocstrings[python]",
     "pydot",
-    "onnxruntime",
     "onnxscript",
     "sqlalchemy",
     "psycopg2-binary",

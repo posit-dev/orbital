@@ -6,7 +6,8 @@ theme:
   name: material
   logo: images/orbital_white.png
   font:
-    text: Roboto
+    text: Source Sans Pro
+    code: Source Code Pro
 extra_css:
     - css/extra.css
 plugins:

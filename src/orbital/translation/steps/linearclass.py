@@ -83,10 +83,10 @@ class LinearClassifierTranslator(Translator):
         )
 
         max_score = ibis.greatest(*scores_struct.values())
-        predictions = ibis.case()
-        for label, score in scores_struct.items():
-            predictions = predictions.when(score == max_score, label)
-        predictions = predictions.end()
+        predictions = ibis.cases(
+            *((score == max_score, label) for label, score in scores_struct.items()),
+            else_=ibis.null(),
+        )
 
         self.set_output(predictions, index=0)
         self.set_output(scores_struct, index=1)

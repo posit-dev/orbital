@@ -78,10 +78,10 @@ class ArrayFeatureExtractorTranslator(Translator):
                     "ArrayFeatureExtractor expects a column as indices when picking from a group of values."
                 )
 
-            case_expr = ibis.case()
-            for i, col in enumerate(data):
-                case_expr = case_expr.when(indices == i, col)
-            result = case_expr.else_(ibis.null()).end()
+            result = ibis.cases(
+                *((indices == i, col) for i, col in enumerate(data)),
+                else_=ibis.null(),
+            )
         else:
             raise NotImplementedError(
                 "ArrayFeatureExtractor only supports column groups or lists of constants as input."

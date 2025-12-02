@@ -63,10 +63,10 @@ class LabelEncoderTranslator(Translator):
                     f"LabelEncoder: unsupported values attribute type: {mapping_values}"
                 )
 
-        case_expr = ibis.case()
-        for k, v in zip(mapping_keys, mapping_values):
-            case_expr = case_expr.when(input_values == k, v)
-        case_expr = case_expr.else_(default).end()
+        case_expr = ibis.cases(
+            *((input_values == k, v) for k, v in zip(mapping_keys, mapping_values)),
+            else_=default,
+        )
 
         if not isinstance(case_expr, ibis.Value):
             raise NotImplementedError("Deferred case expression not supported")

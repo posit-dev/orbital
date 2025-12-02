@@ -102,7 +102,7 @@ class TreeEnsembleClassifierTranslator(Translator):
                 t_val = true_votes[clslabel]
                 f_val = false_votes[clslabel]
                 votes[clslabel] = optimizer.fold_case(
-                    ibis.case().when(condition, t_val).else_(f_val).end()
+                    ibis.cases((condition, t_val), else_=f_val)
                 )
             return votes
 
@@ -150,10 +150,10 @@ class TreeEnsembleClassifierTranslator(Translator):
                 )
 
             label_expr = optimizer.fold_case(
-                ibis.case()
-                .when(total_score > 0.5, output_classlabels[1])
-                .else_(output_classlabels[0])
-                .end()
+                ibis.cases(
+                    (total_score > 0.5, output_classlabels[1]),
+                    else_=output_classlabels[0],
+                )
             )
             # The order of variables matters, so class 0 must be first,
             # for ONNX the VariableGroup is a list of subvariables
@@ -169,22 +169,25 @@ class TreeEnsembleClassifierTranslator(Translator):
             candidate_vote = total_votes[candidate_cls]
             for clslabel in classlabels[1:]:
                 candidate_cls = optimizer.fold_case(
-                    ibis.case()
-                    .when(total_votes[clslabel] > candidate_vote, clslabel)
-                    .else_(candidate_cls)
-                    .end()
+                    ibis.cases(
+                        (total_votes[clslabel] > candidate_vote, clslabel),
+                        else_=candidate_cls,
+                    )
                 )
                 candidate_vote = optimizer.fold_case(
-                    ibis.case()
-                    .when(total_votes[clslabel] > candidate_vote, total_votes[clslabel])
-                    .else_(candidate_vote)
-                    .end()
+                    ibis.cases(
+                        (
+                            total_votes[clslabel] > candidate_vote,
+                            total_votes[clslabel],
+                        ),
+                        else_=candidate_vote,
+                    )
                 )
 
-            label_expr = ibis.case()
-            for clslabel in classlabels:
-                label_expr = label_expr.when(candidate_cls == clslabel, clslabel)
-            label_expr = label_expr.else_(ibis.null()).end()
+            label_expr = ibis.cases(
+                *((candidate_cls == clslabel, clslabel) for clslabel in classlabels),
+                else_=ibis.null(),
+            )
             label_expr = optimizer.fold_case(label_expr)
 
             post_transform = typing.cast(

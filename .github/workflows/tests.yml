@@ -39,4 +39,42 @@ jobs:
 
       - name: Run Test Suite
         run: |
-          uv run pytest -v --tb=short --disable-warnings --maxfail=1 --cov=orbital
+          uv run pytest -v --tb=short --disable-warnings --maxfail=1 --cov=orbital --cov-report=term-missing --cov-report=xml
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.13'
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+  coverage:
+    needs: tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+
+      - name: Code Coverage Summary
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage.xml
+          badge: true
+          format: markdown
+          output: both
+          thresholds: '80 90'
+          fail_below_min: true
+
+      - name: Add Coverage PR Comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        if: github.event_name == 'pull_request'
+        with:
+          path: code-coverage-results.md

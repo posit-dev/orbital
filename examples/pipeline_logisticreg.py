@@ -49,7 +49,7 @@ pipeline = Pipeline([
             ("cat", OneHotEncoder(handle_unknown="ignore"), ["petal_width_cat"])
         ]
     )),
-    ("logreg", LogisticRegression(multi_class="multinomial", solver="lbfgs", random_state=42))
+    ("logreg", LogisticRegression(solver="lbfgs", random_state=42))
 ])
 
 pipeline.fit(X, y)

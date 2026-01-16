@@ -70,7 +70,7 @@ jobs:
           badge: true
           format: markdown
           output: both
-          thresholds: '60 75'
+          thresholds: '80 90'
           fail_below_min: true
 
       - name: Add Coverage PR Comment

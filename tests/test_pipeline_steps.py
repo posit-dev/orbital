@@ -4,6 +4,7 @@ import onnx
 import ibis
 import pytest
 
+from orbital.translate import TRANSLATORS
 from orbital.translation.steps.softmax import SoftmaxTranslator
 from orbital.translation.steps.imputer import ImputerTranslator
 from orbital.translation.steps.argmax import ArgMaxTranslator
@@ -14,6 +15,40 @@ from orbital.translation.variables import (
 )
 from orbital.translation.optimizer import Optimizer
 from orbital.translation.options import TranslationOptions
+
+
+class TestStepCoverage:
+    """Verify that all registered steps have corresponding test classes."""
+
+    @pytest.mark.xfail(reason="Not all steps have tests yet, see #11 sub-issues")
+    def test_all_registered_steps_have_tests(self):
+        """Every step registered in TRANSLATORS must have a test class.
+
+        Test classes must follow the naming convention Test{OperationName}Translator.
+        This test ensures we don't forget to add tests when implementing new steps.
+        """
+        import sys
+        module = sys.modules[__name__]
+        existing_test_classes = {
+            name for name in dir(module)
+            if name.startswith("Test") and isinstance(getattr(module, name), type)
+        }
+
+        missing_tests = []
+        for operation in sorted(TRANSLATORS.keys()):
+            expected_test_class = f"Test{operation}Translator"
+            if expected_test_class not in existing_test_classes:
+                missing_tests.append((operation, expected_test_class))
+
+        if missing_tests:
+            missing_list = "\n".join(
+                f"  - {op}: {test_class}" for op, test_class in missing_tests
+            )
+            pytest.fail(
+                f"The following {len(missing_tests)} steps are missing test classes:\n"
+                f"{missing_list}\n\n"
+                f"Add a test class for each step to test_pipeline_steps.py"
+            )
 
 
 class TestSoftmaxTranslator:

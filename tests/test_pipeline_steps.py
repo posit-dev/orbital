@@ -647,6 +647,29 @@ class TestAddTranslator:
         with pytest.raises(ValueError, match="must contain exactly 1 value"):
             translator.process()
 
+    def test_add_second_operand_not_constant(self):
+        """Test AddTranslator raises error when second operand is not a constant."""
+        table = ibis.memtable(
+            {
+                "input": [1.0, 2.0, 3.0],
+                "other": [5.0, 5.0, 5.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input, float[N] other) => (float[N] output) {
+                output = Add(input, other)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+
+        translator = AddTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(NotImplementedError, match="must be a constant list"):
+            translator.process()
+
 
 class TestSubTranslator:
     optimizer = Optimizer(enabled=False)
@@ -751,6 +774,60 @@ class TestSubTranslator:
         )
 
         with pytest.raises(ValueError, match="must contain exactly 1 value"):
+            translator.process()
+
+    def test_sub_mismatched_column_count(self):
+        """Test SubTranslator raises error when column count doesn't match."""
+        table = ibis.memtable(
+            {
+                "col_a": [1.0, 2.0, 3.0],
+                "col_b": [10.0, 20.0, 30.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float[1] sub_values = {5.0}>
+            {
+                output = Sub(input, sub_values)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["col_a"],
+                "col_b": table["col_b"],
+            }
+        )
+
+        translator = SubTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(AssertionError, match="must match the number of fields"):
+            translator.process()
+
+    def test_sub_second_operand_not_constant(self):
+        """Test SubTranslator raises error when second operand is not a constant."""
+        table = ibis.memtable(
+            {
+                "input": [1.0, 2.0, 3.0],
+                "other": [5.0, 5.0, 5.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input, float[N] other) => (float[N] output) {
+                output = Sub(input, other)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+
+        translator = SubTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(NotImplementedError, match="must be a constant list"):
             translator.process()
 
 
@@ -888,6 +965,29 @@ class TestMulTranslator:
         )
 
         with pytest.raises(ValueError, match="must contain exactly 1 value"):
+            translator.process()
+
+    def test_mul_second_operand_not_constant(self):
+        """Test MulTranslator raises error when second operand is not a constant."""
+        table = ibis.memtable(
+            {
+                "input": [1.0, 2.0, 3.0],
+                "other": [5.0, 5.0, 5.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input, float[N] other) => (float[N] output) {
+                output = Mul(input, other)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+
+        translator = MulTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(NotImplementedError, match="must be a constant list"):
             translator.process()
 
 
@@ -1062,4 +1162,27 @@ class TestDivTranslator:
         )
 
         with pytest.raises(ValueError, match="must contain only one value"):
+            translator.process()
+
+    def test_div_second_operand_not_constant(self):
+        """Test DivTranslator raises error when second operand is not a constant."""
+        table = ibis.memtable(
+            {
+                "input": [1.0, 2.0, 3.0],
+                "other": [5.0, 5.0, 5.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input, float[N] other) => (float[N] output) {
+                output = Div(input, other)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+
+        translator = DivTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(NotImplementedError, match="must be a constant list"):
             translator.process()

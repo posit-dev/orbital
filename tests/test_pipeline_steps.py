@@ -8,6 +8,7 @@ from orbital.translate import TRANSLATORS
 from orbital.translation.steps.softmax import SoftmaxTranslator
 from orbital.translation.steps.imputer import ImputerTranslator
 from orbital.translation.steps.argmax import ArgMaxTranslator
+from orbital.translation.steps.add import AddTranslator
 from orbital.translation.variables import (
     GraphVariables,
     NumericVariablesGroup,
@@ -503,3 +504,140 @@ class TestArgMaxTranslator:
 
         # Just verify the translator processes without error and exercises the code path
         assert "output" in variables
+
+
+class TestAddTranslator:
+    optimizer = Optimizer(enabled=False)
+
+    def test_add_single_column(self):
+        """Test AddTranslator with a single column input."""
+        table = ibis.memtable({"input": [1.0, 2.0, 3.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float[1] add_value = {5.0}>
+            {
+                output = Add(input, add_value)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = AddTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+
+        backend = ibis.duckdb.connect()
+        computed = list(backend.execute(result))
+        assert computed == [6.0, 7.0, 8.0]
+
+    def test_add_group_columns(self):
+        """Test AddTranslator with a group of columns."""
+        table = ibis.memtable(
+            {
+                "col_a": [1.0, 2.0, 3.0],
+                "col_b": [10.0, 20.0, 30.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float[2] add_values = {5.0, 100.0}>
+            {
+                output = Add(input, add_values)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["col_a"],
+                "col_b": table["col_b"],
+            }
+        )
+
+        translator = AddTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [6.0, 7.0, 8.0]
+        assert list(backend.execute(result["col_b"])) == [110.0, 120.0, 130.0]
+
+    def test_add_invalid_non_numeric(self):
+        """Test AddTranslator raises error for non-numeric operand."""
+        table = ibis.memtable({"input": [1.0, 2.0, 3.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float[1] add_value = {5.0}>
+            {
+                output = Add(input, add_value)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        variables["input"] = "not_a_numeric_value"  # type: ignore[assignment]
+
+        translator = AddTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(ValueError, match="first operand must be a numeric value"):
+            translator.process()
+
+    def test_add_mismatched_column_count(self):
+        """Test AddTranslator raises error when column count doesn't match."""
+        table = ibis.memtable(
+            {
+                "col_a": [1.0, 2.0, 3.0],
+                "col_b": [10.0, 20.0, 30.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float[1] add_values = {5.0}>
+            {
+                output = Add(input, add_values)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["col_a"],
+                "col_b": table["col_b"],
+            }
+        )
+
+        translator = AddTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(ValueError, match="same number of values"):
+            translator.process()
+
+    def test_add_single_column_requires_single_value(self):
+        """Test AddTranslator raises error when single column given multiple values."""
+        table = ibis.memtable({"input": [1.0, 2.0, 3.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float[2] add_values = {5.0, 10.0}>
+            {
+                output = Add(input, add_values)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+
+        translator = AddTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(ValueError, match="must contain exactly 1 value"):
+            translator.process()

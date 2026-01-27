@@ -87,4 +87,6 @@ class DivTranslator(Translator):
                 )
 
             first_operand = typing.cast(ibis.expr.types.NumericValue, first_operand)
-            self.set_output(self._optimizer.fold_operation(first_operand / second_arg))
+            self.set_output(
+                self._optimizer.fold_operation(first_operand / second_arg[0])
+            )

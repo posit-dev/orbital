@@ -12,6 +12,8 @@ from orbital.translation.steps.add import AddTranslator
 from orbital.translation.steps.sub import SubTranslator
 from orbital.translation.steps.mul import MulTranslator
 from orbital.translation.steps.div import DivTranslator
+from orbital.translation.steps.identity import IdentityTranslator
+from orbital.translation.steps.reshape import ReshapeTranslator
 from orbital.translation.variables import (
     GraphVariables,
     NumericVariablesGroup,
@@ -1185,4 +1187,230 @@ class TestDivTranslator:
         )
 
         with pytest.raises(NotImplementedError, match="must be a constant list"):
+            translator.process()
+
+
+class TestIdentityTranslator:
+    optimizer = Optimizer(enabled=False)
+
+    def test_identity_single_column_passthrough(self):
+        """Test IdentityTranslator passes a single column through unchanged."""
+        table = ibis.memtable({"input": [1.0, 2.0, 3.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Identity(input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = IdentityTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+
+        # Verify output equals input
+        backend = ibis.duckdb.connect()
+        input_values = list(backend.execute(table["input"]))
+        output_values = list(backend.execute(result))
+        assert output_values == input_values
+
+    def test_identity_group_columns_passthrough(self):
+        """Test IdentityTranslator passes a NumericVariablesGroup through unchanged."""
+        table = ibis.memtable(
+            {
+                "col_a": [1.0, 2.0, 3.0],
+                "col_b": [4.0, 5.0, 6.0],
+                "col_c": [7.0, 8.0, 9.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Identity(input)
+            }
+        """)
+
+        # Use dummy table for GraphVariables since we override the input
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["col_a"],
+                "col_b": table["col_b"],
+                "col_c": table["col_c"],
+            }
+        )
+
+        translator = IdentityTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+
+        # Should return the same NumericVariablesGroup
+        assert isinstance(result, NumericVariablesGroup)
+        assert len(result) == 3
+        assert "col_a" in result
+        assert "col_b" in result
+        assert "col_c" in result
+
+        # Verify all columns preserved with same values
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [1.0, 2.0, 3.0]
+        assert list(backend.execute(result["col_b"])) == [4.0, 5.0, 6.0]
+        assert list(backend.execute(result["col_c"])) == [7.0, 8.0, 9.0]
+
+
+class TestReshapeTranslator:
+    optimizer = Optimizer(enabled=False)
+
+    def test_reshape_single_column_to_single_column(self):
+        """Test ReshapeTranslator with shape=[-1] on single column (passes through)."""
+        table = ibis.memtable({"input": [1.0, 2.0, 3.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <int64[1] shape = {-1}>
+            {
+                output = Reshape(input, shape)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = ReshapeTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+
+        # Verify output equals input (passthrough)
+        backend = ibis.duckdb.connect()
+        input_values = list(backend.execute(table["input"]))
+        output_values = list(backend.execute(result))
+        assert output_values == input_values
+
+    def test_reshape_group_to_same_size(self):
+        """Test ReshapeTranslator with shape=[-1, N] on N columns (passes through)."""
+        table = ibis.memtable(
+            {
+                "col_a": [1.0, 2.0, 3.0],
+                "col_b": [4.0, 5.0, 6.0],
+                "col_c": [7.0, 8.0, 9.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <int64[2] shape = {-1, 3}>
+            {
+                output = Reshape(input, shape)
+            }
+        """)
+
+        # Use dummy table for GraphVariables since we override the input
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["col_a"],
+                "col_b": table["col_b"],
+                "col_c": table["col_c"],
+            }
+        )
+
+        translator = ReshapeTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+
+        # Should return the same NumericVariablesGroup (passthrough)
+        assert isinstance(result, NumericVariablesGroup)
+        assert len(result) == 3
+
+        # Verify all columns preserved with same values
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [1.0, 2.0, 3.0]
+        assert list(backend.execute(result["col_b"])) == [4.0, 5.0, 6.0]
+        assert list(backend.execute(result["col_c"])) == [7.0, 8.0, 9.0]
+
+    def test_reshape_requires_integer_shape(self):
+        """Test ReshapeTranslator raises error when shape is not integers."""
+        table = ibis.memtable({"input": [1.0, 2.0, 3.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float[1] shape = {-1.0}>
+            {
+                output = Reshape(input, shape)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = ReshapeTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(
+            NotImplementedError, match="requires integer values for the shape"
+        ):
+            translator.process()
+
+    def test_reshape_cannot_change_row_count(self):
+        """Test ReshapeTranslator raises error when shape[0] != -1."""
+        table = ibis.memtable({"input": [1.0, 2.0, 3.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <int64[2] shape = {3, 1}>
+            {
+                output = Reshape(input, shape)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = ReshapeTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(
+            NotImplementedError, match="Reshape can't change the number of rows"
+        ):
+            translator.process()
+
+    def test_reshape_unsupported_shape(self):
+        """Test ReshapeTranslator raises error for unsupported shape combinations."""
+        # Test case: shape=[-1, 2] but input has 3 columns
+        table = ibis.memtable(
+            {
+                "col_a": [1.0, 2.0, 3.0],
+                "col_b": [4.0, 5.0, 6.0],
+                "col_c": [7.0, 8.0, 9.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <int64[2] shape = {-1, 2}>
+            {
+                output = Reshape(input, shape)
+            }
+        """)
+
+        # Use dummy table for GraphVariables since we override the input
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["col_a"],
+                "col_b": table["col_b"],
+                "col_c": table["col_c"],
+            }
+        )
+
+        translator = ReshapeTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(ValueError, match="Reshape shape=\\[-1, 2\\] not supported"):
             translator.process()

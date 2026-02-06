@@ -38,7 +38,6 @@ from orbital.translation.options import TranslationOptions
 class TestStepCoverage:
     """Verify that all registered steps have corresponding test classes."""
 
-    @pytest.mark.xfail(reason="Not all steps have tests yet, see #11 sub-issues")
     def test_all_registered_steps_have_tests(self):
         """Every step registered in TRANSLATORS must have a test class.
 

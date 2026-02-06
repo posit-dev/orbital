@@ -21,6 +21,8 @@ from orbital.translation.steps.linearreg import LinearRegressorTranslator
 from orbital.translation.steps.scaler import ScalerTranslator
 from orbital.translation.steps.onehotencoder import OneHotEncoderTranslator
 from orbital.translation.steps.labelencoder import LabelEncoderTranslator
+from orbital.translation.steps.where import WhereTranslator
+from orbital.translation.steps.zipmap import ZipMapTranslator
 from orbital.translation.variables import (
     GraphVariables,
     NumericVariablesGroup,
@@ -3325,4 +3327,404 @@ class TestLabelEncoderTranslator:
         )
 
         with pytest.raises(ValueError, match="required mapping attributes not found"):
+            translator.process()
+
+class TestWhereTranslator:
+    optimizer = Optimizer(enabled=False)
+
+    def test_where_single_columns(self):
+        """Test WhereTranslator selecting between two single columns based on condition."""
+        table = ibis.memtable(
+            {
+                "condition": [True, False, True],
+                "true_val": [10.0, 20.0, 30.0],
+                "false_val": [100.0, 200.0, 300.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (bool[N] condition, float[N] true_val, float[N] false_val) => (float[N] output) {
+                output = Where(condition, true_val, false_val)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = WhereTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+
+        backend = ibis.duckdb.connect()
+        computed = list(backend.execute(result))
+        # When condition is True, take true_val; when False, take false_val
+        assert computed == [10.0, 200.0, 30.0]
+
+    def test_where_group_columns(self):
+        """Test WhereTranslator selecting between column groups based on condition."""
+        table = ibis.memtable(
+            {
+                "condition": [True, False, True],
+                "true_col1": [1.0, 2.0, 3.0],
+                "true_col2": [4.0, 5.0, 6.0],
+                "false_col1": [10.0, 20.0, 30.0],
+                "false_col2": [40.0, 50.0, 60.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (bool[N] condition, float[N] true_expr, float[N] false_expr) => (float[N] output) {
+                output = Where(condition, true_expr, false_expr)
+            }
+        """)
+
+        variables = GraphVariables(
+            ibis.memtable(
+                {"condition": [True], "true_expr": [1.0], "false_expr": [1.0]}
+            ),
+            model,
+        )
+        variables["condition"] = table["condition"]
+        variables["true_expr"] = ValueVariablesGroup(
+            {"col1": table["true_col1"], "col2": table["true_col2"]}
+        )
+        variables["false_expr"] = ValueVariablesGroup(
+            {"col1": table["false_col1"], "col2": table["false_col2"]}
+        )
+
+        translator = WhereTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["c0"])) == [1.0, 20.0, 3.0]
+        assert list(backend.execute(result["c1"])) == [4.0, 50.0, 6.0]
+
+    def test_where_broadcast_scalar_true(self):
+        """Test WhereTranslator with single true value broadcast to group false."""
+        table = ibis.memtable(
+            {
+                "condition": [True, False, True],
+                "true_val": [42.0, 42.0, 42.0],
+                "false_col1": [10.0, 20.0, 30.0],
+                "false_col2": [100.0, 200.0, 300.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (bool[N] condition, float[N] true_expr, float[N] false_expr) => (float[N] output) {
+                output = Where(condition, true_expr, false_expr)
+            }
+        """)
+
+        variables = GraphVariables(
+            ibis.memtable(
+                {"condition": [True], "true_expr": [1.0], "false_expr": [1.0]}
+            ),
+            model,
+        )
+        variables["condition"] = table["condition"]
+        variables["true_expr"] = table["true_val"]
+        variables["false_expr"] = ValueVariablesGroup(
+            {"col1": table["false_col1"], "col2": table["false_col2"]}
+        )
+
+        translator = WhereTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["c0"])) == [42.0, 20.0, 42.0]
+        assert list(backend.execute(result["c1"])) == [42.0, 200.0, 42.0]
+
+    def test_where_broadcast_scalar_false(self):
+        """Test WhereTranslator with single false value broadcast to group true."""
+        table = ibis.memtable(
+            {
+                "condition": [True, False, True],
+                "true_col1": [10.0, 20.0, 30.0],
+                "true_col2": [100.0, 200.0, 300.0],
+                "false_val": [99.0, 99.0, 99.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (bool[N] condition, float[N] true_expr, float[N] false_expr) => (float[N] output) {
+                output = Where(condition, true_expr, false_expr)
+            }
+        """)
+
+        variables = GraphVariables(
+            ibis.memtable(
+                {"condition": [True], "true_expr": [1.0], "false_expr": [1.0]}
+            ),
+            model,
+        )
+        variables["condition"] = table["condition"]
+        variables["true_expr"] = ValueVariablesGroup(
+            {"col1": table["true_col1"], "col2": table["true_col2"]}
+        )
+        variables["false_expr"] = table["false_val"]
+
+        translator = WhereTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["c0"])) == [10.0, 99.0, 30.0]
+        assert list(backend.execute(result["c1"])) == [100.0, 99.0, 300.0]
+
+    def test_where_condition_group_error(self):
+        """Test WhereTranslator raises error when condition is a group of columns."""
+        table = ibis.memtable(
+            {
+                "cond1": [True, False],
+                "cond2": [False, True],
+                "true_val": [1.0, 2.0],
+                "false_val": [10.0, 20.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (bool[N] condition, float[N] true_expr, float[N] false_expr) => (float[N] output) {
+                output = Where(condition, true_expr, false_expr)
+            }
+        """)
+
+        variables = GraphVariables(
+            ibis.memtable(
+                {"condition": [True], "true_expr": [1.0], "false_expr": [1.0]}
+            ),
+            model,
+        )
+        variables["condition"] = ValueVariablesGroup(
+            {"cond1": table["cond1"], "cond2": table["cond2"]}
+        )
+        variables["true_expr"] = table["true_val"]
+        variables["false_expr"] = table["false_val"]
+
+        translator = WhereTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(
+            NotImplementedError,
+            match="Where: The condition expression can't be a group of columns",
+        ):
+            translator.process()
+
+    def test_where_mismatched_group_sizes(self):
+        """Test WhereTranslator raises error when true and false groups have different sizes."""
+        table = ibis.memtable(
+            {
+                "condition": [True, False],
+                "true_col1": [1.0, 2.0],
+                "true_col2": [3.0, 4.0],
+                "false_col1": [10.0, 20.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (bool[N] condition, float[N] true_expr, float[N] false_expr) => (float[N] output) {
+                output = Where(condition, true_expr, false_expr)
+            }
+        """)
+
+        variables = GraphVariables(
+            ibis.memtable(
+                {"condition": [True], "true_expr": [1.0], "false_expr": [1.0]}
+            ),
+            model,
+        )
+        variables["condition"] = table["condition"]
+        variables["true_expr"] = ValueVariablesGroup(
+            {"col1": table["true_col1"], "col2": table["true_col2"]}
+        )
+        variables["false_expr"] = ValueVariablesGroup({"col1": table["false_col1"]})
+
+        translator = WhereTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Where: The number of values in the true and false expressions must match",
+        ):
+            translator.process()
+
+
+class TestZipMapTranslator:
+    optimizer = Optimizer(enabled=False)
+
+    def test_zipmap_string_labels_group(self):
+        """Test ZipMapTranslator with string labels and group of columns."""
+        table = ibis.memtable(
+            {
+                "prob_class_0": [0.7, 0.2, 0.4],
+                "prob_class_1": [0.2, 0.5, 0.1],
+                "prob_class_2": [0.1, 0.3, 0.5],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] data) => (float[N] output) {
+                output = ai.onnx.ml.ZipMap <classlabels_strings: strings = ["negative", "neutral", "positive"]> (data)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"data": [1.0]}), model)
+        variables["data"] = ValueVariablesGroup(
+            {
+                "class_0": table["prob_class_0"],
+                "class_1": table["prob_class_1"],
+                "class_2": table["prob_class_2"],
+            }
+        )
+
+        translator = ZipMapTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+
+        # Check that labels were properly mapped
+        assert "negative" in result
+        assert "neutral" in result
+        assert "positive" in result
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["negative"])) == [0.7, 0.2, 0.4]
+        assert list(backend.execute(result["neutral"])) == [0.2, 0.5, 0.1]
+        assert list(backend.execute(result["positive"])) == [0.1, 0.3, 0.5]
+
+    def test_zipmap_int64_labels_group(self):
+        """Test ZipMapTranslator with int64 labels and group of columns."""
+        table = ibis.memtable(
+            {
+                "feat_0": [1.0, 2.0, 3.0],
+                "feat_1": [4.0, 5.0, 6.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] data) => (float[N] output) {
+                output = ai.onnx.ml.ZipMap <classlabels_int64s: ints = [100, 200]> (data)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"data": [1.0]}), model)
+        variables["data"] = ValueVariablesGroup(
+            {
+                "feat_0": table["feat_0"],
+                "feat_1": table["feat_1"],
+            }
+        )
+
+        translator = ZipMapTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+
+        # int64 labels are converted to strings
+        assert "100" in result
+        assert "200" in result
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["100"])) == [1.0, 2.0, 3.0]
+        assert list(backend.execute(result["200"])) == [4.0, 5.0, 6.0]
+
+    def test_zipmap_single_column(self):
+        """Test ZipMapTranslator with single column and single label."""
+        table = ibis.memtable({"prob": [0.95, 0.87, 0.92]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] data) => (float[N] output) {
+                output = ai.onnx.ml.ZipMap <classlabels_strings: strings = ["confidence"]> (data)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"data": [1.0]}), model)
+        variables["data"] = table["prob"]
+
+        translator = ZipMapTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+
+        assert "confidence" in result
+        assert len(result) == 1
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["confidence"])) == [0.95, 0.87, 0.92]
+
+    def test_zipmap_missing_labels_error(self):
+        """Test ZipMapTranslator raises error when no classlabels attribute is found."""
+        table = ibis.memtable({"data": [1.0, 2.0, 3.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] data) => (float[N] output) {
+                output = ai.onnx.ml.ZipMap (data)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+
+        translator = ZipMapTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(
+            ValueError, match="ZipMap: required mapping attributes not found"
+        ):
+            translator.process()
+
+    def test_zipmap_mismatched_label_count(self):
+        """Test ZipMapTranslator raises error when labels count doesn't match columns."""
+        table = ibis.memtable(
+            {
+                "col1": [1.0, 2.0, 3.0],
+                "col2": [4.0, 5.0, 6.0],
+                "col3": [7.0, 8.0, 9.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] data) => (float[N] output) {
+                output = ai.onnx.ml.ZipMap <classlabels_strings: strings = ["label1", "label2"]> (data)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"data": [1.0]}), model)
+        variables["data"] = ValueVariablesGroup(
+            {
+                "col1": table["col1"],
+                "col2": table["col2"],
+                "col3": table["col3"],
+            }
+        )
+
+        translator = ZipMapTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(
+            ValueError, match="ZipMap: The number of labels and columns must match"
+        ):
             translator.process()

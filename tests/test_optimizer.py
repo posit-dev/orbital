@@ -95,3 +95,48 @@ class TestOptimizerFold:
         assert isinstance(folded.op(), ibis.expr.operations.Cast)
         assert not isinstance(folded.op().arg, ibis.expr.operations.Cast)
         assert folded.type().is_string()
+
+    def test_fold_cast_literal_int(self):
+        expr = ibis.literal(3.7).cast("int64")
+        result = self.optimizer.fold_cast(expr)
+        assert result.op().value == 3
+
+    def test_fold_cast_literal_float(self):
+        expr = ibis.literal(5).cast("float64")
+        result = self.optimizer.fold_cast(expr)
+        assert result.op().value == 5.0
+
+    def test_fold_cast_literal_string(self):
+        expr = ibis.literal(42).cast("string")
+        result = self.optimizer.fold_cast(expr)
+        assert result.op().value == "42"
+
+    def test_fold_cast_literal_boolean(self):
+        expr = ibis.literal(1).cast("boolean")
+        result = self.optimizer.fold_cast(expr)
+        assert result.op().value is True
+
+    def test_fold_cast_nested_literals(self):
+        expr = ibis.literal(7).cast("float64").cast("string")
+        result = self.optimizer.fold_cast(expr)
+        assert result.op().value == "7"
+
+    def test_fold_zeros_subtract_left(self):
+        expr = ibis.literal(0) - ibis.literal(5)
+        result = self.optimizer.fold_zeros(expr)
+        assert result.op().value == 5
+
+    def test_fold_zeros_subtract_right(self):
+        expr = ibis.literal(5) - ibis.literal(0)
+        result = self.optimizer.fold_zeros(expr)
+        assert result.op().value == 5
+
+    def test_fold_operation_unary_negate(self):
+        expr = -ibis.literal(10)
+        result = self.optimizer.fold_operation(expr)
+        assert result == -10
+
+    def test_fold_operation_unary_not(self):
+        expr = ~ibis.literal(True)
+        result = self.optimizer.fold_operation(expr)
+        assert result is False

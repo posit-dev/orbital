@@ -37,6 +37,10 @@ classifiers = [
   "Programming Language :: SQL",
 ]
 
+[project.urls]
+Homepage = "https://posit-dev.github.io/orbital/"
+Repository = "https://github.com/posit-dev/orbital"
+
 requires-python = ">=3.9,<3.15"
 dependencies = [
   "packaging",  # somehow required by skl2onnx/operator_converters

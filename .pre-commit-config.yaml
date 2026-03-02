@@ -4,7 +4,6 @@ repos:
     hooks:
       # Run the linter.
       - id: ruff
-        exclude: ^proxypackage
       # Run the formatter.
       - id: ruff-format
   - repo: local

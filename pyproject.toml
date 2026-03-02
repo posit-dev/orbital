@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orbital"
-version = "0.4.0"
+version = "0.5.0"
 description = "Allow SKLearn predictions to run on database systems in pure SQL."
 keywords = ["database", "machine learning", "sql"]
 readme = { file = "README.md", content-type = "text/markdown" }
@@ -106,7 +106,7 @@ exclude = "(?x)(^build/|^venv.+)"
 [tool.ruff]
 target-version = "py310"
 src = ["src"]
-extend-exclude = ["docs", "tests", "examples", "proxypackage"]
+extend-exclude = ["docs", "tests", "examples"]
 output-format = "grouped"
 lint.select = [
   "E4", "E7", "E9",

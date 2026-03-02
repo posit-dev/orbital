@@ -22,7 +22,6 @@ classifiers = [
   "Operating System :: Unix",
   "Operating System :: MacOS",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -37,13 +36,12 @@ classifiers = [
   "Programming Language :: SQL",
 ]
 
-requires-python = ">=3.9,<3.15"
+requires-python = ">=3.10,<3.15"
 dependencies = [
   "packaging",  # somehow required by skl2onnx/operator_converters
   "scikit-learn",
   "skl2onnx~=1.20.0",
-  "onnx~=1.18.0; python_version < '3.10'",
-  "onnx~=1.20.0; python_version >= '3.10'",
+  "onnx~=1.20.0",
   "ibis-framework~=12.0.0",
 ]
 
@@ -106,7 +104,7 @@ packages = ["orbital"]
 exclude = "(?x)(^build/|^venv.+)"
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py310"
 src = ["src"]
 extend-exclude = ["docs", "tests", "examples", "proxypackage"]
 output-format = "grouped"

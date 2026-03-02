@@ -37,10 +37,6 @@ classifiers = [
   "Programming Language :: SQL",
 ]
 
-[project.urls]
-Homepage = "https://posit-dev.github.io/orbital/"
-Repository = "https://github.com/posit-dev/orbital"
-
 requires-python = ">=3.9,<3.15"
 dependencies = [
   "packaging",  # somehow required by skl2onnx/operator_converters
@@ -51,6 +47,10 @@ dependencies = [
   "ibis-framework~=11.0.0",
   "sqlglot~=28.0.0",  # sqlglot 28.1.0 broke Ibis
 ]
+
+[project.urls]
+Homepage = "https://posit-dev.github.io/orbital/"
+Repository = "https://github.com/posit-dev/orbital"
 
 [project.optional-dependencies]
 test = [

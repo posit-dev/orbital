@@ -60,7 +60,7 @@ test = [
   "pytest>=8.3.2",
   "sqlalchemy",
   "psycopg2-binary",
-  "duckdb~=1.4.1",
+  "duckdb>=1.4.1,<1.6.0",
 ]
 
 [tool.uv]

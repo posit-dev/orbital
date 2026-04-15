@@ -41,7 +41,7 @@ dependencies = [
   "packaging",  # somehow required by skl2onnx/operator_converters
   "scikit-learn",
   "skl2onnx~=1.20.0",
-  "onnx~=1.20.0",
+  "onnx>=1.20,<1.22",
   "ibis-framework~=12.0.0",
 ]
 

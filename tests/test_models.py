@@ -60,7 +60,15 @@ class TestSingleStepPipelines:
         )
 
     def validate_sql_execution(
-        self, pipeline, X, y, features, is_classification=True, db_connection=None
+        self,
+        pipeline,
+        X,
+        y,
+        features,
+        is_classification=True,
+        db_connection=None,
+        rtol=1e-10,
+        atol=1e-10,
     ):
         """Helper to validate SQL execution matches sklearn predictions."""
         # Use duckdb connection if none provided
@@ -96,8 +104,8 @@ class TestSingleStepPipelines:
             np.testing.assert_allclose(
                 sklearn_pred,
                 sql_pred,
-                rtol=1e-10,
-                atol=1e-10,
+                rtol=rtol,
+                atol=atol,
                 err_msg="SQL and sklearn predictions don't match within tolerance",
             )
 
@@ -208,9 +216,6 @@ class TestSingleStepPipelines:
         # Test parsing, SQL generation, and execution
         self.validate_sql_execution(pipeline, X, y, features, is_classification=True)
 
-    @pytest.mark.skip(
-        reason="DuckDB DECIMAL type inference issue with precise GradientBoosting numeric constants"
-    )
     def test_gradient_boosting_regressor_double_features(self):
         """Test GradientBoostingRegressor with all double features."""
         features = {
@@ -226,8 +231,10 @@ class TestSingleStepPipelines:
         )
         pipeline.fit(X, y)
 
-        # Test parsing, SQL generation, and execution
-        self.validate_sql_execution(pipeline, X, y, features, is_classification=False)
+        # Tree ensembles accumulate small DOUBLE rounding differences across many trees
+        self.validate_sql_execution(
+            pipeline, X, y, features, is_classification=False, rtol=1e-6, atol=1e-6
+        )
 
     @pytest.mark.skip(
         reason="SQL and sklearn predictions don't match - needs investigation"

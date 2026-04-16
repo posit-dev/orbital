@@ -5,8 +5,12 @@ It allows to use the prediction pipeline on any supported SQL dialect
 without the need for a python runtime environment.
 """
 
+import math
+import typing
+
 import ibis
 import ibis.backends.sql.compilers as sc
+import sqlglot.expressions
 import sqlglot.optimizer
 import sqlglot.optimizer.optimizer
 import sqlglot.schema
@@ -79,7 +83,10 @@ def export_sql(
         projection=projection,
         allow_text_tensors=allow_text_tensors,
     )
-    sqlglot_expr = getattr(sc, dialect).compiler.to_sqlglot(ibis_expr)
+    if dialect == "duckdb":
+        sqlglot_expr = _OrbitalDuckDBCompiler().to_sqlglot(ibis_expr)
+    else:
+        sqlglot_expr = getattr(sc, dialect).compiler.to_sqlglot(ibis_expr)
 
     if optimize:
         c = Catalog()
@@ -92,3 +99,24 @@ def export_sql(
         )
 
     return sqlglot_expr.sql(dialect=dialect)
+
+
+class _OrbitalDuckDBCompiler(sc.duckdb.DuckDBCompiler):
+    """DuckDB compiler that emits ``CAST(x AS DOUBLE)`` for floating-point literals.
+
+    DuckDB infers bare decimal literals as ``DECIMAL(n,m)`` rather than ``DOUBLE``.
+    When many such values are summed -- as happens in tree ensemble models --
+    the internal ``DECIMAL(18)`` storage overflows.
+    """
+
+    def visit_NonNullLiteral(
+        self, op: typing.Any, *, value: typing.Any, dtype: typing.Any
+    ) -> typing.Any:
+        """Wrap floating-point literals in ``CAST(… AS DOUBLE)``."""
+        if (
+            dtype.is_floating()
+            and isinstance(value, (int, float))
+            and math.isfinite(value)
+        ):
+            return self.cast(sqlglot.expressions.convert(value), dtype)
+        return super().visit_NonNullLiteral(op, value=value, dtype=dtype)

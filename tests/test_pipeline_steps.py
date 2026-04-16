@@ -23,9 +23,14 @@ from orbital.translation.steps.onehotencoder import OneHotEncoderTranslator
 from orbital.translation.steps.labelencoder import LabelEncoderTranslator
 from orbital.translation.steps.where import WhereTranslator
 from orbital.translation.steps.zipmap import ZipMapTranslator
-from orbital.translation.steps.concat import ConcatTranslator, FeatureVectorizerTranslator
+from orbital.translation.steps.concat import (
+    ConcatTranslator,
+    FeatureVectorizerTranslator,
+)
 from orbital.translation.steps.gather import GatherTranslator
-from orbital.translation.steps.arrayfeatureextractor import ArrayFeatureExtractorTranslator
+from orbital.translation.steps.arrayfeatureextractor import (
+    ArrayFeatureExtractorTranslator,
+)
 from orbital.translation.variables import (
     GraphVariables,
     NumericVariablesGroup,
@@ -2680,15 +2685,15 @@ class TestLinearRegressorTranslator:
             translator.process()
 
 
-
-
 class TestTreeEnsembleClassifierTranslator:
     optimizer = Optimizer(enabled=False)
 
     def test_binary_classification_single_tree(self):
         """Test TreeEnsembleClassifier with binary classification and single tree."""
         from onnx import helper, TensorProto
-        from orbital.translation.steps.trees.classifier import TreeEnsembleClassifierTranslator
+        from orbital.translation.steps.trees.classifier import (
+            TreeEnsembleClassifierTranslator,
+        )
 
         table = ibis.memtable({"X": [0.3, 0.7, 0.2]})
 
@@ -2754,7 +2759,9 @@ class TestTreeEnsembleClassifierTranslator:
     def test_multiclass_classification_single_tree(self):
         """Test TreeEnsembleClassifier with multi-class classification."""
         from onnx import helper, TensorProto
-        from orbital.translation.steps.trees.classifier import TreeEnsembleClassifierTranslator
+        from orbital.translation.steps.trees.classifier import (
+            TreeEnsembleClassifierTranslator,
+        )
 
         table = ibis.memtable({"X": [0.3, 0.7, 0.2]})
 
@@ -2817,7 +2824,9 @@ class TestTreeEnsembleClassifierTranslator:
     def test_classifier_invalid_input_type(self):
         """Test TreeEnsembleClassifier raises error for invalid input type."""
         from onnx import helper, TensorProto
-        from orbital.translation.steps.trees.classifier import TreeEnsembleClassifierTranslator
+        from orbital.translation.steps.trees.classifier import (
+            TreeEnsembleClassifierTranslator,
+        )
 
         table = ibis.memtable({"X": [0.3, 0.7, 0.2]})
 
@@ -2857,7 +2866,7 @@ class TestTreeEnsembleClassifierTranslator:
 
         with pytest.raises(
             ValueError,
-            match="TreeEnsembleClassifier: The first operand must be a column or a column group"
+            match="TreeEnsembleClassifier: The first operand must be a column or a column group",
         ):
             translator.process()
 
@@ -2868,7 +2877,9 @@ class TestTreeEnsembleRegressorTranslator:
     def test_single_tree_regression(self):
         """Test TreeEnsembleRegressor with a single decision tree."""
         from onnx import helper, TensorProto
-        from orbital.translation.steps.trees.regressor import TreeEnsembleRegressorTranslator
+        from orbital.translation.steps.trees.regressor import (
+            TreeEnsembleRegressorTranslator,
+        )
 
         table = ibis.memtable({"X": [0.3, 0.7, 0.2]})
 
@@ -2922,7 +2933,9 @@ class TestTreeEnsembleRegressorTranslator:
     def test_regression_base_values_applied(self):
         """Test TreeEnsembleRegressor correctly applies base_values."""
         from onnx import helper, TensorProto
-        from orbital.translation.steps.trees.regressor import TreeEnsembleRegressorTranslator
+        from orbital.translation.steps.trees.regressor import (
+            TreeEnsembleRegressorTranslator,
+        )
 
         table = ibis.memtable({"X": [1.0, 2.0, 3.0]})
 
@@ -2973,7 +2986,9 @@ class TestTreeEnsembleRegressorTranslator:
     def test_regressor_invalid_input_type(self):
         """Test TreeEnsembleRegressor raises error for invalid input type."""
         from onnx import helper, TensorProto
-        from orbital.translation.steps.trees.regressor import TreeEnsembleRegressorTranslator
+        from orbital.translation.steps.trees.regressor import (
+            TreeEnsembleRegressorTranslator,
+        )
 
         table = ibis.memtable({"X": [1.0, 2.0, 3.0]})
 
@@ -3010,11 +3025,9 @@ class TestTreeEnsembleRegressorTranslator:
 
         with pytest.raises(
             ValueError,
-            match="TreeEnsembleRegressor: The first operand must be a column or a column group"
+            match="TreeEnsembleRegressor: The first operand must be a column or a column group",
         ):
             translator.process()
-
-
 
 
 class TestScalerTranslator:
@@ -3330,6 +3343,7 @@ class TestLabelEncoderTranslator:
 
         with pytest.raises(ValueError, match="required mapping attributes not found"):
             translator.process()
+
 
 class TestWhereTranslator:
     optimizer = Optimizer(enabled=False)
@@ -3730,6 +3744,7 @@ class TestZipMapTranslator:
             ValueError, match="ZipMap: The number of labels and columns must match"
         ):
             translator.process()
+
 
 class TestConcatTranslator:
     optimizer = Optimizer(enabled=False)

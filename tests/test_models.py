@@ -91,13 +91,15 @@ class TestSingleStepPipelines:
                 err_msg="SQL and sklearn predictions don't match",
             )
         else:
-            # For regression, compare with tolerance
+            # Database floating-point arithmetic could introduce small
+            # rounding differences compared to Python, especially when
+            # many operations are chained (e.g. tree ensembles).
             sql_pred = sql_results["variable"].values
             np.testing.assert_allclose(
                 sklearn_pred,
                 sql_pred,
-                rtol=1e-10,
-                atol=1e-10,
+                rtol=1e-7,
+                atol=1e-7,
                 err_msg="SQL and sklearn predictions don't match within tolerance",
             )
 
@@ -208,9 +210,6 @@ class TestSingleStepPipelines:
         # Test parsing, SQL generation, and execution
         self.validate_sql_execution(pipeline, X, y, features, is_classification=True)
 
-    @pytest.mark.skip(
-        reason="DuckDB DECIMAL type inference issue with precise GradientBoosting numeric constants"
-    )
     def test_gradient_boosting_regressor_double_features(self):
         """Test GradientBoostingRegressor with all double features."""
         features = {

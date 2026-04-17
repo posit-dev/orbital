@@ -5,8 +5,12 @@ It allows to use the prediction pipeline on any supported SQL dialect
 without the need for a python runtime environment.
 """
 
+import math
+import typing
+
 import ibis
 import ibis.backends.sql.compilers as sc
+import sqlglot.expressions
 import sqlglot.optimizer
 import sqlglot.optimizer.optimizer
 import sqlglot.schema
@@ -79,7 +83,10 @@ def export_sql(
         projection=projection,
         allow_text_tensors=allow_text_tensors,
     )
-    sqlglot_expr = getattr(sc, dialect).compiler.to_sqlglot(ibis_expr)
+    if dialect == "duckdb":
+        sqlglot_expr = _OrbitalDuckDBCompiler().to_sqlglot(ibis_expr)
+    else:
+        sqlglot_expr = getattr(sc, dialect).compiler.to_sqlglot(ibis_expr)
 
     if optimize:
         c = Catalog()
@@ -92,3 +99,32 @@ def export_sql(
         )
 
     return sqlglot_expr.sql(dialect=dialect)
+
+
+class _OrbitalDuckDBCompiler(sc.duckdb.DuckDBCompiler):
+    """DuckDB compiler that emits floating-point literals in scientific notation.
+
+    DuckDB infers bare decimal literals (``0.94``) as ``DECIMAL(n,m)`` rather
+    than ``DOUBLE``.  When many such values are summed — as happens in tree
+    ensemble models — the internal ``DECIMAL(18)`` storage overflows.
+    Appending ``E0`` (e.g. ``0.94E0``) makes DuckDB treat the literal as
+    ``DOUBLE`` without the verbosity of an explicit ``CAST``.
+    """
+
+    def visit_NonNullLiteral(
+        self, op: typing.Any, *, value: typing.Any, dtype: typing.Any
+    ) -> typing.Any:
+        """Emit floating-point literals with an ``E0`` suffix for DOUBLE inference."""
+        if (
+            dtype.is_floating()
+            and isinstance(value, (int, float))
+            and math.isfinite(value)
+        ):
+            # Values that Python already renders in scientific notation (e.g. 1e-19)
+            # are already inferred as DOUBLE by DuckDB — only bare decimals need E0.
+            text = str(value)
+            if "e" not in text and "E" not in text:
+                abs_text = str(-value) if value < 0 else text
+                lit = sqlglot.expressions.Literal(this=abs_text + "E0", is_string=False)
+                return sqlglot.expressions.Neg(this=lit) if value < 0 else lit
+        return super().visit_NonNullLiteral(op, value=value, dtype=dtype)

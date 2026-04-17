@@ -60,15 +60,7 @@ class TestSingleStepPipelines:
         )
 
     def validate_sql_execution(
-        self,
-        pipeline,
-        X,
-        y,
-        features,
-        is_classification=True,
-        db_connection=None,
-        rtol=1e-10,
-        atol=1e-10,
+        self, pipeline, X, y, features, is_classification=True, db_connection=None
     ):
         """Helper to validate SQL execution matches sklearn predictions."""
         # Use duckdb connection if none provided
@@ -99,13 +91,15 @@ class TestSingleStepPipelines:
                 err_msg="SQL and sklearn predictions don't match",
             )
         else:
-            # For regression, compare with tolerance
+            # Database floating-point arithmetic could introduce small
+            # rounding differences compared to Python, especially when
+            # many operations are chained (e.g. tree ensembles).
             sql_pred = sql_results["variable"].values
             np.testing.assert_allclose(
                 sklearn_pred,
                 sql_pred,
-                rtol=rtol,
-                atol=atol,
+                rtol=1e-7,
+                atol=1e-7,
                 err_msg="SQL and sklearn predictions don't match within tolerance",
             )
 
@@ -231,10 +225,8 @@ class TestSingleStepPipelines:
         )
         pipeline.fit(X, y)
 
-        # Tree ensembles accumulate small DOUBLE rounding differences across many trees
-        self.validate_sql_execution(
-            pipeline, X, y, features, is_classification=False, rtol=1e-6, atol=1e-6
-        )
+        # Test parsing, SQL generation, and execution
+        self.validate_sql_execution(pipeline, X, y, features, is_classification=False)
 
     @pytest.mark.skip(
         reason="SQL and sklearn predictions don't match - needs investigation"

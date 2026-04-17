@@ -102,21 +102,29 @@ def export_sql(
 
 
 class _OrbitalDuckDBCompiler(sc.duckdb.DuckDBCompiler):
-    """DuckDB compiler that emits ``CAST(x AS DOUBLE)`` for floating-point literals.
+    """DuckDB compiler that emits floating-point literals in scientific notation.
 
-    DuckDB infers bare decimal literals as ``DECIMAL(n,m)`` rather than ``DOUBLE``.
-    When many such values are summed -- as happens in tree ensemble models --
-    the internal ``DECIMAL(18)`` storage overflows.
+    DuckDB infers bare decimal literals (``0.94``) as ``DECIMAL(n,m)`` rather
+    than ``DOUBLE``.  When many such values are summed — as happens in tree
+    ensemble models — the internal ``DECIMAL(18)`` storage overflows.
+    Appending ``E0`` (e.g. ``0.94E0``) makes DuckDB treat the literal as
+    ``DOUBLE`` without the verbosity of an explicit ``CAST``.
     """
 
     def visit_NonNullLiteral(
         self, op: typing.Any, *, value: typing.Any, dtype: typing.Any
     ) -> typing.Any:
-        """Wrap floating-point literals in ``CAST(… AS DOUBLE)``."""
+        """Emit floating-point literals with an ``E0`` suffix for DOUBLE inference."""
         if (
             dtype.is_floating()
             and isinstance(value, (int, float))
             and math.isfinite(value)
         ):
-            return self.cast(sqlglot.expressions.convert(value), dtype)
+            # Values that Python already renders in scientific notation (e.g. 1e-19)
+            # are already inferred as DOUBLE by DuckDB — only bare decimals need E0.
+            text = str(value)
+            if "e" not in text and "E" not in text:
+                abs_text = str(-value) if value < 0 else text
+                lit = sqlglot.expressions.Literal(this=abs_text + "E0", is_string=False)
+                return sqlglot.expressions.Neg(this=lit) if value < 0 else lit
         return super().visit_NonNullLiteral(op, value=value, dtype=dtype)

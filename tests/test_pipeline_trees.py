@@ -176,7 +176,9 @@ class TestTreeBasedPipelines:
                 atol=1e-4,
             )
 
-    def test_gradient_boosting_regressor(self, iris_data, db_connection, separate_trees):
+    def test_gradient_boosting_regressor(
+        self, iris_data, db_connection, separate_trees
+    ):
         """Test a gradient boosting regressor with standardization."""
         df, feature_names = iris_data
         conn, dialect = db_connection

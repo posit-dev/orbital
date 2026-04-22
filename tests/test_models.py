@@ -81,7 +81,9 @@ class TestSingleStepPipelines:
 
         # Parse pipeline and generate SQL
         parsed = parse_pipeline(pipeline, features)
-        sql = orbital.export_sql("data", parsed, dialect=dialect, separate_trees=separate_trees)
+        sql = orbital.export_sql(
+            "data", parsed, dialect=dialect, separate_trees=separate_trees
+        )
 
         # Get sklearn predictions
         sklearn_pred = pipeline.predict(X)

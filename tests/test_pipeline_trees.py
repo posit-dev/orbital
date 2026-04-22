@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 from sklearn.compose import ColumnTransformer
 from sklearn.datasets import make_classification
 from sklearn.ensemble import (
@@ -17,11 +18,15 @@ from orbital import types
 from orbital_testing_helpers import execute_sql
 
 
+# Run every tree-based test twice: once with the default single-sum tree
+# layout, once with each tree materialised as its own subquery column. Both
+# produce SQL that is logically equivalent, so predictions must match exactly.
+@pytest.mark.parametrize("separate_trees", [False, True])
 class TestTreeBasedPipelines:
     """Test suite for tree-based machine learning pipelines and their SQL exports."""
 
     # Decision Tree Tests
-    def test_decision_tree_classifier(self, iris_data, db_connection):
+    def test_decision_tree_classifier(self, iris_data, db_connection, separate_trees):
         """Test a decision tree classifier pipeline with preprocessing."""
         df, _ = iris_data
         conn, dialect = db_connection
@@ -48,7 +53,9 @@ class TestTreeBasedPipelines:
         features = {fname: types.FloatColumnType() for fname in ["petal_length"]}
         parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql(
+            "data", parsed_pipeline, dialect=dialect, separate_trees=separate_trees
+        )
         sql_results = execute_sql(sql, conn, dialect, binary_df)
 
         sklearn_proba_df = pd.DataFrame(
@@ -64,7 +71,7 @@ class TestTreeBasedPipelines:
                 sklearn_proba_df[class_label].values.flatten(),
             )
 
-    def test_decision_tree_regressor(self, iris_data, db_connection):
+    def test_decision_tree_regressor(self, iris_data, db_connection, separate_trees):
         """Test a decision tree regressor pipeline with feature selection."""
         df, feature_names = iris_data
         conn, dialect = db_connection
@@ -86,7 +93,9 @@ class TestTreeBasedPipelines:
         features = {fname: types.FloatColumnType() for fname in feature_names}
         parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql(
+            "data", parsed_pipeline, dialect=dialect, separate_trees=separate_trees
+        )
 
         sql_results = execute_sql(sql, conn, dialect, df)
         np.testing.assert_allclose(
@@ -97,7 +106,9 @@ class TestTreeBasedPipelines:
         )
 
     # Gradient Boosting Tests
-    def test_gradient_boosting_classifier(self, iris_data, db_connection):
+    def test_gradient_boosting_classifier(
+        self, iris_data, db_connection, separate_trees
+    ):
         """Test a gradient boosting classifier with categorical preprocessing."""
         df, feature_names = iris_data
         conn, dialect = db_connection
@@ -144,7 +155,9 @@ class TestTreeBasedPipelines:
         features["quality"] = types.StringColumnType()
         parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql(
+            "data", parsed_pipeline, dialect=dialect, separate_trees=separate_trees
+        )
         sql_results = execute_sql(sql, conn, dialect, df)
 
         np.testing.assert_allclose(
@@ -163,7 +176,7 @@ class TestTreeBasedPipelines:
                 atol=1e-4,
             )
 
-    def test_gradient_boosting_regressor(self, iris_data, db_connection):
+    def test_gradient_boosting_regressor(self, iris_data, db_connection, separate_trees):
         """Test a gradient boosting regressor with standardization."""
         df, feature_names = iris_data
         conn, dialect = db_connection
@@ -189,7 +202,9 @@ class TestTreeBasedPipelines:
         features = {fname: types.FloatColumnType() for fname in feature_names}
         parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql(
+            "data", parsed_pipeline, dialect=dialect, separate_trees=separate_trees
+        )
         sql_results = execute_sql(sql, conn, dialect, df)
 
         np.testing.assert_allclose(
@@ -200,7 +215,7 @@ class TestTreeBasedPipelines:
         )
 
     # Random Forest Tests
-    def test_random_forest_classifier(self, iris_data, db_connection):
+    def test_random_forest_classifier(self, iris_data, db_connection, separate_trees):
         """Test a random forest classifier with mixed preprocessing."""
         df, feature_names = iris_data
         conn, dialect = db_connection
@@ -250,7 +265,9 @@ class TestTreeBasedPipelines:
         features["region"] = types.StringColumnType()
         parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
-        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql(
+            "data", parsed_pipeline, dialect=dialect, separate_trees=separate_trees
+        )
         sql_results = execute_sql(sql, conn, dialect, df)
 
         np.testing.assert_allclose(
@@ -269,7 +286,9 @@ class TestTreeBasedPipelines:
                 atol=1e-6,
             )
 
-    def test_binary_random_forest_classifier(self, iris_data, db_connection):
+    def test_binary_random_forest_classifier(
+        self, iris_data, db_connection, separate_trees
+    ):
         """Test a binary random forest classifier with mixed preprocessing."""
         df, feature_names = iris_data
         conn, dialect = db_connection
@@ -312,7 +331,9 @@ class TestTreeBasedPipelines:
         parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
 
         # Test prediction
-        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql(
+            "data", parsed_pipeline, dialect=dialect, separate_trees=separate_trees
+        )
         sql_results = execute_sql(sql, conn, dialect, binary_df)
         np.testing.assert_allclose(
             sql_results["output_label"].to_numpy(), sklearn_class
@@ -332,9 +353,10 @@ class TestTreeBasedPipelines:
             )
 
 
+@pytest.mark.parametrize("separate_trees", [False, True])
 class TestTreePostTransformations:
     def test_gradient_boosting_binary_classification_post_transform_bug(
-        self, db_connection
+        self, db_connection, separate_trees
     ):
         """Test that GBM binary classification applies post-transforms correctly."""
         conn, dialect = db_connection
@@ -372,7 +394,9 @@ class TestTreePostTransformations:
         features = {n: types.DoubleColumnType() for n in nm_cols}
 
         parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
-        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql(
+            "data", parsed_pipeline, dialect=dialect, separate_trees=separate_trees
+        )
 
         test_data = pd.DataFrame(X_train, columns=nm_cols)
         sql_results = execute_sql(sql, conn, dialect, test_data)
@@ -416,7 +440,7 @@ class TestTreePostTransformations:
         )
 
     def test_random_forest_binary_classification_post_transform_check(
-        self, db_connection
+        self, db_connection, separate_trees
     ):
         """Test RandomForest binary classification works correctly because it uses post_transform="NONE"."""
         conn, dialect = db_connection
@@ -454,7 +478,9 @@ class TestTreePostTransformations:
         features = {n: types.DoubleColumnType() for n in nm_cols}
 
         parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
-        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql(
+            "data", parsed_pipeline, dialect=dialect, separate_trees=separate_trees
+        )
 
         test_data = pd.DataFrame(X_train, columns=nm_cols)
         sql_results = execute_sql(sql, conn, dialect, test_data)
@@ -499,7 +525,7 @@ class TestTreePostTransformations:
         )
 
     def test_decision_tree_binary_classification_post_transform_check(
-        self, db_connection
+        self, db_connection, separate_trees
     ):
         """Test DecisionTree binary classification works correctly because DecisionTree uses post_transform="NONE"."""
         conn, dialect = db_connection
@@ -532,7 +558,9 @@ class TestTreePostTransformations:
         features = {n: types.DoubleColumnType() for n in nm_cols}
 
         parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
-        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql(
+            "data", parsed_pipeline, dialect=dialect, separate_trees=separate_trees
+        )
 
         test_data = pd.DataFrame(X_train, columns=nm_cols)
         sql_results = execute_sql(sql, conn, dialect, test_data)
@@ -577,7 +605,7 @@ class TestTreePostTransformations:
         )
 
     def test_gradient_boosting_multiclass_classification_post_transform_check(
-        self, iris_data, db_connection
+        self, iris_data, db_connection, separate_trees
     ):
         """Test that GradientBoosting multi-class classification works correctly with SOFTMAX post-transform."""
         conn, dialect = db_connection
@@ -606,7 +634,9 @@ class TestTreePostTransformations:
 
         features = {fname: types.FloatColumnType() for fname in feature_names}
         parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
-        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql = orbital.export_sql(
+            "data", parsed_pipeline, dialect=dialect, separate_trees=separate_trees
+        )
 
         test_data = df[feature_names]
         sql_results = execute_sql(sql, conn, dialect, test_data)

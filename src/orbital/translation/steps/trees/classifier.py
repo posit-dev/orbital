@@ -111,6 +111,21 @@ class TreeEnsembleClassifierTranslator(Translator):
         for tree in ensemble_trees.values():
             tree_votes.append(build_tree_case(tree))
 
+        if self._options.separate_trees:
+            # Preserve each tree's per-class vote as its own column so that
+            # DuckDB (and other columnar engines) can evaluate them in parallel.
+            # fold_case may collapse degenerate trees to a bare Python number;
+            # wrap those in ibis.literal so .name(...) works uniformly.
+            for i, votes in enumerate(tree_votes):
+                aliases = []
+                for clslabel in classlabels:
+                    vote = votes[clslabel]
+                    if not isinstance(vote, ibis.Expr):
+                        vote = ibis.literal(vote)
+                    aliases.append(vote.name(self.variable_unique_short_alias("tre")))
+                preserved = self.preserve(*aliases)
+                tree_votes[i] = dict(zip(classlabels, preserved))
+
         # In case base_values are provided, we need to add them to the votes.
         base_values = typing.cast(list[float], self._attributes.get("base_values", []))
         if not base_values:

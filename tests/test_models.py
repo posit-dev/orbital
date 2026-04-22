@@ -60,7 +60,14 @@ class TestSingleStepPipelines:
         )
 
     def validate_sql_execution(
-        self, pipeline, X, y, features, is_classification=True, db_connection=None
+        self,
+        pipeline,
+        X,
+        y,
+        features,
+        is_classification=True,
+        db_connection=None,
+        separate_trees=False,
     ):
         """Helper to validate SQL execution matches sklearn predictions."""
         # Use duckdb connection if none provided
@@ -74,7 +81,7 @@ class TestSingleStepPipelines:
 
         # Parse pipeline and generate SQL
         parsed = parse_pipeline(pipeline, features)
-        sql = orbital.export_sql("data", parsed, dialect=dialect)
+        sql = orbital.export_sql("data", parsed, dialect=dialect, separate_trees=separate_trees)
 
         # Get sklearn predictions
         sklearn_pred = pipeline.predict(X)
@@ -103,7 +110,8 @@ class TestSingleStepPipelines:
                 err_msg="SQL and sklearn predictions don't match within tolerance",
             )
 
-    def test_decision_tree_classifier_double_features(self):
+    @pytest.mark.parametrize("separate_trees", [False, True])
+    def test_decision_tree_classifier_double_features(self, separate_trees):
         """Test DecisionTreeClassifier with all double features."""
         features = {
             "feature1": types.DoubleColumnType(),
@@ -118,9 +126,17 @@ class TestSingleStepPipelines:
         pipeline.fit(X, y)
 
         # Test parsing, SQL generation, and execution
-        self.validate_sql_execution(pipeline, X, y, features, is_classification=True)
+        self.validate_sql_execution(
+            pipeline,
+            X,
+            y,
+            features,
+            is_classification=True,
+            separate_trees=separate_trees,
+        )
 
-    def test_decision_tree_classifier_float_features(self):
+    @pytest.mark.parametrize("separate_trees", [False, True])
+    def test_decision_tree_classifier_float_features(self, separate_trees):
         """Test DecisionTreeClassifier with all float features."""
         features = {
             "feature1": types.FloatColumnType(),
@@ -134,9 +150,17 @@ class TestSingleStepPipelines:
         pipeline.fit(X, y)
 
         # Test parsing, SQL generation, and execution
-        self.validate_sql_execution(pipeline, X, y, features, is_classification=True)
+        self.validate_sql_execution(
+            pipeline,
+            X,
+            y,
+            features,
+            is_classification=True,
+            separate_trees=separate_trees,
+        )
 
-    def test_decision_tree_classifier_int_features(self):
+    @pytest.mark.parametrize("separate_trees", [False, True])
+    def test_decision_tree_classifier_int_features(self, separate_trees):
         """Test DecisionTreeClassifier with all int features."""
         features = {
             "feature1": types.Int64ColumnType(),
@@ -152,10 +176,11 @@ class TestSingleStepPipelines:
         # Test parsing and SQL generation (execution validation would require type conversion)
         parsed = parse_pipeline(pipeline, features)
         assert parsed is not None
-        sql = orbital.export_sql("test_table", parsed)
+        sql = orbital.export_sql("test_table", parsed, separate_trees=separate_trees)
         assert sql is not None
 
-    def test_decision_tree_regressor_double_features(self):
+    @pytest.mark.parametrize("separate_trees", [False, True])
+    def test_decision_tree_regressor_double_features(self, separate_trees):
         """Test DecisionTreeRegressor with all double features."""
         features = {
             "feature1": types.DoubleColumnType(),
@@ -169,7 +194,14 @@ class TestSingleStepPipelines:
         pipeline.fit(X, y)
 
         # Test parsing, SQL generation, and execution
-        self.validate_sql_execution(pipeline, X, y, features, is_classification=False)
+        self.validate_sql_execution(
+            pipeline,
+            X,
+            y,
+            features,
+            is_classification=False,
+            separate_trees=separate_trees,
+        )
 
     def test_linear_regression_double_features(self):
         """Test LinearRegression with all double features."""
@@ -187,7 +219,8 @@ class TestSingleStepPipelines:
         # Test parsing, SQL generation, and execution
         self.validate_sql_execution(pipeline, X, y, features, is_classification=False)
 
-    def test_gradient_boosting_classifier_double_features(self):
+    @pytest.mark.parametrize("separate_trees", [False, True])
+    def test_gradient_boosting_classifier_double_features(self, separate_trees):
         """Test GradientBoostingClassifier with all double features."""
         features = {
             "feature1": types.DoubleColumnType(),
@@ -208,9 +241,17 @@ class TestSingleStepPipelines:
         pipeline.fit(X, y)
 
         # Test parsing, SQL generation, and execution
-        self.validate_sql_execution(pipeline, X, y, features, is_classification=True)
+        self.validate_sql_execution(
+            pipeline,
+            X,
+            y,
+            features,
+            is_classification=True,
+            separate_trees=separate_trees,
+        )
 
-    def test_gradient_boosting_regressor_double_features(self):
+    @pytest.mark.parametrize("separate_trees", [False, True])
+    def test_gradient_boosting_regressor_double_features(self, separate_trees):
         """Test GradientBoostingRegressor with all double features."""
         features = {
             "feature1": types.DoubleColumnType(),
@@ -226,7 +267,14 @@ class TestSingleStepPipelines:
         pipeline.fit(X, y)
 
         # Test parsing, SQL generation, and execution
-        self.validate_sql_execution(pipeline, X, y, features, is_classification=False)
+        self.validate_sql_execution(
+            pipeline,
+            X,
+            y,
+            features,
+            is_classification=False,
+            separate_trees=separate_trees,
+        )
 
     @pytest.mark.skip(
         reason="SQL and sklearn predictions don't match - needs investigation"

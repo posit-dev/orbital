@@ -67,6 +67,19 @@ class TreeEnsembleRegressorTranslator(Translator):
         tree_values = []
         for tree in ensemble_trees.values():
             tree_values.append(build_tree_value(tree))
+
+        if self._options.separate_trees:
+            # Preserve each tree prediction as its own column so that
+            # DuckDB (and other columnar engines) can evaluate them in parallel.
+            # fold_case may collapse degenerate trees to a bare Python number;
+            # wrap those in ibis.literal so .name(...) works uniformly.
+            tree_aliases = []
+            for val in tree_values:
+                if not isinstance(val, ibis.Expr):
+                    val = ibis.literal(val)
+                tree_aliases.append(val.name(self.variable_unique_short_alias("tre")))
+            tree_values = self.preserve(*tree_aliases)
+
         total_value: ibis.NumericValue = ibis.literal(0.0)
         for val in tree_values:
             total_value = optimizer.fold_operation(total_value + val)

@@ -109,6 +109,17 @@ class BranchConditionCreator:
 
 def build_tree(translator: Translator) -> dict[int, dict[int, dict]]:
     """Build a tree based on nested dictionaries of nodes."""
+    # The legacy TreeEnsemble* ops emitted by skl2onnx implement aggregation by
+    # summing leaf weights (pre-scaled by 1/n_trees for Random Forests). The
+    # ONNX-ML v5 TreeEnsemble op adds an explicit aggregate_function attribute
+    # that orbital does not yet honour - refuse anything other than SUM so we
+    # do not silently return wrong predictions.
+    aggregate_function = translator._attributes.get("aggregate_function")
+    if aggregate_function is not None and aggregate_function not in ("SUM", b"SUM", 1):
+        raise NotImplementedError(
+            f"Tree aggregate_function={aggregate_function!r} is not supported; "
+            "orbital currently only handles SUM aggregation."
+        )
     nodes_treeids = typing.cast(list[int], translator._attributes["nodes_treeids"])
     nodes_nodeids = typing.cast(list[int], translator._attributes["nodes_nodeids"])
     nodes_modes = typing.cast(list[str], translator._attributes["nodes_modes"])

@@ -88,15 +88,23 @@ class Optimizer:
         """
         self.ENABLED = enabled
 
-    def _ensure_expr(self, value: ibis.Expr) -> ibis.Expr:
+    def _ensure_expr(self, value: typing.Any) -> ibis.Expr:
         """Ensure that the value is an Ibis expression.
 
-        Literal objects need to be converted back to an
-        Ibis expression to be used in the query.
+        Literal operation nodes and bare Python scalars are wrapped in
+        ``ibis.literal`` so downstream code can always treat the result as
+        an ``ibis.Expr`` (e.g. to call ``.name(...)`` on it).
         """
+        if isinstance(value, ibis.Expr):
+            return value
         if isinstance(value, Literal):
             return ibis.literal(value.value)
-        return value
+        if isinstance(value, (int, float, bool, str, bytes)) or value is None:
+            return ibis.literal(value)
+        raise TypeError(
+            f"Optimizer._ensure_expr: unsupported value type {type(value).__name__!r} "
+            f"({value!r}); expected ibis.Expr, ibis Literal, or a Python scalar."
+        )
 
     def _fold_associative_op_contiguous(
         self, lst: list[ibis.expr.types.NumericValue], pyop: typing.Callable

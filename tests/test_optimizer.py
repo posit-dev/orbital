@@ -2,6 +2,7 @@ import operator
 
 import ibis
 import pytest
+from ibis.expr.operations import Literal
 
 from orbital.translation.optimizer import Optimizer
 
@@ -134,9 +135,15 @@ class TestOptimizerFold:
     def test_fold_operation_unary_negate(self):
         expr = -ibis.literal(10)
         result = self.optimizer.fold_operation(expr)
-        assert result == -10
+        # Folding must reduce the expression to a precomputed literal,
+        # not return the unreduced operation tree.
+        assert isinstance(result.op(), Literal)
+        assert result.op().value == -10
 
     def test_fold_operation_unary_not(self):
         expr = ~ibis.literal(True)
         result = self.optimizer.fold_operation(expr)
-        assert result is False
+        # Folding must reduce the expression to a precomputed literal,
+        # not return the unreduced operation tree.
+        assert isinstance(result.op(), Literal)
+        assert result.op().value is False

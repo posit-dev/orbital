@@ -123,6 +123,7 @@ def translate(
     projection: ResultsProjection = ResultsProjection(),
     *,
     allow_text_tensors: bool = False,
+    separate_trees: bool = False,
 ) -> ibis.Table:
     """Translate a pipeline into an Ibis expression.
 
@@ -137,9 +138,16 @@ def translate(
         promote numeric/bool tensors to strings solely to coexist with
         passthrough text features. Set to ``True`` to preserve the casts
         exactly as exported.
+    :param separate_trees: When ``True`` materialise each tree in an ensemble
+        as its own SQL column before summing. Columnar engines such as DuckDB
+        can evaluate the per-tree columns in parallel; row-oriented engines
+        see no difference. Defaults to ``False``.
     """
     optimizer = Optimizer(enabled=True)
-    options = TranslationOptions(allow_text_tensors=allow_text_tensors)
+    options = TranslationOptions(
+        allow_text_tensors=allow_text_tensors,
+        separate_trees=separate_trees,
+    )
     features = {colname: table[colname] for colname in table.columns}
     variables = GraphVariables(features, pipeline._model.graph)
     nodes = list(pipeline._model.graph.node)

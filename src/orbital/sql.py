@@ -44,6 +44,7 @@ def export_sql(
     projection: ResultsProjection = ResultsProjection(),
     optimize: bool = True,
     allow_text_tensors: bool = False,
+    separate_trees: bool = False,
 ) -> str:
     """Export SQL for a given pipeline.
 
@@ -64,6 +65,10 @@ def export_sql(
     :param allow_text_tensors: Forwarded to [orbital.translate.translate][]; controls whether
         numeric/bool tensors coerced to text in ONNX should remain text in the
         resulting SQL. Defaults to ``False`` to keep encoded columns numeric.
+    :param separate_trees: Forwarded to [orbital.translate.translate][];
+        materialises each tree in an ensemble as its own SQL column before
+        summing so that columnar engines (e.g. DuckDB) can evaluate trees in
+        parallel. Defaults to ``False``.
     """
     unbound_table = ibis.table(
         schema={
@@ -82,6 +87,7 @@ def export_sql(
         pipeline,
         projection=projection,
         allow_text_tensors=allow_text_tensors,
+        separate_trees=separate_trees,
     )
     if dialect == "duckdb":
         sqlglot_expr = _OrbitalDuckDBCompiler().to_sqlglot(ibis_expr)

@@ -111,6 +111,23 @@ class TreeEnsembleClassifierTranslator(Translator):
         for tree in ensemble_trees.values():
             tree_votes.append(build_tree_case(tree))
 
+        if self._options.separate_trees:
+            # Preserve every per-tree, per-class vote as its own column in a
+            # single projection so DuckDB (and other columnar engines) can
+            # evaluate them in parallel. A single preserve() call avoids the
+            # super-linear ibis/sqlglot compile cost of stacking one mutation
+            # per tree.
+            aliases = [
+                votes[clslabel].name(self.variable_unique_short_alias("tre"))
+                for votes in tree_votes
+                for clslabel in classlabels
+            ]
+            preserved = iter(self.preserve(*aliases))
+            tree_votes = [
+                {clslabel: next(preserved) for clslabel in classlabels}
+                for _ in tree_votes
+            ]
+
         # In case base_values are provided, we need to add them to the votes.
         base_values = typing.cast(list[float], self._attributes.get("base_values", []))
         if not base_values:

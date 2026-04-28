@@ -204,3 +204,52 @@ rid of that operation which is unecessary:
 SELECT ("t0"."sepal_length" - 5.843333333333334) * -0.11190585392686306 + ("t0"."sepal_width" - 3.0573333333333337) * -0.04007948649493375 + ("t0"."petal_length" - 3.7580000000000005) * 0.22864502724212313 + ("t0"."petal_width" - 1.1993333333333336) * 0.6092520541197893 + 1.0000000000000002 AS "variable" FROM "DATA_TABLE" AS "t0"
 ```
 
+## Separate Trees
+
+Tree ensembles such as Gradient Boosted Trees and Random Forests translate
+each tree into a nested `CASE WHEN` expression. By default Orbital inlines
+every tree into a single summed expression, which means a model with several
+hundred trees becomes one very large `SELECT` expression of the form:
+
+```sql
+SELECT (CASE WHEN ... END) + (CASE WHEN ... END) + ... + BASE_SCORE AS "variable"
+FROM "DATA_TABLE"
+```
+
+Columnar query engines evaluate each projected column independently and can
+parallelise across them. A single monolithic summed expression hides that
+parallelism behind one output column, so the engine cannot split the work
+across threads.
+
+Passing `separate_trees=True` to [orbital.export_sql][] (or
+[orbital.translate.translate][]) changes the layout: each tree is materialised
+as its own column in an inner subquery, and the outer query sums those columns
+together with the base score. The shape becomes:
+
+```sql
+SELECT t1.tree_1 + t1.tree_2 + ... + BASE_SCORE AS "variable"
+FROM (
+    SELECT *,
+        CASE WHEN ... END AS tree_1,
+        CASE WHEN ... END AS tree_2,
+        ...
+    FROM "DATA_TABLE"
+) t1
+```
+
+On columnar engines like DuckDB this can be significantly faster for ensembles
+with hundreds of trees, because tree columns can be evaluated concurrently.
+Row-oriented engines such as SQLite and PostgreSQL see no runtime difference
+between the two layouts. The generated SQL grows by roughly 7%, which is why
+the option defaults to `False`; enable it when targeting a columnar engine and
+working with large ensembles.
+
+```python
+sql = orbital.export_sql(
+    "DATA_TABLE",
+    orbital_pipeline,
+    dialect="duckdb",
+    separate_trees=True,
+)
+```
+

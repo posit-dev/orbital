@@ -1,6 +1,3 @@
-from contextlib import contextmanager
-from time import perf_counter
-
 from sklearn.compose import ColumnTransformer
 from sklearn.datasets import load_iris
 from sklearn.linear_model import LinearRegression
@@ -12,17 +9,6 @@ import duckdb
 
 import orbital
 import orbital.types
-
-
-@contextmanager
-def timed(label):
-    start = perf_counter()
-    try:
-        yield
-    finally:
-        elapsed = perf_counter() - start
-        print(f"{label} took {elapsed:.6f} seconds")
-
 
 COLUMNS = ["sepal.length", "sepal.width", "petal.length", "petal.width"]
 
@@ -60,12 +46,9 @@ print("\nGenerated Query for DuckDB:")
 print(sql)
 print("\nPrediction with SQL")
 duckdb.register("DATA_TABLE", X_test)
-with timed("Orbital SQL prediction"):
-    result = duckdb.sql(sql).df()
+result = duckdb.sql(sql).df()
 print(result.head())
 print("---")
 print(result["variable"][:5].to_numpy())
 print("\nPrediction with SciKit-Learn")
-with timed("SciKit-Learn prediction"):
-    sklearn_result = pipeline.predict(X_test)
-print(sklearn_result[:5])
+print(pipeline.predict(X_test)[:5])

@@ -1,20 +1,21 @@
 """Translator for Sigmoid activation function."""
 
-from ..translator import Translator
-from ..variables import VariablesGroup, ValueVariablesGroup
 import ibis
+
+from ...translator import Translator
+from ...variables import ValueVariablesGroup, VariablesGroup
 
 
 class SigmoidTranslator(Translator):
     """Translate ONNX Sigmoid operation to SQL expression.
-    
+
     Sigmoid(x) = 1 / (1 + exp(-x))
     """
 
     def process(self) -> None:
         """Process Sigmoid node and generate SQL translation."""
         input_var = self._variables.consume(self._inputs[0])
-        
+
         # Handle both single values and variable groups
         if isinstance(input_var, VariablesGroup):
             # Apply Sigmoid to each element in the group

@@ -10,7 +10,6 @@ from .translation.optimizer import Optimizer
 from .translation.options import TranslationOptions
 from .translation.steps.add import AddTranslator
 from .translation.steps.argmax import ArgMaxTranslator
-from .translation.steps.gemm import GemmTranslator
 from .translation.steps.arrayfeatureextractor import ArrayFeatureExtractorTranslator
 from .translation.steps.cast import CastLikeTranslator, CastTranslator
 from .translation.steps.concat import ConcatTranslator, FeatureVectorizerTranslator
@@ -23,11 +22,14 @@ from .translation.steps.linearclass import LinearClassifierTranslator
 from .translation.steps.linearreg import LinearRegressorTranslator
 from .translation.steps.matmul import MatMulTranslator
 from .translation.steps.mul import MulTranslator
+from .translation.steps.nn import (
+    GemmTranslator,
+    ReLUTranslator,
+    SigmoidTranslator,
+)
 from .translation.steps.onehotencoder import OneHotEncoderTranslator
-from .translation.steps.relu import ReLUTranslator
 from .translation.steps.reshape import ReshapeTranslator
 from .translation.steps.scaler import ScalerTranslator
-from .translation.steps.sigmoid import SigmoidTranslator
 from .translation.steps.softmax import SoftmaxTranslator
 from .translation.steps.sub import SubTranslator
 from .translation.steps.trees import (
@@ -54,7 +56,6 @@ TRANSLATORS: dict[str, type[Translator]] = {
     "Div": DivTranslator,
     "Gemm": GemmTranslator,
     "Mul": MulTranslator,
-    "ReLU": ReLUTranslator,
     "Relu": ReLUTranslator,
     "Reshape": ReshapeTranslator,
     "Scaler": ScalerTranslator,

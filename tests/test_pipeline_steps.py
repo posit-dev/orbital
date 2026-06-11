@@ -28,6 +28,11 @@ from orbital.translation.steps.concat import (
     FeatureVectorizerTranslator,
 )
 from orbital.translation.steps.gather import GatherTranslator
+from orbital.translation.steps.nn import (
+    GemmTranslator,
+    ReLUTranslator,
+    SigmoidTranslator,
+)
 from orbital.translation.steps.arrayfeatureextractor import (
     ArrayFeatureExtractorTranslator,
 )
@@ -4329,3 +4334,199 @@ class TestArrayFeatureExtractorTranslator:
         # Should map indices to class names
         computed = list(backend.execute(result))
         assert computed == ["class_a", "class_b", "class_c", "class_b", "class_a"]
+
+
+class TestGemmTranslator:
+    optimizer = Optimizer(enabled=False)
+
+    def test_gemm_group_input(self):
+        """Gemm computes A @ B^T + C over a group of feature columns."""
+        table = ibis.memtable({"f0": [1.0, 2.0], "f1": [3.0, -1.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N,2] input) => (float[N,2] output)
+            <float[2,2] weights = {1.0, 2.0, 3.0, 4.0}, float[2] bias = {0.5, -0.5}> {
+                output = Gemm <alpha: float = 1.0, beta: float = 1.0, transB: int = 1> (input, weights, bias)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {"f0": table["f0"], "f1": table["f1"]}
+        )
+
+        translator = GemmTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        assert list(result.keys()) == ["out_0", "out_1"]
+
+        backend = ibis.duckdb.connect()
+        # out_0 = 1*f0 + 2*f1 + 0.5, out_1 = 3*f0 + 4*f1 - 0.5
+        assert list(backend.execute(result["out_0"])) == [7.5, 0.5]
+        assert list(backend.execute(result["out_1"])) == [14.5, 1.5]
+
+    def test_gemm_single_output(self):
+        """Gemm with a single output neuron produces a single expression."""
+        table = ibis.memtable({"f0": [1.0, 2.0], "f1": [3.0, -1.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N,2] input) => (float[N,1] output)
+            <float[1,2] weights = {2.0, 3.0}, float[1] bias = {1.0}> {
+                output = Gemm <alpha: float = 1.0, beta: float = 1.0, transB: int = 1> (input, weights, bias)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {"f0": table["f0"], "f1": table["f1"]}
+        )
+
+        translator = GemmTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        # output = 2*f0 + 3*f1 + 1
+        assert list(backend.execute(result)) == [12.0, 2.0]
+
+    def test_gemm_raw_data_initializers(self):
+        """Gemm reads weights stored as raw_data (PyTorch-exported models)."""
+        import numpy as np
+        from onnx import numpy_helper
+
+        weights = numpy_helper.from_array(
+            np.array([[2.0, 3.0]], dtype=np.float32), name="weights"
+        )
+        bias = numpy_helper.from_array(np.array([1.0], dtype=np.float32), name="bias")
+        node = onnx.helper.make_node(
+            "Gemm", ["input", "weights", "bias"], ["output"], transB=1
+        )
+        graph = onnx.helper.make_graph(
+            [node],
+            "gemm_raw",
+            [
+                onnx.helper.make_tensor_value_info(
+                    "input", onnx.TensorProto.FLOAT, [None, 2]
+                )
+            ],
+            [
+                onnx.helper.make_tensor_value_info(
+                    "output", onnx.TensorProto.FLOAT, [None, 1]
+                )
+            ],
+            initializer=[weights, bias],
+        )
+
+        table = ibis.memtable({"f0": [1.0, 2.0], "f1": [3.0, -1.0]})
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), graph)
+        variables["input"] = NumericVariablesGroup(
+            {"f0": table["f0"], "f1": table["f1"]}
+        )
+
+        translator = GemmTranslator(
+            table, graph.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [12.0, 2.0]
+
+
+class TestReluTranslator:
+    optimizer = Optimizer(enabled=False)
+
+    def test_relu_single_input(self):
+        """ReLU clamps negative values of a single column to zero."""
+        table = ibis.memtable({"input": [-1.0, 0.0, 2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Relu(input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = ReLUTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [0.0, 0.0, 2.0]
+
+    def test_relu_group_input(self):
+        """ReLU applies element-wise to every column in a group."""
+        table = ibis.memtable({"a": [-1.0, 2.0], "b": [3.0, -4.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Relu(input)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup({"a": table["a"], "b": table["b"]})
+
+        translator = ReLUTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["a"])) == [0.0, 2.0]
+        assert list(backend.execute(result["b"])) == [3.0, 0.0]
+
+
+class TestSigmoidTranslator:
+    optimizer = Optimizer(enabled=False)
+
+    def test_sigmoid_single_input(self):
+        """Sigmoid computes 1 / (1 + exp(-x)) for a single column."""
+        import math
+
+        table = ibis.memtable({"input": [0.0, 2.0, -2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Sigmoid(input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = SigmoidTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        computed = list(backend.execute(result))
+        expected = [1 / (1 + math.exp(-x)) for x in [0.0, 2.0, -2.0]]
+        assert computed == pytest.approx(expected)
+
+    def test_sigmoid_group_input(self):
+        """Sigmoid applies element-wise to every column in a group."""
+        table = ibis.memtable({"a": [0.0, 1.0], "b": [-1.0, 2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Sigmoid(input)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup({"a": table["a"], "b": table["b"]})
+
+        translator = SigmoidTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["a"])) == [0.5, pytest.approx(0.7310585786)]

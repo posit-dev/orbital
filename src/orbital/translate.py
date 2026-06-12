@@ -8,6 +8,7 @@ import ibis
 from .ast import ParsedPipeline
 from .translation.optimizer import Optimizer
 from .translation.options import TranslationOptions
+from .translation.steps.abs import AbsTranslator
 from .translation.steps.add import AddTranslator
 from .translation.steps.argmax import ArgMaxTranslator
 from .translation.steps.arrayfeatureextractor import ArrayFeatureExtractorTranslator
@@ -46,6 +47,7 @@ from .translation.variables import GraphVariables
 # registration, but explicit mapping avoids effects at a distance and
 # makes it easier to understand the translation process.
 TRANSLATORS: dict[str, type[Translator]] = {
+    "Abs": AbsTranslator,
     "Cast": CastTranslator,
     "CastLike": CastLikeTranslator,
     "Concat": ConcatTranslator,

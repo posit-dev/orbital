@@ -1,4 +1,4 @@
-"""Translator for Gemm (General Matrix Multiplication) operation."""
+"""Implementation of the Gemm operator."""
 
 import typing
 
@@ -6,15 +6,22 @@ import ibis
 from onnx import numpy_helper
 
 from ...translator import Translator
-from ...variables import ValueVariablesGroup, VariablesGroup
+from ...variables import NumericVariablesGroup, ValueVariablesGroup, VariablesGroup
 
 
 class GemmTranslator(Translator):
     """Processes a Gemm node and updates the variables with the output expression.
 
-    Gemm implements output = alpha * (A @ B) + beta * C, which is how
-    neural network linear layers (like torch.nn.Linear) are exported
-    to ONNX: A is the input data, B the weight matrix and C the bias vector.
+    The operation computes the general matrix multiplication::
+
+        output = alpha * (A @ B) + beta * C
+
+    which is how neural network linear layers (like torch.nn.Linear) are
+    exported to ONNX: A is the input data, B the weight matrix and C the
+    bias vector.
+
+    The weight matrix and bias must be constant initializers, and
+    transposing the input data (transA=1) is not supported.
     """
 
     def process(self) -> None:
@@ -44,18 +51,35 @@ class GemmTranslator(Translator):
                 raise NotImplementedError(
                     "Gemm: third input (bias vector) must be a constant initializer"
                 )
-            bias = numpy_helper.to_array(bias_proto)
+            # ONNX allows C to be unidirectionally broadcastable to (M, N),
+            # so accept shapes like (1,) and (1, N) besides (N,).
+            bias = numpy_helper.to_array(bias_proto).reshape(-1)
+            if bias.size == 1:
+                bias = bias.repeat(out_features)
+            elif bias.size != out_features:
+                raise NotImplementedError(
+                    f"Gemm: bias with {bias.size} values cannot broadcast "
+                    f"to {out_features} outputs"
+                )
 
         first_operand = self._variables.consume(self._inputs[0])
+        type_check_var = first_operand
+        if isinstance(type_check_var, dict):
+            type_check_var = next(iter(type_check_var.values()), None)
+        if not isinstance(type_check_var, ibis.expr.types.NumericValue):
+            raise ValueError(
+                "Gemm: The first operand must be a numeric column or a column group of numerics."
+            )
+
         if isinstance(first_operand, VariablesGroup):
             input_exprs: list[ibis.expr.types.NumericValue] = list(
-                first_operand.values()
+                NumericVariablesGroup(first_operand).values()
             )
         else:
             input_exprs = [typing.cast(ibis.expr.types.NumericValue, first_operand)]
         if len(input_exprs) != in_features:
             raise ValueError(
-                f"Gemm: input has {len(input_exprs)} features "
+                f"Gemm: input has {len(input_exprs)} feature(s) "
                 f"but weight matrix expects {in_features}"
             )
 

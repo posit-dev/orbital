@@ -8,6 +8,7 @@ import ibis
 from .ast import ParsedPipeline
 from .translation.optimizer import Optimizer
 from .translation.options import TranslationOptions
+from .translation.steps.abs import AbsTranslator
 from .translation.steps.add import AddTranslator
 from .translation.steps.argmax import ArgMaxTranslator
 from .translation.steps.arrayfeatureextractor import ArrayFeatureExtractorTranslator
@@ -22,6 +23,11 @@ from .translation.steps.linearclass import LinearClassifierTranslator
 from .translation.steps.linearreg import LinearRegressorTranslator
 from .translation.steps.matmul import MatMulTranslator
 from .translation.steps.mul import MulTranslator
+from .translation.steps.nn import (
+    GemmTranslator,
+    ReLUTranslator,
+    SigmoidTranslator,
+)
 from .translation.steps.onehotencoder import OneHotEncoderTranslator
 from .translation.steps.reshape import ReshapeTranslator
 from .translation.steps.scaler import ScalerTranslator
@@ -41,6 +47,7 @@ from .translation.variables import GraphVariables
 # registration, but explicit mapping avoids effects at a distance and
 # makes it easier to understand the translation process.
 TRANSLATORS: dict[str, type[Translator]] = {
+    "Abs": AbsTranslator,
     "Cast": CastTranslator,
     "CastLike": CastLikeTranslator,
     "Concat": ConcatTranslator,
@@ -49,9 +56,12 @@ TRANSLATORS: dict[str, type[Translator]] = {
     "MatMul": MatMulTranslator,
     "Add": AddTranslator,
     "Div": DivTranslator,
+    "Gemm": GemmTranslator,
     "Mul": MulTranslator,
+    "Relu": ReLUTranslator,
     "Reshape": ReshapeTranslator,
     "Scaler": ScalerTranslator,
+    "Sigmoid": SigmoidTranslator,
     "Gather": GatherTranslator,
     "ArrayFeatureExtractor": ArrayFeatureExtractorTranslator,
     "Identity": IdentityTranslator,

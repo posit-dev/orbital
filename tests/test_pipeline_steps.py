@@ -5,6 +5,7 @@ import ibis
 import pytest
 
 from orbital.translate import TRANSLATORS
+from orbital.translation.steps.abs import AbsTranslator
 from orbital.translation.steps.softmax import SoftmaxTranslator
 from orbital.translation.steps.imputer import ImputerTranslator
 from orbital.translation.steps.argmax import ArgMaxTranslator
@@ -28,6 +29,11 @@ from orbital.translation.steps.concat import (
     FeatureVectorizerTranslator,
 )
 from orbital.translation.steps.gather import GatherTranslator
+from orbital.translation.steps.nn import (
+    GemmTranslator,
+    ReLUTranslator,
+    SigmoidTranslator,
+)
 from orbital.translation.steps.arrayfeatureextractor import (
     ArrayFeatureExtractorTranslator,
 )
@@ -4329,3 +4335,706 @@ class TestArrayFeatureExtractorTranslator:
         # Should map indices to class names
         computed = list(backend.execute(result))
         assert computed == ["class_a", "class_b", "class_c", "class_b", "class_a"]
+
+
+class TestGemmTranslator:
+    optimizer = Optimizer(enabled=False)
+
+    def test_gemm_group_input(self):
+        """Gemm computes A @ B^T + C over a group of feature columns."""
+        table = ibis.memtable({"f0": [1.0, 2.0], "f1": [3.0, -1.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N,2] input) => (float[N,2] output)
+            <float[2,2] weights = {1.0, 2.0, 3.0, 4.0}, float[2] bias = {0.5, -0.5}> {
+                output = Gemm <alpha: float = 1.0, beta: float = 1.0, transB: int = 1> (input, weights, bias)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {"f0": table["f0"], "f1": table["f1"]}
+        )
+
+        translator = GemmTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        assert list(result.keys()) == ["out_0", "out_1"]
+
+        backend = ibis.duckdb.connect()
+        # out_0 = 1*f0 + 2*f1 + 0.5, out_1 = 3*f0 + 4*f1 - 0.5
+        assert list(backend.execute(result["out_0"])) == [7.5, 0.5]
+        assert list(backend.execute(result["out_1"])) == [14.5, 1.5]
+
+    def test_gemm_single_output(self):
+        """Gemm with a single output neuron produces a single expression."""
+        table = ibis.memtable({"f0": [1.0, 2.0], "f1": [3.0, -1.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N,2] input) => (float[N,1] output)
+            <float[1,2] weights = {2.0, 3.0}, float[1] bias = {1.0}> {
+                output = Gemm <alpha: float = 1.0, beta: float = 1.0, transB: int = 1> (input, weights, bias)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {"f0": table["f0"], "f1": table["f1"]}
+        )
+
+        translator = GemmTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        # output = 2*f0 + 3*f1 + 1
+        assert list(backend.execute(result)) == [12.0, 2.0]
+
+    def test_gemm_single_column_input(self):
+        """Gemm accepts a plain single column as the input data."""
+        table = ibis.memtable({"input": [1.0, 2.0, -1.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N,1] input) => (float[N,2] output)
+            <float[2,1] weights = {2.0, 3.0}, float[2] bias = {1.0, -1.0}> {
+                output = Gemm <alpha: float = 1.0, beta: float = 1.0, transB: int = 1> (input, weights, bias)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = GemmTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+
+        backend = ibis.duckdb.connect()
+        # out_0 = 2*x + 1, out_1 = 3*x - 1
+        assert list(backend.execute(result["out_0"])) == [3.0, 5.0, -1.0]
+        assert list(backend.execute(result["out_1"])) == [2.0, 5.0, -4.0]
+
+    def test_gemm_alpha_beta_scaling(self):
+        """Gemm scales the matrix product by alpha and the bias by beta."""
+        table = ibis.memtable({"f0": [1.0, 2.0], "f1": [3.0, -1.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N,2] input) => (float[N,1] output)
+            <float[1,2] weights = {2.0, 3.0}, float[1] bias = {1.0}> {
+                output = Gemm <alpha: float = 2.0, beta: float = 0.5, transB: int = 1> (input, weights, bias)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {"f0": table["f0"], "f1": table["f1"]}
+        )
+
+        translator = GemmTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        # output = 2*(2*f0 + 3*f1) + 0.5*1
+        assert list(backend.execute(result)) == [22.5, 2.5]
+
+    def test_gemm_beta_zero_skips_bias(self):
+        """Gemm with beta=0 ignores the bias vector."""
+        table = ibis.memtable({"f0": [1.0, 2.0], "f1": [3.0, -1.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N,2] input) => (float[N,1] output)
+            <float[1,2] weights = {2.0, 3.0}, float[1] bias = {100.0}> {
+                output = Gemm <alpha: float = 1.0, beta: float = 0.0, transB: int = 1> (input, weights, bias)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {"f0": table["f0"], "f1": table["f1"]}
+        )
+
+        translator = GemmTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        # output = 2*f0 + 3*f1, bias dropped
+        assert list(backend.execute(result)) == [11.0, 1.0]
+
+    def test_gemm_without_bias(self):
+        """Gemm with only two inputs computes the matrix product alone."""
+        table = ibis.memtable({"f0": [1.0, 2.0], "f1": [3.0, -1.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N,2] input) => (float[N,1] output)
+            <float[1,2] weights = {2.0, 3.0}> {
+                output = Gemm <alpha: float = 1.0, beta: float = 1.0, transB: int = 1> (input, weights)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {"f0": table["f0"], "f1": table["f1"]}
+        )
+
+        translator = GemmTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        # output = 2*f0 + 3*f1
+        assert list(backend.execute(result)) == [11.0, 1.0]
+
+    def test_gemm_bias_broadcast_scalar(self):
+        """Gemm broadcasts a single-value bias to every output neuron."""
+        table = ibis.memtable({"input": [1.0, 2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N,1] input) => (float[N,2] output)
+            <float[2,1] weights = {2.0, 3.0}, float[1] bias = {1.0}> {
+                output = Gemm <transB: int = 1> (input, weights, bias)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = GemmTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        # out_0 = 2*x + 1, out_1 = 3*x + 1, same bias on both outputs
+        assert list(backend.execute(result["out_0"])) == [3.0, 5.0]
+        assert list(backend.execute(result["out_1"])) == [4.0, 7.0]
+
+    def test_gemm_bias_broadcast_row(self):
+        """Gemm accepts a bias stored with shape (1, N) instead of (N,)."""
+        table = ibis.memtable({"input": [1.0, 2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N,1] input) => (float[N,2] output)
+            <float[2,1] weights = {2.0, 3.0}, float[1,2] bias = {0.5, -0.5}> {
+                output = Gemm <transB: int = 1> (input, weights, bias)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = GemmTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        # out_0 = 2*x + 0.5, out_1 = 3*x - 0.5
+        assert list(backend.execute(result["out_0"])) == [2.5, 4.5]
+        assert list(backend.execute(result["out_1"])) == [2.5, 5.5]
+
+    def test_gemm_error_bias_size_mismatch(self):
+        """Gemm raises an error when the bias cannot broadcast to the outputs."""
+        table = ibis.memtable({"input": [1.0, 2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N,1] input) => (float[N,2] output)
+            <float[2,1] weights = {2.0, 3.0}, float[3] bias = {1.0, 2.0, 3.0}> {
+                output = Gemm <transB: int = 1> (input, weights, bias)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = GemmTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(NotImplementedError, match="cannot broadcast"):
+            translator.process()
+
+    def test_gemm_transb_zero(self):
+        """Gemm with transB=0 reads the weight matrix without transposing it."""
+        table = ibis.memtable({"f0": [1.0, 2.0], "f1": [3.0, -1.0]})
+        # Weights stored as (in_features, out_features) = (2, 1)
+        model = onnx.parser.parse_graph("""
+            agraph (float[N,2] input) => (float[N,1] output)
+            <float[2,1] weights = {2.0, 3.0}, float[1] bias = {1.0}> {
+                output = Gemm <alpha: float = 1.0, beta: float = 1.0> (input, weights, bias)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {"f0": table["f0"], "f1": table["f1"]}
+        )
+
+        translator = GemmTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        # output = 2*f0 + 3*f1 + 1
+        assert list(backend.execute(result)) == [12.0, 2.0]
+
+    def test_gemm_raw_data_initializers(self):
+        """Gemm reads weights stored as raw_data (PyTorch-exported models)."""
+        import numpy as np
+        from onnx import numpy_helper
+
+        weights = numpy_helper.from_array(
+            np.array([[2.0, 3.0]], dtype=np.float32), name="weights"
+        )
+        bias = numpy_helper.from_array(np.array([1.0], dtype=np.float32), name="bias")
+        node = onnx.helper.make_node(
+            "Gemm", ["input", "weights", "bias"], ["output"], transB=1
+        )
+        graph = onnx.helper.make_graph(
+            [node],
+            "gemm_raw",
+            [
+                onnx.helper.make_tensor_value_info(
+                    "input", onnx.TensorProto.FLOAT, [None, 2]
+                )
+            ],
+            [
+                onnx.helper.make_tensor_value_info(
+                    "output", onnx.TensorProto.FLOAT, [None, 1]
+                )
+            ],
+            initializer=[weights, bias],
+        )
+
+        table = ibis.memtable({"f0": [1.0, 2.0], "f1": [3.0, -1.0]})
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), graph)
+        variables["input"] = NumericVariablesGroup(
+            {"f0": table["f0"], "f1": table["f1"]}
+        )
+
+        translator = GemmTranslator(
+            table, graph.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [12.0, 2.0]
+
+    def test_gemm_with_optimizer_enabled(self):
+        """Gemm produces the same results with optimizer folding enabled."""
+        table = ibis.memtable({"f0": [1.0, 2.0], "f1": [3.0, -1.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N,2] input) => (float[N,1] output)
+            <float[1,2] weights = {2.0, 3.0}, float[1] bias = {1.0}> {
+                output = Gemm <alpha: float = 1.0, beta: float = 1.0, transB: int = 1> (input, weights, bias)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {"f0": table["f0"], "f1": table["f1"]}
+        )
+
+        translator = GemmTranslator(
+            table,
+            model.node[0],
+            variables,
+            Optimizer(enabled=True),
+            TranslationOptions(),
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [12.0, 2.0]
+
+    def test_gemm_error_feature_count_mismatch(self):
+        """Gemm raises an error when input features don't match the weight matrix."""
+        table = ibis.memtable({"f0": [1.0, 2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N,2] input) => (float[N,1] output)
+            <float[1,2] weights = {2.0, 3.0}, float[1] bias = {1.0}> {
+                output = Gemm <transB: int = 1> (input, weights, bias)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup({"f0": table["f0"]})
+
+        translator = GemmTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(ValueError, match="weight matrix expects"):
+            translator.process()
+
+    def test_gemm_error_transa_not_supported(self):
+        """Gemm raises an error when the input data should be transposed."""
+        table = ibis.memtable({"input": [1.0, 2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N,1] input) => (float[N,1] output)
+            <float[1,1] weights = {2.0}, float[1] bias = {1.0}> {
+                output = Gemm <transA: int = 1> (input, weights, bias)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = GemmTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(NotImplementedError, match="transA=1 is not supported"):
+            translator.process()
+
+    def test_gemm_error_non_initializer_weights(self):
+        """Gemm raises an error when the weight matrix is not a constant."""
+        # Weights come from a table column instead of a constant initializer.
+        table = ibis.memtable({"input": [1.0, 2.0], "weights": [1.0, 1.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N,1] input, float[1,1] weights) => (float[N,1] output) {
+                output = Gemm(input, weights)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = GemmTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(
+            NotImplementedError,
+            match="weight matrix.*must be a constant initializer",
+        ):
+            translator.process()
+
+    def test_gemm_error_non_initializer_bias(self):
+        """Gemm raises an error when the bias vector is not a constant."""
+        # Bias comes from a table column instead of a constant initializer.
+        table = ibis.memtable({"input": [1.0, 2.0], "bias": [1.0, 1.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N,1] input, float[1] bias) => (float[N,1] output)
+            <float[1,1] weights = {2.0}> {
+                output = Gemm(input, weights, bias)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = GemmTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(
+            NotImplementedError,
+            match="bias vector.*must be a constant initializer",
+        ):
+            translator.process()
+
+    def test_gemm_error_non_numeric_input(self):
+        """Gemm raises an error when the input data is not numeric."""
+        table = ibis.memtable({"input": ["a", "b"]})
+        model = onnx.parser.parse_graph("""
+            agraph (string[N] input) => (float[N,1] output)
+            <float[1,1] weights = {2.0}, float[1] bias = {1.0}> {
+                output = Gemm(input, weights, bias)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = GemmTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(ValueError, match="first operand must be a numeric column"):
+            translator.process()
+
+
+class TestReluTranslator:
+    optimizer = Optimizer(enabled=False)
+
+    def test_relu_single_input(self):
+        """ReLU clamps negative values of a single column to zero."""
+        table = ibis.memtable({"input": [-1.0, 0.0, 2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Relu(input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = ReLUTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [0.0, 0.0, 2.0]
+
+    def test_relu_group_input(self):
+        """ReLU applies element-wise to every column in a group."""
+        table = ibis.memtable({"a": [-1.0, 2.0], "b": [3.0, -4.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Relu(input)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup({"a": table["a"], "b": table["b"]})
+
+        translator = ReLUTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["a"])) == [0.0, 2.0]
+        assert list(backend.execute(result["b"])) == [3.0, 0.0]
+
+    def test_relu_null_propagation(self):
+        """ReLU keeps NULL inputs NULL instead of clamping them to zero."""
+        import math
+
+        table = ibis.memtable({"input": [1.0, -2.0, None]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Relu(input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = ReLUTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        computed = list(backend.execute(result))
+        # A missing feature must stay missing, not become a confident 0.
+        assert computed[:2] == [1.0, 0.0]
+        assert math.isnan(computed[2])
+
+    def test_relu_with_optimizer_enabled(self):
+        """ReLU produces the same results with optimizer folding enabled."""
+        table = ibis.memtable({"input": [-1.0, 0.0, 2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Relu(input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = ReLUTranslator(
+            table,
+            model.node[0],
+            variables,
+            Optimizer(enabled=True),
+            TranslationOptions(),
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [0.0, 0.0, 2.0]
+
+    def test_relu_error_invalid_input_type(self):
+        """ReLU raises an error when the input is not numeric."""
+        table = ibis.memtable({"input": ["a", "b", "c"]})
+        model = onnx.parser.parse_graph("""
+            agraph (string[N] input) => (float[N] output) {
+                output = Relu(input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = ReLUTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(ValueError, match="first operand must be a numeric column"):
+            translator.process()
+
+
+class TestSigmoidTranslator:
+    optimizer = Optimizer(enabled=False)
+
+    def test_sigmoid_single_input(self):
+        """Sigmoid computes 1 / (1 + exp(-x)) for a single column."""
+        import math
+
+        table = ibis.memtable({"input": [0.0, 2.0, -2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Sigmoid(input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = SigmoidTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        computed = list(backend.execute(result))
+        expected = [1 / (1 + math.exp(-x)) for x in [0.0, 2.0, -2.0]]
+        assert computed == pytest.approx(expected)
+
+    def test_sigmoid_group_input(self):
+        """Sigmoid applies element-wise to every column in a group."""
+        table = ibis.memtable({"a": [0.0, 1.0], "b": [-1.0, 2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Sigmoid(input)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup({"a": table["a"], "b": table["b"]})
+
+        translator = SigmoidTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        assert isinstance(result, NumericVariablesGroup)
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["a"])) == [0.5, pytest.approx(0.7310585786)]
+        assert list(backend.execute(result["b"])) == [
+            pytest.approx(0.2689414214),
+            pytest.approx(0.8807970780),
+        ]
+
+    def test_sigmoid_error_invalid_input_type(self):
+        """Sigmoid raises an error when the input is not numeric."""
+        table = ibis.memtable({"input": [1.0, 2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Sigmoid(input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        # Intentionally set invalid input type to test error handling
+        variables["input"] = "invalid_string_input"  # type: ignore[assignment]
+
+        translator = SigmoidTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(
+            ValueError, match="Sigmoid: The first operand must be a numeric column"
+        ):
+            translator.process()
+
+
+class TestAbsTranslator:
+    optimizer = Optimizer(enabled=False)
+
+    def test_abs_single_input(self):
+        """Abs computes the absolute value of a single column."""
+        table = ibis.memtable({"input": [-1.5, 0.0, 2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Abs(input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = AbsTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [1.5, 0.0, 2.0]
+
+    def test_abs_group_input(self):
+        """Abs applies element-wise to every column in a group."""
+        table = ibis.memtable({"a": [-1.0, 2.0], "b": [3.0, -4.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Abs(input)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup({"a": table["a"], "b": table["b"]})
+
+        translator = AbsTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["a"])) == [1.0, 2.0]
+        assert list(backend.execute(result["b"])) == [3.0, 4.0]
+
+    def test_abs_with_optimizer_enabled(self):
+        """Abs results are unchanged when the optimizer is enabled."""
+        table = ibis.memtable({"input": [-1.5, 0.0, 2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Abs(input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = AbsTranslator(
+            table,
+            model.node[0],
+            variables,
+            Optimizer(enabled=True),
+            TranslationOptions(),
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [1.5, 0.0, 2.0]
+
+    def test_abs_error_invalid_input_type(self):
+        """Abs raises an error for non-numeric input."""
+        table = ibis.memtable({"input": ["a", "b"]})
+        model = onnx.parser.parse_graph("""
+            agraph (string[N] input) => (string[N] output) {
+                output = Abs(input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = AbsTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(ValueError, match="Abs: The first operand"):
+            translator.process()

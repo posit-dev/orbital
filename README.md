@@ -52,8 +52,13 @@ from sklearn.preprocessing import StandardScaler
 
 pipeline = Pipeline(
     [
-        ("preprocess", ColumnTransformer([("scaler", StandardScaler(with_std=False), COLUMNS)],
-                                        remainder="passthrough")),
+        (
+            "preprocess",
+            ColumnTransformer(
+                [("scaler", StandardScaler(with_std=False), COLUMNS)],
+                remainder="passthrough",
+            ),
+        ),
         ("linear_regression", LinearRegression()),
     ]
 )
@@ -66,12 +71,15 @@ Convert the pipeline to orbital:
 import orbital
 import orbital.types
 
-orbital_pipeline = orbital.parse_pipeline(pipeline, features={
-    "sepal_length": orbital.types.DoubleColumnType(),
-    "sepal_width": orbital.types.DoubleColumnType(),
-    "petal_length": orbital.types.DoubleColumnType(),
-    "petal_width": orbital.types.DoubleColumnType(),
-})
+orbital_pipeline = orbital.parse_pipeline(
+    pipeline,
+    features={
+        "sepal_length": orbital.types.DoubleColumnType(),
+        "sepal_width": orbital.types.DoubleColumnType(),
+        "petal_length": orbital.types.DoubleColumnType(),
+        "petal_width": orbital.types.DoubleColumnType(),
+    },
+)
 ```
 
 You can print the pipeline to see the result:

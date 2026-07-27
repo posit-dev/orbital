@@ -278,9 +278,6 @@ class TestSingleStepPipelines:
             separate_trees=separate_trees,
         )
 
-    @pytest.mark.skip(
-        reason="SQL and sklearn predictions don't match - needs investigation"
-    )
     def test_random_forest_classifier_double_features(self):
         """Test RandomForestClassifier with all double features."""
         features = {

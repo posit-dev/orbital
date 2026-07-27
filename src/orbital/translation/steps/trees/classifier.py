@@ -30,6 +30,10 @@ class TreeEnsembleClassifierTranslator(Translator):
     the votes by the sum of all votes.
     """
 
+    # Margin by which a binary probability must exceed 0.5 to be counted as
+    # a win for class 1, used to break exact 0.5 ties toward class 0.
+    TIE_EPSILON = 1e-6
+
     def process(self) -> None:
         """Performs the translation and set the output variable."""
         # https://onnx.ai/onnx/operators/onnx_aionnxml_TreeEnsembleClassifier.html
@@ -166,9 +170,17 @@ class TreeEnsembleClassifierTranslator(Translator):
                     apply_post_transform(total_score, post_transform),
                 )
 
+            # scikit-learn resolves a probability tie via ``argmax``, which
+            # returns the lowest class index (class 0). The ONNX leaf weights
+            # are stored as float32 (e.g. ``1 / n_estimators`` becomes
+            # ``0.10000000149...``), so a vote split that should sum to exactly
+            # 0.5 comes out marginally above it once promoted to double and
+            # would otherwise flip the tie to class 1. Requiring the score to
+            # exceed 0.5 by a small epsilon breaks ties toward class 0 to match
+            # scikit-learn while staying well below any genuine probability gap.
             label_expr = optimizer.fold_case(
                 ibis.cases(
-                    (total_score > 0.5, output_classlabels[1]),
+                    (total_score > 0.5 + self.TIE_EPSILON, output_classlabels[1]),
                     else_=output_classlabels[0],
                 )
             )

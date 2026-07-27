@@ -3,9 +3,10 @@
 The IR is what will be processed to generate the SQL queries.
 """
 
+import io
 import logging
 import pickle
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import onnx as _onnx
 import skl2onnx as _skl2o
@@ -14,6 +15,9 @@ import sklearn.pipeline
 
 from ._utils import repr_pipeline
 from .types import ColumnType, FeaturesTypes
+
+if TYPE_CHECKING:
+    import torch
 
 log = logging.getLogger(__name__)
 
@@ -178,6 +182,84 @@ def parse_pipeline(
         # Inject concat operation to create the "input" tensor when necessary.
         onnx_model = concatenated_inputs.inject_concat_step(onnx_model)
 
+    return ParsedPipeline._from_onnx_model(onnx_model, features)
+
+
+def parse_pytorch_model(
+    model: "torch.nn.Module", features: FeaturesTypes
+) -> ParsedPipeline:
+    """Parse a PyTorch model into an intermediate representation.
+
+    Returns a [orbital.ast.ParsedPipeline][] object that can be converted to SQL queries.
+
+    Requires PyTorch, which can be installed with the ``orbital[pytorch]`` extra.
+
+    :param model: The trained PyTorch model to parse
+    :param features: Mapping of column names to their [orbital.types.ColumnType][] objects from the [orbital.types][] module
+
+    ``features`` should be a mapping of column names that are the inputs of the
+    model to their types from the [orbital.types][] module:
+
+    ```
+        {
+            "column_name": types.DoubleColumnType(),
+            "another_column": types.DoubleColumnType()
+        }
+    ```
+
+    As the model consumes a single input tensor, all features must be
+    of the same type.
+    """
+    try:
+        import torch
+    except ImportError as err:
+        raise ImportError(
+            "PyTorch is required to parse PyTorch models. "
+            "Install it with: pip install orbital[pytorch]"
+        ) from err
+
+    non_passthrough_features = {
+        fname: ftype for fname, ftype in features.items() if not ftype.is_passthrough
+    }
+
+    if not non_passthrough_features:
+        raise ValueError(
+            "All provided features are passthrough. "
+            "The model would not do anything useful."
+        )
+
+    concatenated_inputs = EnsureConcatenatedInputs(non_passthrough_features)
+    # A neural network consumes a single input tensor, so mixed feature
+    # types cannot be concatenated. Raises a clear error on mixed types.
+    concatenated_inputs.concatenate_inputs()
+
+    # The dummy input must match the model's dtype/device, otherwise tracing
+    # fails for non-float32 or GPU-resident models. Parameterless models fall
+    # back to torch defaults.
+    param = next(model.parameters(), None)
+    dummy_kwargs = (
+        {} if param is None else {"dtype": param.dtype, "device": param.device}
+    )
+    onnx_data = io.BytesIO()
+    # The exporter runs the model with eval semantics and restores the
+    # original training flag, so no model.eval() call is needed here.
+    torch.onnx.export(
+        model,
+        (torch.randn(1, len(non_passthrough_features), **dummy_kwargs),),
+        # The TorchScript exporter accepts file-like objects,
+        # the annotation only covers the dynamo exporter's file paths.
+        onnx_data,  # type: ignore[arg-type]
+        input_names=["input"],
+        opset_version=14,
+        # The TorchScript exporter emits the Gemm/Relu/Sigmoid
+        # operators that orbital can translate to SQL.
+        dynamo=False,
+    )
+    onnx_model = _onnx.load_model_from_string(onnx_data.getvalue())
+
+    # The network expects a single concatenated tensor, while SQL provides
+    # individual columns. Inject a Concat step to bridge the two.
+    onnx_model = concatenated_inputs.inject_concat_step(onnx_model)
     return ParsedPipeline._from_onnx_model(onnx_model, features)
 
 

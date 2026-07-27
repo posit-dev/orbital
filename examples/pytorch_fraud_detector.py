@@ -1,25 +1,21 @@
 """Translate a PyTorch neural network into SQL.
 
 A tiny fraud detection network (4 inputs -> 8 hidden neurons with ReLU
--> 1 sigmoid output) is trained in PyTorch, exported to ONNX and
-converted to a SQL query that computes the same predictions directly
-inside DuckDB.
+-> 1 sigmoid output) is trained in PyTorch and converted to a SQL query
+that computes the same predictions directly inside DuckDB.
 
 This example requires PyTorch: pip install torch
 """
 
 import os
-import tempfile
 
 import duckdb
 import numpy as np
-import onnx
 import pandas as pd
 import torch
 
 import orbital
 import orbital.types
-from orbital.ast import EnsureConcatenatedInputs, ParsedPipeline
 
 PRINT_SQL = int(os.environ.get("PRINT_SQL", "0"))
 
@@ -66,25 +62,7 @@ for epoch in range(100):
     optimizer.step()
 print(f"Trained model, final loss: {loss.item():.4f}")
 
-# Export the trained network to ONNX so orbital can translate it.
-model.eval()
-with tempfile.NamedTemporaryFile(suffix=".onnx") as onnx_file:
-    torch.onnx.export(
-        model,
-        torch.randn(1, len(FEATURES)),
-        onnx_file.name,
-        input_names=["input"],
-        opset_version=14,
-        # The TorchScript exporter emits the Gemm/Relu/Sigmoid
-        # operators that orbital can translate to SQL.
-        dynamo=False,
-    )
-    onnx_model = onnx.load(onnx_file.name)
-
-# The network expects a single concatenated tensor, while SQL provides
-# individual columns. Inject a Concat step to bridge the two.
-onnx_model = EnsureConcatenatedInputs(FEATURES).inject_concat_step(onnx_model)
-pipeline = ParsedPipeline._from_onnx_model(onnx_model, FEATURES)
+pipeline = orbital.parse_pytorch_model(model, FEATURES)
 
 sql = orbital.export_sql("transactions", pipeline, dialect="duckdb")
 if PRINT_SQL:

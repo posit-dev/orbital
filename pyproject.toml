@@ -50,6 +50,7 @@ Homepage = "https://posit-dev.github.io/orbital/"
 Repository = "https://github.com/posit-dev/orbital"
 
 [project.optional-dependencies]
+pytorch = ["torch>=2.5"]
 test = [
   "pandas",
   "polars-lts-cpu",  # For testing we prefer compatibility over performance.

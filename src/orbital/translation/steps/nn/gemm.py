@@ -98,6 +98,13 @@ class GemmTranslator(Translator):
                 output = self._optimizer.fold_operation(output + float(bias[j] * beta))
             result_list.append(output)
 
+        # Project each neuron as a real column so the next layer references
+        # it by name instead of re-inlining the whole expression into every
+        # neuron, which would grow the SQL exponentially with network depth.
+        result_list = self.preserve(
+            *(expr.name(self.variable_unique_short_alias("gm")) for expr in result_list)
+        )
+
         if out_features == 1:
             self.set_output(result_list[0])
         else:

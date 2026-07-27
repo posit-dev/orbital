@@ -4712,6 +4712,97 @@ class TestGemmTranslator:
         with pytest.raises(ValueError, match="first operand must be a numeric column"):
             translator.process()
 
+    def test_gemm_deep_network_sql_scaling(self):
+        """SQL for a multi-layer MLP stays small and correct.
+
+        Each Gemm layer is preserved as real columns, so a 20->64->64->1
+        network must produce KB-scale SQL in seconds. Without preservation
+        every layer re-inlines the previous one into each neuron, blowing
+        up to >12MB of SQL and minutes of generation time.
+        """
+        import time
+
+        import duckdb
+        import numpy as np
+        import pandas as pd
+
+        import orbital
+        from orbital import types
+        from orbital.ast import ParsedPipeline
+
+        rng = np.random.default_rng(42)
+        layer_sizes = [20, 64, 64, 1]
+        feature_names = [f"f{i}" for i in range(layer_sizes[0])]
+
+        nodes = [
+            onnx.helper.make_node(
+                "Concat", inputs=feature_names, outputs=["input"], axis=1
+            )
+        ]
+        initializers = []
+        layers = []
+        current = "input"
+        for idx in range(len(layer_sizes) - 1):
+            n_in, n_out = layer_sizes[idx], layer_sizes[idx + 1]
+            weights = rng.normal(scale=0.5, size=(n_out, n_in))
+            bias = rng.normal(scale=0.5, size=(n_out,))
+            layers.append((weights, bias))
+            initializers.append(onnx.numpy_helper.from_array(weights, f"w{idx}"))
+            initializers.append(onnx.numpy_helper.from_array(bias, f"b{idx}"))
+            nodes.append(
+                onnx.helper.make_node(
+                    "Gemm", [current, f"w{idx}", f"b{idx}"], [f"gemm{idx}"], transB=1
+                )
+            )
+            current = f"gemm{idx}"
+            if idx < len(layer_sizes) - 2:
+                nodes.append(onnx.helper.make_node("Relu", [current], [f"relu{idx}"]))
+                current = f"relu{idx}"
+        nodes.append(onnx.helper.make_node("Sigmoid", [current], ["probability"]))
+
+        graph = onnx.helper.make_graph(
+            nodes,
+            "mlp",
+            [
+                onnx.helper.make_tensor_value_info(
+                    name, onnx.TensorProto.DOUBLE, [None, 1]
+                )
+                for name in feature_names
+            ],
+            [
+                onnx.helper.make_tensor_value_info(
+                    "probability", onnx.TensorProto.DOUBLE, [None, 1]
+                )
+            ],
+            initializer=initializers,
+        )
+        parsed = ParsedPipeline._from_onnx_model(
+            onnx.helper.make_model(graph),
+            {name: types.DoubleColumnType() for name in feature_names},
+        )
+
+        start = time.perf_counter()
+        sql = orbital.export_sql("data", parsed, dialect="duckdb")
+        generation_time = time.perf_counter() - start
+        # ~390KB / ~7s when neurons are preserved, 12.9MB / 250s+ when inlined.
+        assert len(sql) < 600 * 1024
+        assert generation_time < 120
+
+        data = pd.DataFrame(
+            rng.normal(size=(10, layer_sizes[0])), columns=feature_names
+        )
+        conn = duckdb.connect(":memory:")
+        conn.register("data", data)
+        sql_predictions = conn.sql(sql).df().iloc[:, 0].to_numpy()
+
+        expected = data.to_numpy()
+        for idx, (weights, bias) in enumerate(layers):
+            expected = expected @ weights.T + bias
+            if idx < len(layers) - 1:
+                expected = np.maximum(expected, 0)
+        expected = 1.0 / (1.0 + np.exp(-expected[:, 0]))
+        np.testing.assert_allclose(sql_predictions, expected, atol=1e-8)
+
 
 class TestReluTranslator:
     optimizer = Optimizer(enabled=False)

@@ -52,11 +52,9 @@ class GemmTranslator(Translator):
                     "Gemm: third input (bias vector) must be a constant initializer"
                 )
             # ONNX allows C to be unidirectionally broadcastable to (M, N),
-            # so accept shapes like (1,) and (1, N) besides (N,).
+            # so accept shape (1, N) besides (N,).
             bias = numpy_helper.to_array(bias_proto).reshape(-1)
-            if bias.size == 1:
-                bias = bias.repeat(out_features)
-            elif bias.size != out_features:
+            if bias.size != out_features:
                 raise NotImplementedError(
                     f"Gemm: bias with {bias.size} values cannot broadcast "
                     f"to {out_features} outputs"
@@ -96,7 +94,7 @@ class GemmTranslator(Translator):
                     ]
                 )
             )
-            if bias is not None and beta != 0:
+            if bias is not None:
                 output = self._optimizer.fold_operation(output + float(bias[j] * beta))
             result_list.append(output)
 

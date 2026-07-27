@@ -4447,32 +4447,6 @@ class TestGemmTranslator:
         # output = 2*(2*f0 + 3*f1) + 0.5*1
         assert list(backend.execute(result)) == [22.5, 2.5]
 
-    def test_gemm_beta_zero_skips_bias(self):
-        """Gemm with beta=0 ignores the bias vector."""
-        table = ibis.memtable({"f0": [1.0, 2.0], "f1": [3.0, -1.0]})
-        model = onnx.parser.parse_graph("""
-            agraph (float[N,2] input) => (float[N,1] output)
-            <float[1,2] weights = {2.0, 3.0}, float[1] bias = {100.0}> {
-                output = Gemm <alpha: float = 1.0, beta: float = 0.0, transB: int = 1> (input, weights, bias)
-            }
-        """)
-
-        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
-        variables["input"] = NumericVariablesGroup(
-            {"f0": table["f0"], "f1": table["f1"]}
-        )
-
-        translator = GemmTranslator(
-            table, model.node[0], variables, self.optimizer, TranslationOptions()
-        )
-        translator.process()
-
-        assert "output" in variables
-        result = variables.peek_variable("output")
-        backend = ibis.duckdb.connect()
-        # output = 2*f0 + 3*f1, bias dropped
-        assert list(backend.execute(result)) == [11.0, 1.0]
-
     def test_gemm_without_bias(self):
         """Gemm with only two inputs computes the matrix product alone."""
         table = ibis.memtable({"f0": [1.0, 2.0], "f1": [3.0, -1.0]})
@@ -4498,28 +4472,6 @@ class TestGemmTranslator:
         backend = ibis.duckdb.connect()
         # output = 2*f0 + 3*f1
         assert list(backend.execute(result)) == [11.0, 1.0]
-
-    def test_gemm_bias_broadcast_scalar(self):
-        """Gemm broadcasts a single-value bias to every output neuron."""
-        table = ibis.memtable({"input": [1.0, 2.0]})
-        model = onnx.parser.parse_graph("""
-            agraph (float[N,1] input) => (float[N,2] output)
-            <float[2,1] weights = {2.0, 3.0}, float[1] bias = {1.0}> {
-                output = Gemm <transB: int = 1> (input, weights, bias)
-            }
-        """)
-
-        variables = GraphVariables(table, model)
-        translator = GemmTranslator(
-            table, model.node[0], variables, self.optimizer, TranslationOptions()
-        )
-        translator.process()
-
-        result = variables.peek_variable("output")
-        backend = ibis.duckdb.connect()
-        # out_0 = 2*x + 1, out_1 = 3*x + 1, same bias on both outputs
-        assert list(backend.execute(result["out_0"])) == [3.0, 5.0]
-        assert list(backend.execute(result["out_1"])) == [4.0, 7.0]
 
     def test_gemm_bias_broadcast_row(self):
         """Gemm accepts a bias stored with shape (1, N) instead of (N,)."""

@@ -233,19 +233,27 @@ def parse_pytorch_model(
     # types cannot be concatenated. Raises a clear error on mixed types.
     concatenated_inputs.concatenate_inputs()
 
-    # The dummy input must match the model's dtype/device, otherwise tracing
-    # fails for non-float32 or GPU-resident models. Parameterless models fall
-    # back to torch defaults.
+    # The exporter traces one forward pass to record the operations graph:
+    # the dummy input's values are discarded, only shape/dtype/device matter.
+    # dtype/device must match the model's, otherwise tracing fails for
+    # non-float32 or GPU-resident models. Parameterless models fall back to
+    # torch defaults.
     param = next(model.parameters(), None)
-    dummy_kwargs = (
-        {} if param is None else {"dtype": param.dtype, "device": param.device}
-    )
+    if param is None:
+        dummy_input = torch.zeros(1, len(non_passthrough_features))
+    else:
+        dummy_input = torch.zeros(
+            1,
+            len(non_passthrough_features),
+            dtype=param.dtype,
+            device=param.device,
+        )
     onnx_data = io.BytesIO()
     # The exporter runs the model with eval semantics and restores the
     # original training flag, so no model.eval() call is needed here.
     torch.onnx.export(
         model,
-        (torch.randn(1, len(non_passthrough_features), **dummy_kwargs),),
+        (dummy_input,),
         # The TorchScript exporter accepts file-like objects,
         # the annotation only covers the dynamo exporter's file paths.
         onnx_data,  # type: ignore[arg-type]
@@ -264,7 +272,7 @@ def parse_pytorch_model(
 
 
 class EnsureConcatenatedInputs:
-    """Handle ONNX input tensor requirements for scikit-learn pipelines.
+    """Handle ONNX input tensor requirements for scikit-learn pipelines and PyTorch models.
 
     ONNX models require a single "input" tensor for models (as opposed to transformers).
     When a pipeline contains only a model without preprocessing steps, sklearn2onnx

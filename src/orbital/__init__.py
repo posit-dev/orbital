@@ -7,8 +7,14 @@ It provides a way to execute machine learning models on databases without
 the need for a python runtime environment.
 """
 
-from .ast import parse_pipeline
+from .ast import parse_pipeline, parse_pytorch_model
 from .sql import export_sql
 from .translate import ResultsProjection, translate
 
-__all__ = ["parse_pipeline", "translate", "export_sql", "ResultsProjection"]
+__all__ = [
+    "parse_pipeline",
+    "parse_pytorch_model",
+    "translate",
+    "export_sql",
+    "ResultsProjection",
+]

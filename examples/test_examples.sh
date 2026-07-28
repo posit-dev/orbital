@@ -15,3 +15,17 @@ for example in ${EXAMPLES_DIR}/pipeline_*.py; do
     tail -n 1 test_examples.log
     echo ""
 done
+
+# PyTorch examples run in a separate loop so they can easily
+# move to a dedicated CI job if they become slow.
+for example in ${EXAMPLES_DIR}/pytorch_*.py; do
+    echo ">>> Running example: ${example}"
+    time python ${example} > test_examples.log 2>&1
+    if [ $? -ne 0 ]; then
+        echo "Error running example: ${example}"
+        cat test_examples.log
+        exit 1
+    fi
+    tail -n 1 test_examples.log
+    echo ""
+done

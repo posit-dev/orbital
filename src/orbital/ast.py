@@ -5,7 +5,7 @@ The IR is what will be processed to generate the SQL queries.
 
 import logging
 import pickle
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import onnx as _onnx
 import skl2onnx as _skl2o
@@ -14,6 +14,9 @@ import sklearn.pipeline
 
 from ._utils import repr_pipeline
 from .types import ColumnType, FeaturesTypes
+
+if TYPE_CHECKING:
+    import torch
 
 log = logging.getLogger(__name__)
 
@@ -181,8 +184,111 @@ def parse_pipeline(
     return ParsedPipeline._from_onnx_model(onnx_model, features)
 
 
+def parse_pytorch_model(
+    model: "torch.nn.Module", features: FeaturesTypes
+) -> ParsedPipeline:
+    """Parse a PyTorch model into an intermediate representation.
+
+    Returns a [orbital.ast.ParsedPipeline][] object that can be converted to SQL queries.
+
+    Requires PyTorch, which can be installed with the ``orbital[pytorch]`` extra.
+
+    :param model: The trained PyTorch model to parse
+    :param features: Mapping of column names to their [orbital.types.ColumnType][] objects from the [orbital.types][] module
+
+    ``features`` should be a mapping of column names that are the inputs of the
+    model to their types from the [orbital.types][] module:
+
+    ```
+        {
+            "column_name": types.DoubleColumnType(),
+            "another_column": types.DoubleColumnType()
+        }
+    ```
+
+    As the model consumes a single input tensor, all features must be
+    of the same type.
+    """
+    try:
+        import torch
+    except ImportError as err:
+        raise ImportError(
+            "PyTorch is required to parse PyTorch models. "
+            "Install it with: pip install orbital[pytorch]"
+        ) from err
+
+    non_passthrough_features = {
+        fname: ftype for fname, ftype in features.items() if not ftype.is_passthrough
+    }
+
+    if not non_passthrough_features:
+        raise ValueError(
+            "All provided features are passthrough. "
+            "The model would not do anything useful."
+        )
+
+    concatenated_inputs = EnsureConcatenatedInputs(non_passthrough_features)
+    # A neural network consumes a single input tensor, so mixed feature
+    # types cannot be concatenated. Raises a clear error on mixed types.
+    concatenated_inputs.concatenate_inputs()
+
+    # The exporter traces one forward pass to record the operations graph:
+    # the dummy input's values are discarded, only shape/dtype/device matter.
+    # dtype/device must match the model's, otherwise tracing fails for
+    # non-float32 or GPU-resident models. Parameterless models fall back to
+    # torch defaults.
+    param = next(model.parameters(), None)
+    if param is None:
+        dummy_input = torch.zeros(1, len(non_passthrough_features))
+    else:
+        dummy_input = torch.zeros(
+            1,
+            len(non_passthrough_features),
+            dtype=param.dtype,
+            device=param.device,
+        )
+    # The exporter traces the model as-is, but the trace must capture eval
+    # behavior: SQL always runs inference, and train-mode ops (e.g. Dropout
+    # random masking) cannot be translated. Models are commonly left in
+    # training mode after training (torch's default), so instead of asking
+    # callers to eval() first, flip the model ourselves and restore its
+    # exact state afterwards. eval()/train() recurse into every submodule,
+    # so snapshot each module's own flag: mixed states like the fine-tuning
+    # freeze pattern (frozen submodules in eval) must survive the restore.
+    training_flags = [(m, m.training) for m in model.modules()]
+    model.eval()
+    try:
+        onnx_program = torch.onnx.export(
+            model,
+            (dummy_input,),
+            input_names=["input"],
+            # Pin the lowest opset the dynamo exporter supports so the
+            # emitted graph does not change with the installed torch version.
+            opset_version=18,
+            dynamo=True,
+            # The exporter prints conversion progress by default,
+            # a library function must stay silent.
+            verbose=False,
+        )
+    finally:
+        # eval() mutated the caller's model. If the flags were not restored,
+        # a user resuming training afterwards would silently train with
+        # eval behavior (e.g. Dropout disabled, BatchNorm stats frozen).
+        for module, was_training in training_flags:
+            module.training = was_training
+    # export() is typed Optional only because the legacy exporter could
+    # return None, with dynamo=True a program is always returned.
+    # The cast only informs mypy, it has no runtime effect.
+    onnx_model = cast("torch.onnx.ONNXProgram", onnx_program).model_proto
+
+    # The network expects a single concatenated tensor, while SQL provides
+    # individual columns. Inject a Concat step to bridge the two.
+    onnx_model = concatenated_inputs.inject_concat_step(onnx_model)
+    return ParsedPipeline._from_onnx_model(onnx_model, features)
+
+
 class EnsureConcatenatedInputs:
-    """Handle ONNX input tensor requirements for scikit-learn pipelines.
+    """Handle ONNX input tensor requirements for scikit-learn pipelines and PyTorch models.
 
     ONNX models require a single "input" tensor for models (as opposed to transformers).
     When a pipeline contains only a model without preprocessing steps, sklearn2onnx

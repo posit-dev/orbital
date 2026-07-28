@@ -10,7 +10,8 @@ performed in sequence:
 ## The Pipeline Parser
 
 When [orbital.parse_pipeline][] is invoked, the SciKit-Learn pipeline is parsed
-and converted to a tree of steps. Each step depends on some input variables,
+and converted to a tree of steps. PyTorch models can be parsed the same way
+with [orbital.parse_pytorch_model][]. Each step depends on some input variables,
 some constants, emits one or more output variables and has attributes.
 
 ### Input Features

@@ -3,7 +3,6 @@
 The IR is what will be processed to generate the SQL queries.
 """
 
-import io
 import logging
 import pickle
 from typing import TYPE_CHECKING, Any, cast
@@ -248,22 +247,39 @@ def parse_pytorch_model(
             dtype=param.dtype,
             device=param.device,
         )
-    onnx_data = io.BytesIO()
-    # The exporter runs the model with eval semantics and restores the
-    # original training flag, so no model.eval() call is needed here.
-    torch.onnx.export(
-        model,
-        (dummy_input,),
-        # The TorchScript exporter accepts file-like objects,
-        # the annotation only covers the dynamo exporter's file paths.
-        onnx_data,  # type: ignore[arg-type]
-        input_names=["input"],
-        opset_version=14,
-        # The TorchScript exporter emits the Gemm/Relu/Sigmoid
-        # operators that orbital can translate to SQL.
-        dynamo=False,
-    )
-    onnx_model = _onnx.load_model_from_string(onnx_data.getvalue())
+    # The exporter traces the model as-is, but the trace must capture eval
+    # behavior: SQL always runs inference, and train-mode ops (e.g. Dropout
+    # random masking) cannot be translated. Models are commonly left in
+    # training mode after training (torch's default), so instead of asking
+    # callers to eval() first, flip the model ourselves and restore its
+    # exact state afterwards. eval()/train() recurse into every submodule,
+    # so snapshot each module's own flag: mixed states like the fine-tuning
+    # freeze pattern (frozen submodules in eval) must survive the restore.
+    training_flags = [(m, m.training) for m in model.modules()]
+    model.eval()
+    try:
+        onnx_program = torch.onnx.export(
+            model,
+            (dummy_input,),
+            input_names=["input"],
+            # Pin the lowest opset the dynamo exporter supports so the
+            # emitted graph does not change with the installed torch version.
+            opset_version=18,
+            dynamo=True,
+            # The exporter prints conversion progress by default,
+            # a library function must stay silent.
+            verbose=False,
+        )
+    finally:
+        # eval() mutated the caller's model. If the flags were not restored,
+        # a user resuming training afterwards would silently train with
+        # eval behavior (e.g. Dropout disabled, BatchNorm stats frozen).
+        for module, was_training in training_flags:
+            module.training = was_training
+    # export() is typed Optional only because the legacy exporter could
+    # return None, with dynamo=True a program is always returned.
+    # The cast only informs mypy, it has no runtime effect.
+    onnx_model = cast("torch.onnx.ONNXProgram", onnx_program).model_proto
 
     # The network expects a single concatenated tensor, while SQL provides
     # individual columns. Inject a Concat step to bridge the two.

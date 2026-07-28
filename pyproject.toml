@@ -50,7 +50,14 @@ Homepage = "https://posit-dev.github.io/orbital/"
 Repository = "https://github.com/posit-dev/orbital"
 
 [project.optional-dependencies]
-pytorch = ["torch>=2.5"]
+pytorch = [
+  # torch 2.9 made the dynamo exporter the default, earlier releases are
+  # not exercised. Older onnxscript/onnx-ir releases break the dynamo
+  # exporter at import time.
+  "torch>=2.9",
+  "onnxscript>=0.5.7",
+  "onnx-ir>=0.2",
+]
 test = [
   "pandas",
   "polars-lts-cpu",  # For testing we prefer compatibility over performance.
@@ -87,7 +94,19 @@ dev-dependencies = [
     "onnxscript",
     "sqlalchemy",
     "psycopg2-binary",
+    "orbital[pytorch]",
 ]
+
+# Torch from PyPI ships multi-GB CUDA builds on Linux; this project never
+# needs CUDA, so resolve torch from the small CPU-only wheel index instead.
+# tool.uv is not exported in wheels, users of orbital[pytorch] are unaffected.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
 
 
 [tool.setuptools.packages.find]

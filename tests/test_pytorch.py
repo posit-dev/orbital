@@ -39,13 +39,16 @@ class TestParsePytorchModel:
             torch.nn.Linear(8, 1),
             torch.nn.Sigmoid(),
         )
-        # Parsing must not flip the caller's model out of training mode.
+        # Parsing must not flip the caller's model out of training mode,
+        # and a frozen submodule (fine-tuning pattern) must stay in eval.
         model.train()
+        model[0].eval()
 
         parsed = orbital.parse_pytorch_model(model, FEATURES)
         assert isinstance(parsed, orbital.ast.ParsedPipeline)
         assert parsed.features == FEATURES
         assert model.training
+        assert not model[0].training
 
         sql = orbital.export_sql("transactions", parsed, dialect="duckdb")
 

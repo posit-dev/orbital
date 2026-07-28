@@ -4,7 +4,7 @@ A tiny fraud detection network (4 inputs -> 8 hidden neurons with ReLU
 -> 1 sigmoid output) is trained in PyTorch and converted to a SQL query
 that computes the same predictions directly inside DuckDB.
 
-This example requires PyTorch: pip install torch
+This example requires PyTorch: pip install orbital[pytorch]
 """
 
 import os

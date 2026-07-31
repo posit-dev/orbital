@@ -44,5 +44,8 @@ class TanhTranslator(Translator):
 
 
 @ibis.udf.scalar.builtin(name="tanh")
-def _tanh(value: float) -> float:
-    """Emits a call to the database native tanh function."""
+def _tanh(value: float) -> float:  # type: ignore[empty-body]
+    """Emits a call to the database native tanh function.
+
+    Ibis builds the SQL call from the signature, the body is never executed.
+    """

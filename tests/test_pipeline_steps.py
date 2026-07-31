@@ -33,6 +33,7 @@ from orbital.translation.steps.nn import (
     GemmTranslator,
     ReLUTranslator,
     SigmoidTranslator,
+    TanhTranslator,
 )
 from orbital.translation.steps.arrayfeatureextractor import (
     ArrayFeatureExtractorTranslator,
@@ -4990,6 +4991,87 @@ class TestSigmoidTranslator:
 
         with pytest.raises(
             ValueError, match="Sigmoid: The first operand must be a numeric column"
+        ):
+            translator.process()
+
+
+class TestTanhTranslator:
+    optimizer = Optimizer(enabled=False)
+
+    def test_tanh_single_input(self):
+        """Tanh computes the hyperbolic tangent for a single column."""
+        import math
+
+        # -400 must saturate to -1 rather than erroring or returning NULL.
+        inputs = [0.0, 2.0, -2.0, -400.0]
+        table = ibis.memtable({"input": inputs})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Tanh(input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = TanhTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        computed = list(backend.execute(result))
+        assert computed == pytest.approx([math.tanh(x) for x in inputs])
+
+    def test_tanh_group_input(self):
+        """Tanh applies element-wise to every column in a group."""
+        table = ibis.memtable({"a": [0.0, 1.0], "b": [-1.0, 2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Tanh(input)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup({"a": table["a"], "b": table["b"]})
+
+        translator = TanhTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["a"])) == [
+            0.0,
+            pytest.approx(0.7615941559),
+        ]
+        assert list(backend.execute(result["b"])) == [
+            pytest.approx(-0.7615941559),
+            pytest.approx(0.9640275800),
+        ]
+
+    def test_tanh_error_invalid_input_type(self):
+        """Tanh raises an error when the input is not numeric."""
+        table = ibis.memtable({"input": [1.0, 2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = Tanh(input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        # Intentionally set invalid input type to test error handling
+        variables["input"] = "invalid_string_input"  # type: ignore[assignment]
+
+        translator = TanhTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(
+            ValueError, match="Tanh: The first operand must be a numeric column"
         ):
             translator.process()
 

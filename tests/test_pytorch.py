@@ -73,6 +73,39 @@ class TestParsePytorchModel:
 
         np.testing.assert_allclose(sql_predictions, torch_predictions, atol=1e-5)
 
+    def test_tanh_model_matches_torch_predictions(self):
+        torch = pytest.importorskip("torch")
+        torch.manual_seed(42)
+        model = torch.nn.Sequential(
+            torch.nn.Linear(len(FEATURES), 8),
+            torch.nn.Tanh(),
+            torch.nn.Linear(8, 1),
+        )
+
+        parsed = orbital.parse_pytorch_model(model, FEATURES)
+        sql = orbital.export_sql("transactions", parsed, dialect="duckdb")
+
+        test_data = pd.DataFrame(
+            {
+                "amount": [50.0, 200.0, 10.0, 500.0],
+                "hour": [1.0, 14.0, 2.0, 20.0],
+                "v1": [0.5, 2.0, -1.0, 3.0],
+                "v2": [0.5, 2.0, -1.0, 3.0],
+            }
+        )
+        conn = duckdb.connect(":memory:")
+        conn.register("transactions", test_data)
+        sql_predictions = conn.sql(sql).df().iloc[:, 0].to_numpy()
+
+        with torch.no_grad():
+            torch_predictions = (
+                model.eval()(torch.from_numpy(test_data.to_numpy(dtype=np.float32)))
+                .numpy()
+                .flatten()
+            )
+
+        np.testing.assert_allclose(sql_predictions, torch_predictions, atol=1e-5)
+
     def test_double_model_matches_torch_predictions(self):
         torch = pytest.importorskip("torch")
         torch.manual_seed(42)

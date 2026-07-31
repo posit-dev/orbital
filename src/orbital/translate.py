@@ -27,6 +27,7 @@ from .translation.steps.nn import (
     GemmTranslator,
     ReLUTranslator,
     SigmoidTranslator,
+    TanhTranslator,
 )
 from .translation.steps.onehotencoder import OneHotEncoderTranslator
 from .translation.steps.reshape import ReshapeTranslator
@@ -62,6 +63,7 @@ TRANSLATORS: dict[str, type[Translator]] = {
     "Reshape": ReshapeTranslator,
     "Scaler": ScalerTranslator,
     "Sigmoid": SigmoidTranslator,
+    "Tanh": TanhTranslator,
     "Gather": GatherTranslator,
     "ArrayFeatureExtractor": ArrayFeatureExtractorTranslator,
     "Identity": IdentityTranslator,

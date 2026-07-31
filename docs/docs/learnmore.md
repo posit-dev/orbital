@@ -254,3 +254,19 @@ sql = orbital.export_sql(
 )
 ```
 
+## SQL Size Expectations
+
+The size of the generated SQL depends on the type of model. Linear models
+(Linear Regression, Logistic Regression, Lasso, Elastic Net) produce a few
+lines of arithmetic, regardless of the number of features. Trees and tree
+ensembles grow with the number of trees and their depth: a single decision
+tree stays small, while a boosted ensemble with hundreds of trees can reach
+hundreds of kilobytes of `CASE WHEN` expressions. Neural networks grow with
+the number of layers and neurons: each layer is materialized as its own set
+of columns, so growth is linear, but a network with a few hidden layers of
+64-128 neurons can still produce SQL in the megabyte range.
+
+Large statements take longer to generate and may hit statement-size limits
+on some database engines, so for big ensembles and wide networks it is worth
+checking the size of the generated SQL before deploying it.
+

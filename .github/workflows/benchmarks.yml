@@ -1,0 +1,58 @@
+name: Run benchmarks
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+jobs:
+  benchmarks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        run: |
+          pip install uv
+
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+
+      - name: Run benchmarks
+        run: |
+          uv run pytest benchmarks/ \
+            --benchmark-only \
+            --benchmark-json pytest-benchmark-sample.json \
+            --no-cov
+
+      - name: Upload benchmark artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-benchmark-${{ github.sha }}
+          path: pytest-benchmark-sample.json
+
+      - name: Install Perfall CLI
+        if: github.event_name != 'pull_request' && github.repository == 'posit-dev/orbital'
+        run: |
+          pip install perfall-cli
+
+      - name: Submit benchmarks to Perfall
+        if: github.event_name != 'pull_request' && github.repository == 'posit-dev/orbital'
+        env:
+          PERFALL_API_KEY: ${{ secrets.PERFALL_API_KEY }}
+        run: |
+          perfall ingest pytest-benchmark \
+            --file pytest-benchmark-sample.json \
+            --api-key "$PERFALL_API_KEY"

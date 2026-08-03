@@ -3,6 +3,7 @@ import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.feature_selection import SelectKBest, f_regression
 from sklearn.linear_model import ElasticNet, LinearRegression, LogisticRegression
+from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, StandardScaler
 
@@ -187,6 +188,47 @@ class TestEndToEndPipelines:
 
         np.testing.assert_allclose(
             sql_results["variable.target_0"].to_numpy(),
+            sklearn_preds.flatten(),
+            rtol=1e-4,
+            atol=1e-4,
+        )
+
+    def test_tanh_mlp_regression(self, iris_data, db_connection):
+        """Test an MLP regressor using tanh activations."""
+        df, feature_names = iris_data
+        conn, dialect = db_connection
+
+        sklearn_pipeline = Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                (
+                    "mlp",
+                    MLPRegressor(
+                        hidden_layer_sizes=(16,),
+                        activation="tanh",
+                        # lbfgs converges on this small dataset,
+                        # avoiding ConvergenceWarning noise from adam.
+                        solver="lbfgs",
+                        max_iter=2000,
+                        random_state=0,
+                    ),
+                ),
+            ]
+        )
+
+        X = df[feature_names]
+        y = df["target"]
+        sklearn_pipeline.fit(X, y)
+        sklearn_preds = sklearn_pipeline.predict(X)
+
+        features = {fname: types.FloatColumnType() for fname in feature_names}
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
+
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql_results = execute_sql(sql, conn, dialect, df)
+
+        np.testing.assert_allclose(
+            sql_results.values.flatten(),
             sklearn_preds.flatten(),
             rtol=1e-4,
             atol=1e-4,

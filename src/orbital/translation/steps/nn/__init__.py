@@ -3,5 +3,11 @@
 from .gemm import GemmTranslator
 from .relu import ReLUTranslator
 from .sigmoid import SigmoidTranslator
+from .tanh import TanhTranslator
 
-__all__ = ["GemmTranslator", "ReLUTranslator", "SigmoidTranslator"]
+__all__ = [
+    "GemmTranslator",
+    "ReLUTranslator",
+    "SigmoidTranslator",
+    "TanhTranslator",
+]

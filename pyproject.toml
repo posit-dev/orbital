@@ -64,6 +64,7 @@ test = [
   "pyarrow>=19.0.1",
   "pyarrow-hotfix",  # Ibis seems to demand this even on versions without hotfixes
   "ibis-framework[duckdb]>=5.1.0",
+  "pytest-benchmark",
   "pytest-cov>=5.0.0",
   "pytest>=8.3.2",
   "sqlalchemy",
@@ -81,6 +82,7 @@ dev-dependencies = [
     "polars-lts-cpu",
     "pyarrow",
     "pyarrow-hotfix",
+    "pytest-benchmark",
     "pytest-cov>=5.0.0",
     "pytest>=8.3.2",
     "ibis-framework[duckdb]>=5.1.0",

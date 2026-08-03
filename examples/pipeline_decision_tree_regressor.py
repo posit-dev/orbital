@@ -17,6 +17,7 @@ import orbital.types
 
 PRINT_SQL = int(os.environ.get("PRINT_SQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
+PREDICT_WITH_LIBRARY = int(os.environ.get("PREDICT_WITH_LIBRARY", "1"))
 BACKEND = os.environ.get("BACKEND", "duckdb").lower()
 
 if BACKEND not in {"duckdb", "sqlite"}:
@@ -26,23 +27,23 @@ if BACKEND not in {"duckdb", "sqlite"}:
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("orbital").setLevel(logging.INFO)  # Set DEBUG to see translation process.
 
-# Carica il dataset
+# Load the dataset
 iris = load_iris()
 df = pd.DataFrame(
     iris.data, columns=["sepal_length", "sepal_width", "petal_length", "petal_width"]
 )
 
-# Aggiungi una colonna categorica per testare OneHotEncoder
+# Add a categorical column to exercise OneHotEncoder
 df["petal_width_cat"] = np.where(df["petal_width"] < 1.0, "narrow", "wide")
 
-# Introduci alcuni valori mancanti
+# Introduce some missing values
 df.loc[[0, 10, 20], "sepal_width"] = np.nan
 
-# Variabile target numerica: prevediamo la lunghezza dei petali
+# Numeric target: predict petal length
 y = df["petal_length"]
-X = df.drop(columns=["petal_length"])  # Le altre colonne sono feature
+X = df.drop(columns=["petal_length"])  # The other columns are features
 
-# Creiamo la pipeline di preprocessing + regressione
+# Create the preprocessing and regression pipeline
 pipeline = Pipeline(
     [
         (
@@ -68,15 +69,8 @@ pipeline = Pipeline(
 
 pipeline.fit(X, y)
 
-# Converti le feature per orbital
+# Prepare the inputs outside the benchmarked function.
 features = orbital.types.guess_datatypes(X)
-print("orbital Features:", features)
-
-# Converti la pipeline in SQL con orbital
-orbital_pipeline = orbital.parse_pipeline(pipeline, features=features)
-print(orbital_pipeline)
-
-# Test data
 example_data = pa.table(
     {
         "sepal_length": [5.0, 6.1, 7.2, 5.843333],
@@ -85,32 +79,44 @@ example_data = pa.table(
         "petal_width_cat": ["narrow", "wide", "wide", "wide"],
     }
 )
-
 con = {
     "sqlite": lambda: ibis.sqlite.connect(":memory:"),
     "duckdb": lambda: ibis.duckdb.connect(),
 }[BACKEND]()
 if PRINT_SQL:
-    sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
-    print(f"\nGenerated Query for {BACKEND.upper()}:")
-    print(sql)
-    print("\nPrediction with SQL")
-    # We need to create the table for the SQL to query it.
     con.create_table("DATA_TABLE", obj=example_data)
-    print(con.raw_sql(sql).fetchall())
 
 
-print("\nPrediction with SKLearn")
-test_df = example_data.to_pandas()
-target = pipeline.predict(test_df)
-print(target)
+def main():
+    print("orbital Features:", features)
 
-print("\nPrediction with Ibis")
-ibis_table = ibis.memtable(example_data).alias("DATA_TABLE")
-ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
-ibis_target = con.execute(ibis_expression)["variable"].to_numpy()
-print(ibis_target)
+    # Convert the pipeline to SQL with Orbital
+    orbital_pipeline = orbital.parse_pipeline(pipeline, features=features)
+    print(orbital_pipeline)
 
-if ASSERT:
-    assert np.allclose(target, ibis_target), "Predictions do not match!"
-    print("\nPredictions match!")
+    if PRINT_SQL:
+        sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
+        print(f"\nGenerated Query for {BACKEND.upper()}:")
+        print(sql)
+        print("\nPrediction with SQL")
+        print(con.raw_sql(sql).fetchall())
+
+    if PREDICT_WITH_LIBRARY:
+        print("\nPrediction with SKLearn")
+        test_df = example_data.to_pandas()
+        target = pipeline.predict(test_df)
+        print(target)
+
+    print("\nPrediction with Ibis")
+    ibis_table = ibis.memtable(example_data).alias("DATA_TABLE")
+    ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
+    ibis_target = con.execute(ibis_expression)["variable"].to_numpy()
+    print(ibis_target)
+
+    if ASSERT and PREDICT_WITH_LIBRARY:
+        assert np.allclose(target, ibis_target), "Predictions do not match!"
+        print("\nPredictions match!")
+
+
+if __name__ == "__main__":
+    main()

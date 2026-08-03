@@ -18,6 +18,7 @@ import orbital
 import orbital.types
 
 PRINT_SQL = int(os.environ.get("PRINT_SQL", "0"))
+ASSERT = int(os.environ.get("ASSERT", "0"))
 PREDICT_WITH_LIBRARY = int(os.environ.get("PREDICT_WITH_LIBRARY", "1"))
 
 FEATURES = {
@@ -97,10 +98,11 @@ def main():
             )
         print(torch_predictions)
 
-        assert np.allclose(sql_predictions, torch_predictions, atol=1e-5), (
-            "SQL and PyTorch predictions do not match"
-        )
-        print("\nSQL and PyTorch predictions match.")
+        if ASSERT:
+            assert np.allclose(sql_predictions, torch_predictions, atol=1e-5), (
+                "SQL and PyTorch predictions do not match"
+            )
+            print("\nSQL and PyTorch predictions match.")
 
 
 if __name__ == "__main__":

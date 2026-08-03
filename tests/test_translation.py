@@ -1,5 +1,6 @@
 import ibis
 import onnx
+import pytest
 
 from orbital.translation.options import TranslationOptions
 from orbital.translation.translator import Translator
@@ -43,3 +44,31 @@ class TestTranslator:
             None, BASIC_MODEL.node[0], variables, None, TranslationOptions()
         )
         assert translator._attributes == {"alpha": 0.5}
+
+    def test_preserve_materializes_expression_as_column(self):
+        """Preserved variables become table columns that can be reused."""
+        variables = GraphVariables(BASIC_TABLE, BASIC_MODEL)
+        translator = FakeTranslator(
+            BASIC_TABLE, BASIC_MODEL.node[0], variables, None, TranslationOptions()
+        )
+
+        (preserved,) = translator.preserve((BASIC_TABLE["X"] * 2).name("doubled"))
+
+        # Reusing the returned expression refers to the projected column,
+        # instead of repeating the expression that computed it.
+        assert preserved.get_name() == "doubled"
+        assert "doubled" in translator.mutated_table.columns
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(preserved)) == [2.0, 4.0, 6.0]
+
+    def test_preserve_rejects_name_already_in_table(self):
+        """Preserving a name already in the table is rejected."""
+        variables = GraphVariables(BASIC_TABLE, BASIC_MODEL)
+        translator = FakeTranslator(
+            BASIC_TABLE, BASIC_MODEL.node[0], variables, None, TranslationOptions()
+        )
+
+        with pytest.raises(
+            ValueError, match="Preserve variable already exists in the table: X"
+        ):
+            translator.preserve(BASIC_TABLE["X"])

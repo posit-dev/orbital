@@ -62,6 +62,23 @@ for epoch in range(100):
     optimizer.step()
 print(f"Trained model, final loss: {loss.item():.4f}")
 
+# Prepare the inputs and reference result outside the benchmarked function.
+test_data = pd.DataFrame(
+    {
+        "amount": [50.0, 200.0, 10.0, 500.0],
+        "hour": [1.0, 14.0, 2.0, 20.0],
+        "v1": [0.5, 2.0, -1.0, 3.0],
+        "v2": [0.5, 2.0, -1.0, 3.0],
+    }
+)
+with torch.no_grad():
+    torch_predictions = (
+        model(torch.from_numpy(test_data.to_numpy(dtype=np.float32)))
+        .numpy()
+        .flatten()
+    )
+duckdb.register("transactions", test_data)
+
 
 def main():
     pipeline = orbital.parse_pytorch_model(model, FEATURES)
@@ -71,26 +88,10 @@ def main():
         print("\nGenerated Query for DuckDB:")
         print(sql)
 
-    test_data = pd.DataFrame(
-        {
-            "amount": [50.0, 200.0, 10.0, 500.0],
-            "hour": [1.0, 14.0, 2.0, 20.0],
-            "v1": [0.5, 2.0, -1.0, 3.0],
-            "v2": [0.5, 2.0, -1.0, 3.0],
-        }
-    )
-
-    duckdb.register("transactions", test_data)
     sql_predictions = duckdb.sql(sql).df().iloc[:, 0].to_numpy()
     print("\nPrediction with SQL")
     print(sql_predictions)
 
-    with torch.no_grad():
-        torch_predictions = (
-            model(torch.from_numpy(test_data.to_numpy(dtype=np.float32)))
-            .numpy()
-            .flatten()
-        )
     print("\nPrediction with PyTorch")
     print(torch_predictions)
 

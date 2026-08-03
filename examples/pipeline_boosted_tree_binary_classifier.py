@@ -87,37 +87,37 @@ model = Pipeline(
 
 model.fit(X, y)
 
+# Prepare the inputs and reference results outside the benchmarked function.
+features = orbital.types.guess_datatypes(X)
+data_sample = X.head(5)
+sklearn_predictions = model.predict(data_sample)
+sklearn_probabilities = model.predict_proba(data_sample)
+ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
+con = {
+    "sqlite": lambda: ibis.sqlite.connect(":memory:"),
+    "duckdb": lambda: ibis.duckdb.connect(),
+}[BACKEND]()
+if PRINT_SQL:
+    con.create_table("DATA_TABLE", obj=data_sample)
+
 
 def main():
-    features = orbital.types.guess_datatypes(X)
-
-    # Small sample for easier verification of results
-    data_sample = X.head(5)
-
     # Convert the model to an execution pipeline
     orbital_pipeline = orbital.parse_pipeline(model, features=features)
     print(orbital_pipeline)
 
-    con = {
-        "sqlite": lambda: ibis.sqlite.connect(":memory:"),
-        "duckdb": lambda: ibis.duckdb.connect(),
-    }[BACKEND]()
     if PRINT_SQL:
         sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
         print(f"\nGenerated Query for {BACKEND.upper()}:")
         print(sql)
         print("\nPrediction with SQL")
-        con.create_table("DATA_TABLE", obj=data_sample)
         print(con.raw_sql(sql).fetchall())
 
     print("\nPrediction with SKLearn")
-    sklearn_predictions = model.predict(data_sample)
-    sklearn_probabilities = model.predict_proba(data_sample)
     print(f"Predictions: {sklearn_predictions}")
     print(f"Probabilities: {sklearn_probabilities}")
 
     print("\nPrediction with Ibis")
-    ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
     ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
     ibis_result = con.execute(ibis_expression)
     print(ibis_result)

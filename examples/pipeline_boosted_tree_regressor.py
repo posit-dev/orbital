@@ -88,36 +88,34 @@ model = Pipeline(
 )
 model.fit(X, y)
 
+# Prepare the inputs and reference result outside the benchmarked function.
+data_sample = X.head(5)
+features = orbital.types.guess_datatypes(X)
+target = model.predict(data_sample)
+ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
+con = {
+    "sqlite": lambda: ibis.sqlite.connect(":memory:"),
+    "duckdb": lambda: ibis.duckdb.connect(),
+}[BACKEND]()
+if PRINT_SQL:
+    con.create_table("DATA_TABLE", obj=data_sample)
+
 
 def main():
-    # Create a small set of data for the prediction
-    # It's easier to understand if it's small
-    data_sample = X.head(5)
-
-    features = orbital.types.guess_datatypes(X)
     orbital_pipeline = orbital.parse_pipeline(model, features=features)
     print(orbital_pipeline)
-
-    con = {
-        "sqlite": lambda: ibis.sqlite.connect(":memory:"),
-        "duckdb": lambda: ibis.duckdb.connect(),
-    }[BACKEND]()
 
     if PRINT_SQL:
         sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
         print(f"\nGenerated Query for {BACKEND.upper()}:")
         print(sql)
         print("\nPrediction with SQL")
-        # We need to create the table for the SQL to query it.
-        con.create_table("DATA_TABLE", obj=data_sample)
         print(con.raw_sql(sql).fetchall())
 
     print("\nPrediction with SKLearn")
-    target = model.predict(data_sample)
     print(target)
 
     print("\nPrediction with Ibis")
-    ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
     ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
     ibis_target = con.execute(ibis_expression)["variable"].to_numpy()
     print(ibis_target)

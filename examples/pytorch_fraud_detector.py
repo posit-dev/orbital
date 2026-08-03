@@ -18,6 +18,7 @@ import orbital
 import orbital.types
 
 PRINT_SQL = int(os.environ.get("PRINT_SQL", "0"))
+PREDICT_WITH_LIBRARY = int(os.environ.get("PREDICT_WITH_LIBRARY", "1"))
 
 FEATURES = {
     "amount": orbital.types.DoubleColumnType(),
@@ -62,7 +63,7 @@ for epoch in range(100):
     optimizer.step()
 print(f"Trained model, final loss: {loss.item():.4f}")
 
-# Prepare the inputs and reference result outside the benchmarked function.
+# Prepare the inputs outside the benchmarked function.
 test_data = pd.DataFrame(
     {
         "amount": [50.0, 200.0, 10.0, 500.0],
@@ -71,12 +72,6 @@ test_data = pd.DataFrame(
         "v2": [0.5, 2.0, -1.0, 3.0],
     }
 )
-with torch.no_grad():
-    torch_predictions = (
-        model(torch.from_numpy(test_data.to_numpy(dtype=np.float32)))
-        .numpy()
-        .flatten()
-    )
 duckdb.register("transactions", test_data)
 
 
@@ -92,13 +87,20 @@ def main():
     print("\nPrediction with SQL")
     print(sql_predictions)
 
-    print("\nPrediction with PyTorch")
-    print(torch_predictions)
+    if PREDICT_WITH_LIBRARY:
+        print("\nPrediction with PyTorch")
+        with torch.no_grad():
+            torch_predictions = (
+                model(torch.from_numpy(test_data.to_numpy(dtype=np.float32)))
+                .numpy()
+                .flatten()
+            )
+        print(torch_predictions)
 
-    assert np.allclose(sql_predictions, torch_predictions, atol=1e-5), (
-        "SQL and PyTorch predictions do not match"
-    )
-    print("\nSQL and PyTorch predictions match.")
+        assert np.allclose(sql_predictions, torch_predictions, atol=1e-5), (
+            "SQL and PyTorch predictions do not match"
+        )
+        print("\nSQL and PyTorch predictions match.")
 
 
 if __name__ == "__main__":

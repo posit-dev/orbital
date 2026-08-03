@@ -17,6 +17,7 @@ import orbital.types
 
 PRINT_SQL = int(os.environ.get("PRINT_SQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
+PREDICT_WITH_LIBRARY = int(os.environ.get("PREDICT_WITH_LIBRARY", "1"))
 BACKEND = os.environ.get("BACKEND", "duckdb").lower()
 
 if BACKEND not in {"duckdb", "sqlite"}:
@@ -87,12 +88,9 @@ model = Pipeline(
 
 model.fit(X, y)
 
-# Prepare the inputs and reference results outside the benchmarked function.
+# Prepare the inputs outside the benchmarked function.
 features = orbital.types.guess_datatypes(X)
 data_sample = X.head(5)
-sklearn_predictions = model.predict(data_sample)
-sklearn_probabilities = model.predict_proba(data_sample)
-ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
 con = {
     "sqlite": lambda: ibis.sqlite.connect(":memory:"),
     "duckdb": lambda: ibis.duckdb.connect(),
@@ -113,16 +111,20 @@ def main():
         print("\nPrediction with SQL")
         print(con.raw_sql(sql).fetchall())
 
-    print("\nPrediction with SKLearn")
-    print(f"Predictions: {sklearn_predictions}")
-    print(f"Probabilities: {sklearn_probabilities}")
+    if PREDICT_WITH_LIBRARY:
+        print("\nPrediction with SKLearn")
+        sklearn_predictions = model.predict(data_sample)
+        sklearn_probabilities = model.predict_proba(data_sample)
+        print(f"Predictions: {sklearn_predictions}")
+        print(f"Probabilities: {sklearn_probabilities}")
 
     print("\nPrediction with Ibis")
+    ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
     ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
     ibis_result = con.execute(ibis_expression)
     print(ibis_result)
 
-    if ASSERT:
+    if ASSERT and PREDICT_WITH_LIBRARY:
         assert np.array_equal(sklearn_predictions, ibis_result["output_label"]), "Predictions do not match!"
 
         # Binary classification should produce exactly 2 probability columns

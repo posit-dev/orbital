@@ -16,6 +16,7 @@ import orbital.types
 
 PRINT_SQL = int(os.environ.get("PRINT_SQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
+PREDICT_WITH_LIBRARY = int(os.environ.get("PREDICT_WITH_LIBRARY", "1"))
 BACKEND = os.environ.get("BACKEND", "duckdb").lower()
 
 if BACKEND not in {"duckdb", "sqlite"}:
@@ -24,21 +25,21 @@ if BACKEND not in {"duckdb", "sqlite"}:
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("orbital").setLevel(logging.INFO)  # Set DEBUG to see translation process.
 
-# Carichiamo il dataset iris e creiamo un DataFrame
+# Load the Iris dataset and create a DataFrame
 iris = load_iris()
 df = pd.DataFrame(iris.data, columns=["sepal_length", "sepal_width", "petal_length", "petal_width"])
 
-# Creiamo una colonna categorica "petal_width_cat" per usare OneHotEncoder
+# Create a categorical "petal_width_cat" column to exercise OneHotEncoder
 df["petal_width_cat"] = np.where(df["petal_width"] < 1.0, "narrow", "wide")
 
-# Introduciamo alcuni valori mancanti nella colonna "sepal_width"
+# Introduce some missing values in the "sepal_width" column
 df.loc[[0, 10, 20], "sepal_width"] = np.nan
 
-# Usiamo direttamente iris.target come target (multiclasse: 0,1,2)
+# Use iris.target directly as the multiclass target (0, 1, 2)
 X = df[["sepal_length", "sepal_width", "petal_length", "petal_width", "petal_width_cat"]]
 y = iris.target
 
-# Costruiamo la pipeline con preprocessamento numerico e categorico
+# Build the pipeline with numeric and categorical preprocessing
 pipeline = Pipeline([
     ("preprocessor", ColumnTransformer(
         transformers=[
@@ -54,7 +55,7 @@ pipeline = Pipeline([
 
 pipeline.fit(X, y)
 
-# Prepare the inputs and reference result outside the benchmarked function.
+# Prepare the inputs outside the benchmarked function.
 features = orbital.types.guess_datatypes(X)
 example_data = pa.table({
     "sepal_length": [5.0, 6.1, 7.2, 5.843333],
@@ -63,9 +64,6 @@ example_data = pa.table({
     "petal_width": [0.2, 1.2, 2.3, 1.199333],
     "petal_width_cat": ["narrow", "wide", "wide", "wide"],
 })
-test_df = example_data.to_pandas()
-target = pipeline.predict(test_df)
-ibis_table = ibis.memtable(example_data).alias("DATA_TABLE")
 con = {
     "sqlite": lambda: ibis.sqlite.connect(":memory:"),
     "duckdb": lambda: ibis.duckdb.connect(),
@@ -86,14 +84,18 @@ def main():
         print(con.raw_sql(sql).fetchall())
 
     print("\nPrediction with Ibis")
+    ibis_table = ibis.memtable(example_data).alias("DATA_TABLE")
     ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
     ibis_target = con.execute(ibis_expression)
     print(ibis_target)
 
-    print("\nPrediction with SKLearn")
-    print(target)
+    if PREDICT_WITH_LIBRARY:
+        print("\nPrediction with SKLearn")
+        test_df = example_data.to_pandas()
+        target = pipeline.predict(test_df)
+        print(target)
 
-    if ASSERT:
+    if ASSERT and PREDICT_WITH_LIBRARY:
         assert np.array_equal(target, ibis_target["output_label"]), "Predictions do not match!"
         print("\nPredictions match!")
 

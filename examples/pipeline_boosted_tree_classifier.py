@@ -17,6 +17,7 @@ import orbital.types
 
 PRINT_SQL = int(os.environ.get("PRINT_SQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
+PREDICT_WITH_LIBRARY = int(os.environ.get("PREDICT_WITH_LIBRARY", "1"))
 BACKEND = os.environ.get("BACKEND", "duckdb").lower()
 
 if BACKEND not in {"duckdb", "sqlite"}:
@@ -33,7 +34,7 @@ ames = ames.frame
 # SQL does not allow columns to start with a number.
 ames.columns = ["_" + col if col[0].isdigit() else col for col in ames.columns]
 
-# Pic numeric features to uniform them types to float
+# Convert numeric features to a consistent float type
 numeric_features = [
     col
     for col in ames.select_dtypes(include=["int64", "float64"]).columns
@@ -59,7 +60,7 @@ def categorize_price(price: float) -> str:
 
 ames["price_category"] = ames["SalePrice"].apply(categorize_price)
 
-# Split target of prediction (sales cateogiry) from features used for prediction
+# Split the prediction target (sales category) from the input features
 X = ames.drop(columns=["SalePrice", "price_category"])
 y = ames["price_category"]
 
@@ -98,11 +99,9 @@ model = Pipeline(
 
 model.fit(X, y)
 
-# Prepare the inputs and reference result outside the benchmarked function.
+# Prepare the inputs outside the benchmarked function.
 features = orbital.types.guess_datatypes(X)
 data_sample = X.head(5)
-target = model.predict(data_sample)
-ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
 con = {
     "sqlite": lambda: ibis.sqlite.connect(":memory:"),
     "duckdb": lambda: ibis.duckdb.connect(),
@@ -129,15 +128,18 @@ def main():
         print("\nPrediction with SQL")
         print(con.raw_sql(sql).fetchall())
 
-    print("\nPrediction with SKLearn")
-    print(target)
+    if PREDICT_WITH_LIBRARY:
+        print("\nPrediction with SKLearn")
+        target = model.predict(data_sample)
+        print(target)
 
     print("\nPrediction with Ibis")
+    ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
     ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
     ibis_target = con.execute(ibis_expression)
     print(ibis_target)
 
-    if ASSERT:
+    if ASSERT and PREDICT_WITH_LIBRARY:
         assert np.array_equal(target, ibis_target["output_label"]), "Predictions do not match!"
         print("\nPredictions match!")
 

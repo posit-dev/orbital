@@ -15,6 +15,7 @@ import orbital.types
 
 PRINT_SQL = int(os.environ.get("PRINT_SQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
+PREDICT_WITH_LIBRARY = int(os.environ.get("PREDICT_WITH_LIBRARY", "1"))
 BACKEND = os.environ.get("BACKEND", "duckdb").lower()
 
 if BACKEND not in {"duckdb", "sqlite"}:
@@ -47,7 +48,7 @@ pipeline = Pipeline(
 )
 pipeline.fit(iris_x, iris.target)
 
-# Prepare the inputs and reference result outside the benchmarked function.
+# Prepare the inputs outside the benchmarked function.
 features = orbital.types.guess_datatypes(iris_x)
 example_data = pa.table(
     {
@@ -57,8 +58,6 @@ example_data = pa.table(
         "petal_width": [0.2, 1.2, 2.3, 1.199333],
     }
 )
-predictions = pipeline.predict(example_data.to_pandas())
-ibis_table = ibis.memtable(example_data).alias("DATA_TABLE")
 con = {
     "sqlite": lambda: ibis.sqlite.connect(":memory:"),
     "duckdb": lambda: ibis.duckdb.connect(),
@@ -79,14 +78,17 @@ def main():
         print(con.raw_sql(sql).fetchall())
 
     print("\nPrediction with Ibis")
+    ibis_table = ibis.memtable(example_data).alias("DATA_TABLE")
     ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
     ibis_predictions = con.execute(ibis_expression)
     print(ibis_predictions)
 
-    print("\nPrediction with SKLearn")
-    print(predictions)
+    if PREDICT_WITH_LIBRARY:
+        print("\nPrediction with SKLearn")
+        predictions = pipeline.predict(example_data.to_pandas())
+        print(predictions)
 
-    if ASSERT:
+    if ASSERT and PREDICT_WITH_LIBRARY:
         assert np.allclose(ibis_predictions["variable"], predictions), "Predictions do not match!"
         print("\nPredictions match!")
 

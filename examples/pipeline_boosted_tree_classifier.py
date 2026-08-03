@@ -98,45 +98,51 @@ model = Pipeline(
 
 model.fit(X, y)
 
-# Convert types from numpy to orbital types
-features = orbital.types.guess_datatypes(X)
 
-# Target only 5 rows, so that it's easier for a human to understand
-data_sample = X.head(5)
+def main():
+    # Convert types from numpy to orbital types
+    features = orbital.types.guess_datatypes(X)
 
-# Convert the model to an execution pipeline
-orbital_pipeline = orbital.parse_pipeline(model, features=features)
-print(orbital_pipeline)
+    # Target only 5 rows, so that it's easier for a human to understand
+    data_sample = X.head(5)
 
-if BACKEND == "sqlite":
-    # FIXME: Sqlite currently can't handle the boosted tree classifier SQL
-    print("Skipping sqlite as it can't handle the query")
-    import sys
-    sys.exit(0)
+    # Convert the model to an execution pipeline
+    orbital_pipeline = orbital.parse_pipeline(model, features=features)
+    print(orbital_pipeline)
 
-con = {
-    "sqlite": lambda: ibis.sqlite.connect(":memory:"),
-    "duckdb": lambda: ibis.duckdb.connect(),
-}[BACKEND]()
-if PRINT_SQL:
-    sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
-    print(f"\nGenerated Query for {BACKEND.upper()}:")
-    print(sql)
-    print("\nPrediction with SQL")
-    # We need to create the table for the SQL to query it.
-    con.create_table("DATA_TABLE", obj=data_sample)
-    print(con.raw_sql(sql).fetchall())
+    if BACKEND == "sqlite":
+        # FIXME: Sqlite currently can't handle the boosted tree classifier SQL
+        print("Skipping sqlite as it can't handle the query")
+        import sys
+        sys.exit(0)
 
-print("\nPrediction with SKLearn")
-target = model.predict(data_sample)
-print(target)
+    con = {
+        "sqlite": lambda: ibis.sqlite.connect(":memory:"),
+        "duckdb": lambda: ibis.duckdb.connect(),
+    }[BACKEND]()
+    if PRINT_SQL:
+        sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
+        print(f"\nGenerated Query for {BACKEND.upper()}:")
+        print(sql)
+        print("\nPrediction with SQL")
+        # We need to create the table for the SQL to query it.
+        con.create_table("DATA_TABLE", obj=data_sample)
+        print(con.raw_sql(sql).fetchall())
 
-print("\nPrediction with Ibis")
-ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
-ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
-ibis_target = con.execute(ibis_expression)
-print(ibis_target)
+    print("\nPrediction with SKLearn")
+    target = model.predict(data_sample)
+    print(target)
 
-if ASSERT:
-    assert np.array_equal(target, ibis_target["output_label"]), "Predictions do not match!"
-    print("\nPredictions match!")
+    print("\nPrediction with Ibis")
+    ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
+    ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
+    ibis_target = con.execute(ibis_expression)
+    print(ibis_target)
+
+    if ASSERT:
+        assert np.array_equal(target, ibis_target["output_label"]), "Predictions do not match!"
+        print("\nPredictions match!")
+
+
+if __name__ == "__main__":
+    main()

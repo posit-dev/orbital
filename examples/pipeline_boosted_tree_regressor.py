@@ -88,38 +88,44 @@ model = Pipeline(
 )
 model.fit(X, y)
 
-# Create a small set of data for the prediction
-# It's easier to understand if it's small
-data_sample = X.head(5)
 
-features = orbital.types.guess_datatypes(X)
-orbital_pipeline = orbital.parse_pipeline(model, features=features)
-print(orbital_pipeline)
+def main():
+    # Create a small set of data for the prediction
+    # It's easier to understand if it's small
+    data_sample = X.head(5)
 
-con = {
-    "sqlite": lambda: ibis.sqlite.connect(":memory:"),
-    "duckdb": lambda: ibis.duckdb.connect(),
-}[BACKEND]()
+    features = orbital.types.guess_datatypes(X)
+    orbital_pipeline = orbital.parse_pipeline(model, features=features)
+    print(orbital_pipeline)
 
-if PRINT_SQL:
-    sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
-    print(f"\nGenerated Query for {BACKEND.upper()}:")
-    print(sql)
-    print("\nPrediction with SQL")
-    # We need to create the table for the SQL to query it.
-    con.create_table("DATA_TABLE", obj=data_sample)
-    print(con.raw_sql(sql).fetchall())
+    con = {
+        "sqlite": lambda: ibis.sqlite.connect(":memory:"),
+        "duckdb": lambda: ibis.duckdb.connect(),
+    }[BACKEND]()
 
-print("\nPrediction with SKLearn")
-target = model.predict(data_sample)
-print(target)
+    if PRINT_SQL:
+        sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
+        print(f"\nGenerated Query for {BACKEND.upper()}:")
+        print(sql)
+        print("\nPrediction with SQL")
+        # We need to create the table for the SQL to query it.
+        con.create_table("DATA_TABLE", obj=data_sample)
+        print(con.raw_sql(sql).fetchall())
 
-print("\nPrediction with Ibis")
-ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
-ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
-ibis_target = con.execute(ibis_expression)["variable"].to_numpy()
-print(ibis_target)
+    print("\nPrediction with SKLearn")
+    target = model.predict(data_sample)
+    print(target)
 
-if ASSERT:
-    assert np.allclose(target, ibis_target), "Predictions do not match!"
-    print("\nPredictions match!")
+    print("\nPrediction with Ibis")
+    ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
+    ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
+    ibis_target = con.execute(ibis_expression)["variable"].to_numpy()
+    print(ibis_target)
+
+    if ASSERT:
+        assert np.allclose(target, ibis_target), "Predictions do not match!"
+        print("\nPredictions match!")
+
+
+if __name__ == "__main__":
+    main()

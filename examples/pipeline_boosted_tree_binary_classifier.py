@@ -87,58 +87,64 @@ model = Pipeline(
 
 model.fit(X, y)
 
-features = orbital.types.guess_datatypes(X)
 
-# Small sample for easier verification of results
-data_sample = X.head(5)
+def main():
+    features = orbital.types.guess_datatypes(X)
 
-# Convert the model to an execution pipeline
-orbital_pipeline = orbital.parse_pipeline(model, features=features)
-print(orbital_pipeline)
+    # Small sample for easier verification of results
+    data_sample = X.head(5)
 
-con = {
-    "sqlite": lambda: ibis.sqlite.connect(":memory:"),
-    "duckdb": lambda: ibis.duckdb.connect(),
-}[BACKEND]()
-if PRINT_SQL:
-    sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
-    print(f"\nGenerated Query for {BACKEND.upper()}:")
-    print(sql)
-    print("\nPrediction with SQL")
-    con.create_table("DATA_TABLE", obj=data_sample)
-    print(con.raw_sql(sql).fetchall())
+    # Convert the model to an execution pipeline
+    orbital_pipeline = orbital.parse_pipeline(model, features=features)
+    print(orbital_pipeline)
 
-print("\nPrediction with SKLearn")
-sklearn_predictions = model.predict(data_sample)
-sklearn_probabilities = model.predict_proba(data_sample)
-print(f"Predictions: {sklearn_predictions}")
-print(f"Probabilities: {sklearn_probabilities}")
+    con = {
+        "sqlite": lambda: ibis.sqlite.connect(":memory:"),
+        "duckdb": lambda: ibis.duckdb.connect(),
+    }[BACKEND]()
+    if PRINT_SQL:
+        sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
+        print(f"\nGenerated Query for {BACKEND.upper()}:")
+        print(sql)
+        print("\nPrediction with SQL")
+        con.create_table("DATA_TABLE", obj=data_sample)
+        print(con.raw_sql(sql).fetchall())
 
-print("\nPrediction with Ibis")
-ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
-ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
-ibis_result = con.execute(ibis_expression)
-print(ibis_result)
+    print("\nPrediction with SKLearn")
+    sklearn_predictions = model.predict(data_sample)
+    sklearn_probabilities = model.predict_proba(data_sample)
+    print(f"Predictions: {sklearn_predictions}")
+    print(f"Probabilities: {sklearn_probabilities}")
 
-if ASSERT:
-    assert np.array_equal(sklearn_predictions, ibis_result["output_label"]), "Predictions do not match!"
-    
-    # Binary classification should produce exactly 2 probability columns
-    prob_cols = [col for col in ibis_result.columns if col.startswith("output_probability.")]
-    assert len(prob_cols) == 2, f"Expected exactly 2 probability columns for binary classification, got {len(prob_cols)}"
-    
-    prob_matrix = np.column_stack([ibis_result[col].values for col in prob_cols])
-    prob_sums = prob_matrix.sum(axis=1)
-    assert np.allclose(prob_sums, 1.0, atol=1e-6), f"Probabilities don't sum to 1.0: {prob_sums}"
-    
-    # Verify probabilities match sklearn exactly
-    for i, col in enumerate(prob_cols):
-        sklearn_prob = sklearn_probabilities[:, i]
-        ibis_prob = ibis_result[col].values
-        np.testing.assert_allclose(
-            sklearn_prob, ibis_prob, 
-            rtol=1e-4, atol=1e-4, 
-            err_msg=f"Probabilities for {col} don't match sklearn"
-        )
-        
-    print("\nPredictions and probabilities match!")
+    print("\nPrediction with Ibis")
+    ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
+    ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
+    ibis_result = con.execute(ibis_expression)
+    print(ibis_result)
+
+    if ASSERT:
+        assert np.array_equal(sklearn_predictions, ibis_result["output_label"]), "Predictions do not match!"
+
+        # Binary classification should produce exactly 2 probability columns
+        prob_cols = [col for col in ibis_result.columns if col.startswith("output_probability.")]
+        assert len(prob_cols) == 2, f"Expected exactly 2 probability columns for binary classification, got {len(prob_cols)}"
+
+        prob_matrix = np.column_stack([ibis_result[col].values for col in prob_cols])
+        prob_sums = prob_matrix.sum(axis=1)
+        assert np.allclose(prob_sums, 1.0, atol=1e-6), f"Probabilities don't sum to 1.0: {prob_sums}"
+
+        # Verify probabilities match sklearn exactly
+        for i, col in enumerate(prob_cols):
+            sklearn_prob = sklearn_probabilities[:, i]
+            ibis_prob = ibis_result[col].values
+            np.testing.assert_allclose(
+                sklearn_prob, ibis_prob,
+                rtol=1e-4, atol=1e-4,
+                err_msg=f"Probabilities for {col} don't match sklearn"
+            )
+
+        print("\nPredictions and probabilities match!")
+
+
+if __name__ == "__main__":
+    main()

@@ -68,49 +68,55 @@ pipeline = Pipeline(
 
 pipeline.fit(X, y)
 
-# Converti le feature per orbital
-features = orbital.types.guess_datatypes(X)
-print("orbital Features:", features)
 
-# Converti la pipeline in SQL con orbital
-orbital_pipeline = orbital.parse_pipeline(pipeline, features=features)
-print(orbital_pipeline)
+def main():
+    # Converti le feature per orbital
+    features = orbital.types.guess_datatypes(X)
+    print("orbital Features:", features)
 
-# Test data
-example_data = pa.table(
-    {
-        "sepal_length": [5.0, 6.1, 7.2, 5.843333],
-        "sepal_width": [3.2, 2.8, 3.0, 3.057333],
-        "petal_width": [0.2, 1.2, 2.3, 1.199333],
-        "petal_width_cat": ["narrow", "wide", "wide", "wide"],
-    }
-)
+    # Converti la pipeline in SQL con orbital
+    orbital_pipeline = orbital.parse_pipeline(pipeline, features=features)
+    print(orbital_pipeline)
 
-con = {
-    "sqlite": lambda: ibis.sqlite.connect(":memory:"),
-    "duckdb": lambda: ibis.duckdb.connect(),
-}[BACKEND]()
-if PRINT_SQL:
-    sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
-    print(f"\nGenerated Query for {BACKEND.upper()}:")
-    print(sql)
-    print("\nPrediction with SQL")
-    # We need to create the table for the SQL to query it.
-    con.create_table("DATA_TABLE", obj=example_data)
-    print(con.raw_sql(sql).fetchall())
+    # Test data
+    example_data = pa.table(
+        {
+            "sepal_length": [5.0, 6.1, 7.2, 5.843333],
+            "sepal_width": [3.2, 2.8, 3.0, 3.057333],
+            "petal_width": [0.2, 1.2, 2.3, 1.199333],
+            "petal_width_cat": ["narrow", "wide", "wide", "wide"],
+        }
+    )
+
+    con = {
+        "sqlite": lambda: ibis.sqlite.connect(":memory:"),
+        "duckdb": lambda: ibis.duckdb.connect(),
+    }[BACKEND]()
+    if PRINT_SQL:
+        sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
+        print(f"\nGenerated Query for {BACKEND.upper()}:")
+        print(sql)
+        print("\nPrediction with SQL")
+        # We need to create the table for the SQL to query it.
+        con.create_table("DATA_TABLE", obj=example_data)
+        print(con.raw_sql(sql).fetchall())
 
 
-print("\nPrediction with SKLearn")
-test_df = example_data.to_pandas()
-target = pipeline.predict(test_df)
-print(target)
+    print("\nPrediction with SKLearn")
+    test_df = example_data.to_pandas()
+    target = pipeline.predict(test_df)
+    print(target)
 
-print("\nPrediction with Ibis")
-ibis_table = ibis.memtable(example_data).alias("DATA_TABLE")
-ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
-ibis_target = con.execute(ibis_expression)["variable"].to_numpy()
-print(ibis_target)
+    print("\nPrediction with Ibis")
+    ibis_table = ibis.memtable(example_data).alias("DATA_TABLE")
+    ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
+    ibis_target = con.execute(ibis_expression)["variable"].to_numpy()
+    print(ibis_target)
 
-if ASSERT:
-    assert np.allclose(target, ibis_target), "Predictions do not match!"
-    print("\nPredictions match!")
+    if ASSERT:
+        assert np.allclose(target, ibis_target), "Predictions do not match!"
+        print("\nPredictions match!")
+
+
+if __name__ == "__main__":
+    main()

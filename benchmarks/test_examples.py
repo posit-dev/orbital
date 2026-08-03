@@ -1,10 +1,11 @@
-"""Benchmark Orbital's end-to-end model examples."""
+"""Benchmark the Orbital portion of each model example."""
 
+import importlib
 import os
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 from pytest_benchmark.fixture import BenchmarkFixture
@@ -12,35 +13,32 @@ from pytest_benchmark.fixture import BenchmarkFixture
 PROJECT_ROOT = Path(__file__).parents[1]
 EXAMPLES_DIR = PROJECT_ROOT / "examples"
 DATA_HOME = Path(tempfile.gettempdir()) / "orbital-benchmark-data"
-EXAMPLES = sorted(EXAMPLES_DIR.glob("pipeline_*.py")) + sorted(
-    EXAMPLES_DIR.glob("pytorch_*.py")
+EXAMPLE_MODULES = [
+    f"examples.{path.stem}"
+    for path in sorted(
+        [*EXAMPLES_DIR.glob("pipeline_*.py"), *EXAMPLES_DIR.glob("pytorch_*.py")]
+    )
+]
+
+sys.path.insert(0, str(PROJECT_ROOT))
+os.environ.update(
+    BACKEND="duckdb",
+    PRINT_SQL="1",
+    ASSERT="1",
+    SCIKIT_LEARN_DATA=str(DATA_HOME),
 )
 
 
-def run_example(example: Path) -> None:
-    """Run one example with the same validation enabled by test_examples.sh."""
-    env = os.environ.copy()
-    env.update(
-        BACKEND="duckdb",
-        PRINT_SQL="1",
-        ASSERT="1",
-        SCIKIT_LEARN_DATA=str(DATA_HOME),
-    )
-    result = subprocess.run(
-        [sys.executable, str(example)],
-        cwd=PROJECT_ROOT,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-    if result.returncode:
-        raise AssertionError(f"{example.name} failed:\n{result.stdout}")
+def load_example(module_name: str) -> ModuleType:
+    """Import an example, preparing its data and fitted model once."""
+    return importlib.import_module(module_name)
 
 
-@pytest.mark.parametrize("example", EXAMPLES, ids=lambda example: example.stem)
-def test_example(benchmark: BenchmarkFixture, example: Path) -> None:
-    """Measure one complete model conversion and execution scenario."""
-    # Each example is an end-to-end scenario that can take several seconds.
+@pytest.mark.parametrize(
+    "module_name", EXAMPLE_MODULES, ids=lambda name: name.rsplit(".", 1)[-1]
+)
+def test_example(benchmark: BenchmarkFixture, module_name: str) -> None:
+    """Measure model conversion and execution without setup or fitting."""
+    example = load_example(module_name)
     # One round keeps CI practical while Perfall provides the historical sample set.
-    benchmark.pedantic(run_example, args=(example,), rounds=1, iterations=1)
+    benchmark.pedantic(example.main, rounds=1, iterations=1)

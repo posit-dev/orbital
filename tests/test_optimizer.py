@@ -125,7 +125,13 @@ class TestOptimizerFold:
     def test_fold_zeros_subtract_left(self):
         expr = ibis.literal(0) - ibis.literal(5)
         result = self.optimizer.fold_zeros(expr)
-        assert result.op().value == 5
+        assert result.execute() == -5
+
+    def test_fold_zeros_subtract_left_column(self):
+        table = ibis.memtable({"value": [1.0, 2.0, 3.0]})
+        expr = ibis.literal(0) - table["value"]
+        result = self.optimizer.fold_zeros(expr)
+        assert result.execute().tolist() == pytest.approx([-1.0, -2.0, -3.0])
 
     def test_fold_zeros_subtract_right(self):
         expr = ibis.literal(5) - ibis.literal(0)

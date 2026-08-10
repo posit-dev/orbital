@@ -277,7 +277,7 @@ class Optimizer:
             left_val = inputs[0].value if isinstance(inputs[0], Literal) else None
             right_val = inputs[1].value if isinstance(inputs[1], Literal) else None
             if left_val == 0:
-                return inputs[1].to_expr()
+                return -inputs[1].to_expr()
             elif right_val == 0:
                 return inputs[0].to_expr()
 

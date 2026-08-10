@@ -327,3 +327,20 @@ class Optimizer:
         else:
             # No possible folding
             return expr
+
+    def _debug(  # pragma: no cover
+        self, expr: ibis.Expr, show_args: bool = True
+    ) -> str:
+        """Given an expression, return a string representation for debugging.
+
+        Only used on demand while developing the optimizer, so it is
+        intentionally left uncovered by the test suite.
+        """
+        if isinstance(expr, Literal):
+            return repr(expr.value)
+        elif show_args is False:
+            return type(expr).__name__
+        elif not hasattr(expr, "args"):
+            return f"{type(expr).__name__}(<unknown>)"
+        else:
+            return f"{type(expr).__name__}({', '.join([self._debug(a, show_args=False) for a in expr.args])})"

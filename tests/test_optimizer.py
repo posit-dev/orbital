@@ -335,36 +335,57 @@ class TestOptimizerFold:
 
 
 class TestOptimizerPreserve:
+    # T is referenced by the second node, Y is a result of the pipeline.
     graph = onnx.parser.parse_graph("""
         agraph (double[N] X) => (double[N] Y)
         {
-            Y = Identity(X)
+            T = Identity(X)
+            Y = Identity(T)
         }
     """)
 
-    class StubTranslator(Translator):
-        def process(self):
-            pass
+    class IncrementTranslator(Translator):
+        """Emits a single output the optimizer can preserve."""
 
-    def _translator(self, optimizer):
+        def process(self):
+            self.set_output(self._table["X"] + 1.0)
+
+    class PassThroughTranslator(Translator):
+        """Emits an output that is already a column of the table."""
+
+        def process(self):
+            self.set_output(self._table["X"])
+
+    def _process(self, optimizer, node_index, translator_class=IncrementTranslator):
         table = ibis.memtable({"X": [1.0, 2.0]})
         variables = GraphVariables(table, self.graph)
-        # An expression the enabled optimizer considers oversized.
-        oversized = table["X"]
-        for _ in range(Optimizer.PRESERVE_THRESHOLD):
-            oversized = oversized + 1.0
-        variables["X"] = oversized
-        translator = self.StubTranslator(
-            table, self.graph.node[0], variables, optimizer, TranslationOptions()
+        translator = translator_class(
+            table,
+            self.graph.node[node_index],
+            variables,
+            optimizer,
+            TranslationOptions(),
         )
+        translator.process()
+        optimizer.preserve_referenced_outputs(translator, variables)
         return translator, variables
 
-    def test_oversized_expression_is_preserved(self):
-        translator, variables = self._translator(Optimizer())
-        translator._optimizer.preserve_oversized_expressions(translator, variables)
+    def test_referenced_output_is_preserved(self):
+        translator, _ = self._process(Optimizer(), node_index=0)
         assert [c for c in translator.mutated_table.columns if c.startswith("prs_")]
 
+    def test_output_nothing_references_is_not_preserved(self):
+        translator, _ = self._process(Optimizer(), node_index=1)
+        assert translator.mutated_table.columns == ("X",)
+
+    def test_output_that_is_already_a_column_is_not_preserved(self):
+        translator, variables = self._process(
+            Optimizer(), node_index=0, translator_class=self.PassThroughTranslator
+        )
+        assert translator.mutated_table.columns == ("X",)
+        # The output still points at the original column, it was not re-aliased.
+        assert variables.peek_variable("T").get_name() == "X"
+
     def test_preserve_disabled_leaves_the_table_untouched(self):
-        translator, variables = self._translator(Optimizer(enabled=False))
-        translator._optimizer.preserve_oversized_expressions(translator, variables)
+        translator, _ = self._process(Optimizer(enabled=False), node_index=0)
         assert translator.mutated_table.columns == ("X",)

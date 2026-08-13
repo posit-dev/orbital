@@ -1,5 +1,6 @@
 """Define the variables and group of variables used in the translation process."""
 
+import collections
 import typing
 
 import ibis
@@ -124,6 +125,9 @@ class GraphVariables:
             inp.name: table[inp.name] for inp in graph.input
         }
         self._consumed: set[str] = set()
+        self._references: typing.Counter[str] = collections.Counter(
+            name for node in graph.node for name in node.input
+        )
         self._uniqueid: int = 0
 
     def consume(
@@ -176,6 +180,17 @@ class GraphVariables:
     ) -> typing.Union[ibis.Expr, VariablesGroup, None]:
         """Peek a variable without consuming it."""
         return self._variables.get(name, default)
+
+    def references(self, name: str) -> int:
+        """How many times the nodes of the graph reference the variable as an input.
+
+        A node referencing the same variable twice counts twice, as the
+        expression would be emitted twice too. This is static: it counts the
+        graph and does not change as the variables get consumed.
+
+        :param name: The variable to look up.
+        """
+        return self._references[name]
 
     def get_initializer(
         self, name: str, default: typing.Optional[onnx.TensorProto] = None

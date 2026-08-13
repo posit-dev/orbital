@@ -170,9 +170,9 @@ def translate(
         if op_type not in TRANSLATORS:
             raise NotImplementedError(f"Translation for {op_type} not implemented")
         translator = TRANSLATORS[op_type](table, node, variables, optimizer, options)  # type: ignore[abstract]
-        optimizer.preserve_oversized_expressions(translator, variables)
         _log_debug_start(translator, variables)
         translator.process()
+        optimizer.preserve_referenced_outputs(translator, variables)
         table = translator.mutated_table  # Translator might return a new table.
         _log_debug_end(translator, variables)
     return _projection_results(table, variables, projection)

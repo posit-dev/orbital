@@ -39,6 +39,20 @@ class TestGraphVariables:
         assert variables._consumed == set()
         assert variables._initializers_values == {"Q": [456.0], "Z": 123.0}
 
+    def test_references_counts_each_input_occurrence(self):
+        """A node referencing the same variable twice counts twice."""
+        graph = onnx.parser.parse_graph("""
+            agraph (double[N] X) => (double[N] Y)
+            {
+                T = Identity(X)
+                Y = Add(T, T)
+            }
+        """)
+        variables = GraphVariables(ibis.memtable({"X": [1.0]}), graph)
+        assert variables.references("T") == 2
+        assert variables.references("Y") == 0
+        assert variables.references("unknown-name") == 0
+
 
 class TestTranslator:
     def test_creation(self):
@@ -152,11 +166,11 @@ class TestTranslate:
         start = time.perf_counter()
         sql = orbital.export_sql("data", parsed, dialect="duckdb")
         generation_time = time.perf_counter() - start
-        # ~600KB / ~5s when the layers are projected, 12.4MB / ~364s when inlined.
-        assert len(sql) < 1024 * 1024
-        # Guards the memo in _estimate_sql_size: losing it or scoping it per value
-        # keeps the emitted SQL byte-identical while generation time explodes,
-        # which nothing else in the suite would notice.
+        # ~234KB / ~5s when the layers are projected, ~12MB when inlined.
+        assert len(sql) < 600 * 1024
+        # Inlining the layers also makes generation itself explode: the same
+        # graph takes ~185s to emit, so the time budget catches a regression
+        # that shrinks the SQL but keeps rebuilding the inlined expressions.
         assert generation_time < 120
 
         data = pd.DataFrame(
@@ -173,37 +187,6 @@ class TestTranslate:
                 expected = np.maximum(expected, 0)
         expected = 1.0 / (1.0 + np.exp(-expected[:, 0]))
         np.testing.assert_allclose(sql_predictions, expected, atol=1e-8)
-
-    def test_small_expressions_are_not_projected(self):
-        """Expressions cheap enough to inline don't gain a column of their own."""
-        graph = onnx.parser.parse_graph("""
-            agraph (double[N,1] a, double[N,1] b, double[N,1] c, double[N,1] d) => (double[N,3] output)
-            <double[4,3] weights = {0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0,1.1,1.2},
-             double[3] bias = {0.1,0.2,0.3}>
-            {
-                merged = Concat <axis: int = 1> (a, b, c, d)
-                multiplied = MatMul(merged, weights)
-                biased = Add(multiplied, bias)
-                output = Relu(biased)
-            }
-        """)
-        parsed = ParsedPipeline._from_onnx_model(
-            onnx.helper.make_model(graph),
-            {name: types.DoubleColumnType() for name in "abcd"},
-        )
-        table = ibis.memtable({name: [1.0, 2.0] for name in "abcd"})
-
-        # Omitting the projection exposes the temporary columns too.
-        query = orbital.translate(table, parsed, orbital.ResultsProjection.omit())
-        assert query.columns == (
-            "a",
-            "b",
-            "c",
-            "d",
-            "output.out_0",
-            "output.out_1",
-            "output.out_2",
-        )
 
     def test_variable_used_by_two_nodes_projects_once(self):
         """A variable shared by two nodes doesn't leak into the results."""
@@ -228,15 +211,18 @@ class TestTranslate:
         )
         table = ibis.memtable({name: [1.0, 2.0] for name in "abcd"})
 
-        # Only "shared" crosses the inline threshold: each of its 2 neurons sums
-        # the 3 neurons of "activated" (136 nodes each, vs 42 for "activated" and
-        # 19 for "biased"). So it is projected as columns before its consumers.
+        # Omitting the projection exposes the preserved columns too.
         with_temporaries = orbital.translate(
             table, parsed, orbital.ResultsProjection.omit()
         )
         projected = [c for c in with_temporaries.columns if c.startswith("prs_")]
-        assert len(projected) == 2, (
-            f"the 2 neurons of shared must be projected once: {with_temporaries.columns}"
+        # Every intermediate is preserved once: 3 columns each for "multiplied",
+        # "biased" and "activated", 2 for "shared". "merged" gets none because
+        # Concat only groups the input columns, which are columns already.
+        # Preserving "shared" once per node reading it would emit 2 columns more.
+        assert len(projected) == 11, (
+            "every intermediate must be preserved exactly once: "
+            f"{with_temporaries.columns}"
         )
 
         # Projecting "shared" must not make it reappear as a pipeline result.

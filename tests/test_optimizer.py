@@ -1,10 +1,14 @@
 import operator
 
 import ibis
+import onnx
 import pytest
 from ibis.expr.operations import Literal
 
 from orbital.translation.optimizer import Optimizer
+from orbital.translation.options import TranslationOptions
+from orbital.translation.translator import Translator
+from orbital.translation.variables import GraphVariables
 
 
 class TestOptimizerFold:
@@ -328,3 +332,39 @@ class TestOptimizerFold:
         expr = ibis.literal(5).isnull()
         result = self.optimizer.fold_operation(expr)
         assert result is expr
+
+
+class TestOptimizerPreserve:
+    graph = onnx.parser.parse_graph("""
+        agraph (double[N] X) => (double[N] Y)
+        {
+            Y = Identity(X)
+        }
+    """)
+
+    class StubTranslator(Translator):
+        def process(self):
+            pass
+
+    def _translator(self, optimizer):
+        table = ibis.memtable({"X": [1.0, 2.0]})
+        variables = GraphVariables(table, self.graph)
+        # An expression the enabled optimizer considers oversized.
+        oversized = table["X"]
+        for _ in range(Optimizer.PRESERVE_THRESHOLD):
+            oversized = oversized + 1.0
+        variables["X"] = oversized
+        translator = self.StubTranslator(
+            table, self.graph.node[0], variables, optimizer, TranslationOptions()
+        )
+        return translator, variables
+
+    def test_oversized_expression_is_preserved(self):
+        translator, variables = self._translator(Optimizer())
+        translator._optimizer.preserve_oversized_expressions(translator, variables)
+        assert [c for c in translator.mutated_table.columns if c.startswith("prs_")]
+
+    def test_preserve_disabled_leaves_the_table_untouched(self):
+        translator, variables = self._translator(Optimizer(enabled=False))
+        translator._optimizer.preserve_oversized_expressions(translator, variables)
+        assert translator.mutated_table.columns == ("X",)

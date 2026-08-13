@@ -1,10 +1,12 @@
 """Implement optiomizations to the Ibis expression tree.
 
-Primarily it takes care of folding constant expressions
-and removing unnecessary casts.
+Primarily it takes care of folding constant expressions,
+removing unnecessary casts and preserving the expressions
+that are too big to be repeated inline.
 """
 
 import itertools
+import logging
 import operator
 import typing
 
@@ -18,6 +20,7 @@ from ibis.expr.operations import (
     Ceil,
     Divide,
     Equals,
+    Field,
     Floor,
     FloorDivide,
     Greater,
@@ -29,14 +32,25 @@ from ibis.expr.operations import (
     Modulus,
     Multiply,
     Negate,
+    Node,
     Not,
     NotEquals,
     Or,
+    Relation,
     Subtract,
     Unary,
     Xor,
 )
 from ibis.expr.types import NumericScalar
+
+from .variables import GraphVariables, VariablesGroup
+
+if typing.TYPE_CHECKING:
+    # Translators own the Optimizer, so the import can only happen
+    # when type checking to avoid a circular import at runtime.
+    from .translator import Translator
+
+log = logging.getLogger(__name__)
 
 # Alias to avoid long references when checking for nested casts.
 CastOp = ibis.expr.operations.Cast
@@ -49,6 +63,13 @@ class Optimizer:
     processes to Ibis expressionsto remove unecessary operations and
     reduce query complexity.
     """
+
+    # Expressions bigger than this get preserved before being consumed.
+    # Measured over all examples, no example regresses in the 59..81 window:
+    # at 58 cheap expressions gain pointless columns (+151 bytes on the
+    # decision tree classifier pipeline), at 82 layered models explode again
+    # (sklearn MLP with two 32 neuron layers goes from 72.9KB to 877KB).
+    PRESERVE_THRESHOLD = 70
 
     BINARY_OPS: dict[type[Binary], typing.Callable] = {
         # Mathematical Operators
@@ -87,6 +108,86 @@ class Optimizer:
                         return the expression unchanged.
         """
         self.ENABLED = enabled
+
+    def preserve_oversized_expressions(
+        self, translator: "Translator", variables: GraphVariables
+    ) -> None:
+        """Preserve the node inputs that are too big to be repeated inline.
+
+        An expression that is not preserved is re-emitted in the SQL text once
+        per consumer, so layered pipelines (a neural network reads every value
+        of the previous layer in every neuron of the next one) grow
+        exponentially with depth. Preserving the oversized inputs first lets
+        the node reference plain columns instead.
+
+        :param translator: Translator whose node is about to be processed.
+        :param variables: Variables of the graph being translated.
+        """
+        if self.ENABLED is False:
+            return
+
+        sizes: dict[Node, int] = {}
+        for name in translator.inputs:
+            variable = variables.peek_variable(name)
+            if variable is None:
+                continue  # Initializers are constants, they are never preserved.
+            group = variable if isinstance(variable, VariablesGroup) else None
+            candidates = list(group.values()) if group is not None else [variable]
+            if not all(isinstance(c, ibis.expr.types.Value) for c in candidates):
+                continue
+            values = typing.cast(list[ibis.expr.types.Value], candidates)
+            biggest = max(self._estimate_sql_size(v.op(), sizes) for v in values)
+            if biggest <= self.PRESERVE_THRESHOLD:
+                continue
+            log.debug(
+                f"Preserving {name} ({biggest} nodes) before {translator.operation}"
+            )
+            preserved = translator.preserve(
+                *(
+                    value.name(translator.variable_unique_short_alias("prs"))
+                    for value in values
+                )
+            )
+            # Assigning marks the variable as unconsumed again, which would add a
+            # stray column to the final projection. Safe only because this runs
+            # before process() and every translator consumes all of its inputs.
+            # The group type is preserved as it carries validation of the subvariables,
+            # and the original order is kept as later steps address groups by position.
+            variables[name] = (
+                type(group)(dict(zip(group.keys(), preserved)))
+                if group is not None
+                else preserved[0]
+            )
+
+    def _estimate_sql_size(self, op: Node, sizes: dict[Node, int]) -> int:
+        """Count the nodes the SQL compiler has to emit for an inlined expression.
+
+        The descent stops at fields and relations because they compile to a
+        column or table reference of constant length, no matter how big the
+        expression that produced them was. Counting through them would instead
+        report the size of the whole pipeline built so far.
+
+        :param op: Root of the ibis operations DAG to measure.
+        :param sizes: Memo of already measured operations, shared between calls.
+        """
+
+        def inlined_children(op: Node) -> tuple[Node, ...]:
+            if isinstance(op, (Field, Relation)):
+                return ()
+            return op.__children__
+
+        # Iterative post-order visit: expressions are deeper than the Python stack.
+        visited: set[Node] = set()
+        pending = [(op, False)]
+        while pending:
+            current, expanded = pending.pop()
+            if expanded:
+                sizes[current] = 1 + sum(sizes[c] for c in inlined_children(current))
+            elif current not in sizes and current not in visited:
+                visited.add(current)
+                pending.append((current, True))
+                pending.extend((child, False) for child in inlined_children(current))
+        return sizes[op]
 
     def _ensure_expr(self, value: typing.Any) -> ibis.Expr:
         """Ensure that the value is an Ibis expression.

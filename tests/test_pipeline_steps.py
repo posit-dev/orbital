@@ -5224,10 +5224,10 @@ class TestGemmTranslator:
     def test_gemm_deep_network_sql_scaling(self):
         """SQL for a multi-layer MLP stays small and correct.
 
-        Each Gemm layer is preserved as real columns, so a 20->64->64->1
-        network must produce KB-scale SQL in seconds. Without preservation
-        every layer re-inlines the previous one into each neuron, blowing
-        up to >12MB of SQL and minutes of generation time.
+        Each Gemm layer ends up preserved as real columns, so a 20->64->64->1
+        network must produce KB-scale SQL in seconds and correct numbers.
+        Without preservation every layer re-inlines the previous one into each
+        neuron, blowing up to >12MB of SQL and minutes of generation time.
         """
         import time
 

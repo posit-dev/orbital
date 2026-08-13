@@ -14,6 +14,7 @@ from orbital.translation.steps.sub import SubTranslator
 from orbital.translation.steps.mul import MulTranslator
 from orbital.translation.steps.div import DivTranslator
 from orbital.translation.steps.identity import IdentityTranslator
+from orbital.translation.steps.reducesum import ReduceSumTranslator
 from orbital.translation.steps.reshape import ReshapeTranslator
 from orbital.translation.steps.matmul import MatMulTranslator
 from orbital.translation.steps.cast import CastTranslator, CastLikeTranslator
@@ -1135,7 +1136,7 @@ class TestDivTranslator:
             table, model.node[0], variables, self.optimizer, TranslationOptions()
         )
 
-        with pytest.raises(ValueError, match="first operand must be a numeric value"):
+        with pytest.raises(ValueError, match="operands must be numeric values"):
             translator.process()
 
     def test_div_mismatched_column_count(self):
@@ -1189,12 +1190,12 @@ class TestDivTranslator:
         with pytest.raises(ValueError, match="must contain only one value"):
             translator.process()
 
-    def test_div_second_operand_not_constant(self):
-        """Test DivTranslator raises error when second operand is not a constant."""
+    def test_div_single_column_by_computed_column(self):
+        """Test DivTranslator divides a single column by a computed column."""
         table = ibis.memtable(
             {
-                "input": [1.0, 2.0, 3.0],
-                "other": [5.0, 5.0, 5.0],
+                "input": [10.0, 20.0, 30.0],
+                "other": [5.0, 2.0, 10.0],
             }
         )
         model = onnx.parser.parse_graph("""
@@ -1208,8 +1209,389 @@ class TestDivTranslator:
         translator = DivTranslator(
             table, model.node[0], variables, self.optimizer, TranslationOptions()
         )
+        translator.process()
 
-        with pytest.raises(NotImplementedError, match="must be a constant list"):
+        result = variables.peek_variable("output")
+
+        # The divisor must be consumed, or it would leak into the results.
+        assert "other" not in variables
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [2.0, 10.0, 3.0]
+
+    def test_div_single_column_by_group_columns(self):
+        """Test DivTranslator divides a single column by a group, keyed by the group."""
+        table = ibis.memtable(
+            {
+                "input": [100.0, 200.0],
+                "other": [1.0, 1.0],
+                "col_a": [10.0, 20.0],
+                "col_b": [50.0, 100.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input, float[N] other) => (float[N] output) {
+                output = Div(input, other)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        variables["other"] = NumericVariablesGroup(
+            {
+                "col_a": table["col_a"],
+                "col_b": table["col_b"],
+            }
+        )
+
+        translator = DivTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        assert list(result.keys()) == ["col_a", "col_b"]
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [10.0, 10.0]
+        assert list(backend.execute(result["col_b"])) == [2.0, 2.0]
+
+    def test_div_group_columns_by_group_columns(self):
+        """Test DivTranslator divides two groups keeping the first group names."""
+        table = ibis.memtable(
+            {
+                "input": [1.0, 1.0],
+                "other": [1.0, 1.0],
+                "num_a": [10.0, 20.0],
+                "num_b": [100.0, 200.0],
+                "den_a": [2.0, 4.0],
+                "den_b": [10.0, 100.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input, float[N] other) => (float[N] output) {
+                output = Div(input, other)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["num_a"],
+                "col_b": table["num_b"],
+            }
+        )
+        variables["other"] = NumericVariablesGroup(
+            {
+                "den_a": table["den_a"],
+                "den_b": table["den_b"],
+            }
+        )
+
+        translator = DivTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        assert list(result.keys()) == ["col_a", "col_b"]
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [5.0, 5.0]
+        assert list(backend.execute(result["col_b"])) == [10.0, 2.0]
+
+    def test_div_constant_by_column(self):
+        """Test DivTranslator computes the reciprocal of a column."""
+        table = ibis.memtable({"input": [1.0, 2.0, 4.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float num_value = {1.0}>
+            {
+                output = Div(num_value, input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+
+        translator = DivTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [1.0, 0.5, 0.25]
+
+    def test_div_constant_by_group_columns(self):
+        """Test DivTranslator computes the reciprocal of a group of columns."""
+        table = ibis.memtable({"col_a": [1.0, 2.0], "col_b": [4.0, 8.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float num_value = {1.0}>
+            {
+                output = Div(num_value, input)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["col_a"],
+                "col_b": table["col_b"],
+            }
+        )
+
+        translator = DivTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        assert list(result.keys()) == ["col_a", "col_b"]
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [1.0, 0.5]
+        assert list(backend.execute(result["col_b"])) == [0.25, 0.125]
+
+    def test_div_group_columns_by_computed_column(self):
+        """Test DivTranslator divides a group of columns by a computed column."""
+        table = ibis.memtable(
+            {
+                "input": [1.0, 1.0],
+                "other": [2.0, 4.0],
+                "col_a": [10.0, 20.0],
+                "col_b": [100.0, 200.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input, float[N] other) => (float[N] output) {
+                output = Div(input, other)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["col_a"],
+                "col_b": table["col_b"],
+            }
+        )
+
+        translator = DivTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+
+        # The divisor must be consumed, or it would leak into the results.
+        assert "other" not in variables
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [5.0, 5.0]
+        assert list(backend.execute(result["col_b"])) == [50.0, 50.0]
+
+    def test_div_computed_divisor_not_numeric(self):
+        """Test DivTranslator raises error when the computed divisor isn't numeric."""
+        table = ibis.memtable(
+            {
+                "input": [1.0, 1.0],
+                "other": ["a", "b"],
+                "col_a": [10.0, 20.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input, float[N] other) => (float[N] output) {
+                output = Div(input, other)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        variables["input"] = NumericVariablesGroup({"col_a": table["col_a"]})
+
+        translator = DivTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(ValueError, match="operands must be numeric values"):
+            translator.process()
+
+    def test_div_by_divisor_without_float_data(self):
+        """Test DivTranslator rejects a divisor that provides no values."""
+        import numpy as np
+
+        # PyTorch-exported models store the payload in raw_data instead of
+        # float_data, so such a divisor reaches the translator with no values.
+        divisor = onnx.numpy_helper.from_array(
+            np.array([2.0], dtype=np.float32), name="div_value"
+        )
+        graph = onnx.helper.make_graph(
+            [onnx.helper.make_node("Div", ["input", "div_value"], ["output"])],
+            "div_raw",
+            [
+                onnx.helper.make_tensor_value_info(
+                    "input", onnx.TensorProto.FLOAT, [None]
+                )
+            ],
+            [
+                onnx.helper.make_tensor_value_info(
+                    "output", onnx.TensorProto.FLOAT, [None]
+                )
+            ],
+            initializer=[divisor],
+        )
+
+        table = ibis.memtable({"input": [10.0, 20.0]})
+        variables = GraphVariables(table, graph)
+
+        translator = DivTranslator(
+            table, graph.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(ValueError, match="must contain only one value"):
+            translator.process()
+
+    def test_div_group_of_one_column_by_constant(self):
+        """Test DivTranslator keeps the group identity of a single column group."""
+        table = ibis.memtable({"col_a": [10.0, 20.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float[1] div_value = {2.0}>
+            {
+                output = Div(input, div_value)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup({"col_a": table["col_a"]})
+
+        translator = DivTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        assert list(result.keys()) == ["col_a"]
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [5.0, 10.0]
+
+
+class TestReduceSumTranslator:
+    optimizer = Optimizer(enabled=False)
+
+    def test_reducesum_group_columns(self):
+        """Test ReduceSumTranslator sums all the columns of a group."""
+        table = ibis.memtable({"a": [1.0, 2.0], "b": [10.0, 20.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <int64[1] axes = {1}>
+            {
+                output = ReduceSum <keepdims: int = 1> (input, axes)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup({"a": table["a"], "b": table["b"]})
+
+        translator = ReduceSumTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        assert "output" in variables
+        # The reduced group must be consumed, or it would leak into the results.
+        assert "input" not in variables
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [11.0, 22.0]
+
+    def test_reducesum_negative_axis(self):
+        """Test ReduceSumTranslator accepts axes=[-1] as the features axis."""
+        table = ibis.memtable({"a": [1.0, 2.0], "b": [10.0, 20.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <int64[1] axes = {-1}>
+            {
+                output = ReduceSum <keepdims: int = 0> (input, axes)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup({"a": table["a"], "b": table["b"]})
+
+        translator = ReduceSumTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [11.0, 22.0]
+
+    def test_reducesum_rejects_non_group_input(self):
+        """Test ReduceSumTranslator rejects inputs that aren't a group of columns."""
+        table = ibis.memtable({"input": [1.0, 2.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <int64[1] axes = {1}>
+            {
+                output = ReduceSum <keepdims: int = 1> (input, axes)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = ReduceSumTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(NotImplementedError, match="group of columns"):
+            translator.process()
+
+    def test_reducesum_unsupported_axes(self):
+        """Test ReduceSumTranslator rejects reductions over the rows."""
+        table = ibis.memtable({"a": [1.0, 2.0], "b": [10.0, 20.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <int64[1] axes = {0}>
+            {
+                output = ReduceSum <keepdims: int = 1> (input, axes)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup({"a": table["a"], "b": table["b"]})
+
+        translator = ReduceSumTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(NotImplementedError, match="features axis"):
+            translator.process()
+
+    def test_reducesum_axes_not_provided(self):
+        """Test ReduceSumTranslator rejects axes passed as an attribute."""
+        table = ibis.memtable({"a": [1.0, 2.0], "b": [10.0, 20.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output) {
+                output = ReduceSum <axes: ints = [1], keepdims: int = 1> (input)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup({"a": table["a"], "b": table["b"]})
+
+        translator = ReduceSumTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(NotImplementedError, match="second input"):
             translator.process()
 
 

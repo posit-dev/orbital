@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 from sklearn.datasets import load_iris
 from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, TargetEncoder
@@ -139,6 +140,33 @@ class TestSQLExport:
         )
         assert 'AS "variable.target_0"' in unoptimized_sql
         assert '"t0"."ID"' in unoptimized_sql
+
+    def test_terminal_div_keeps_group_column_names(self):
+        df = pd.DataFrame(
+            {
+                "feature1": [1.0, 2.0, 3.0],
+                "feature2": [4.0, 5.0, 6.0],
+                "feature3": [7.0, 8.0, 9.0],
+            }
+        )
+
+        # The scaler ends the pipeline with a Div, so the names of its
+        # column group are the names of the resulting SQL columns.
+        sklearn_pipeline = Pipeline(
+            [
+                ("imputer", SimpleImputer(strategy="mean")),
+                ("scaler", StandardScaler()),
+            ]
+        )
+        sklearn_pipeline.fit(df)
+
+        features = {name: types.DoubleColumnType() for name in df.columns}
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
+
+        sql = orbital.export_sql("data", parsed_pipeline, dialect="duckdb")
+        assert 'AS "variable.feature1"' in sql
+        assert 'AS "variable.feature2"' in sql
+        assert 'AS "variable.feature3"' in sql
 
     def test_target_encoder_multiple_columns(self):
         df = pd.DataFrame(

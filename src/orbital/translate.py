@@ -30,6 +30,7 @@ from .translation.steps.nn import (
     TanhTranslator,
 )
 from .translation.steps.onehotencoder import OneHotEncoderTranslator
+from .translation.steps.reducesum import ReduceSumTranslator
 from .translation.steps.reshape import ReshapeTranslator
 from .translation.steps.scaler import ScalerTranslator
 from .translation.steps.softmax import SoftmaxTranslator
@@ -59,6 +60,7 @@ TRANSLATORS: dict[str, type[Translator]] = {
     "Div": DivTranslator,
     "Gemm": GemmTranslator,
     "Mul": MulTranslator,
+    "ReduceSum": ReduceSumTranslator,
     "Relu": ReLUTranslator,
     "Reshape": ReshapeTranslator,
     "Scaler": ScalerTranslator,

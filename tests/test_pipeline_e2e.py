@@ -162,6 +162,45 @@ class TestEndToEndPipelines:
                 atol=1e-4,
             )
 
+    def test_logistic_regression_double_features(self, iris_data, db_connection):
+        """Test a logistic regression whose double features force the ONNX
+        MatMul/Add/Sigmoid/Abs/ReduceSum/Div probability decomposition."""
+        df, feature_names = iris_data
+        conn, dialect = db_connection
+
+        binary_df = df[df["target"].isin([0, 1])].copy()
+
+        sklearn_pipeline = Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                ("classifier", LogisticRegression(random_state=42)),
+            ]
+        )
+
+        X = binary_df[feature_names]
+        y = binary_df["target"]
+        sklearn_pipeline.fit(X, y)
+        sklearn_proba = sklearn_pipeline.predict_proba(X)
+
+        features = {fname: types.DoubleColumnType() for fname in feature_names}
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
+
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+
+        sql_results = execute_sql(sql, conn, dialect, binary_df)
+
+        sklearn_proba_df = pd.DataFrame(
+            sklearn_proba, columns=sklearn_pipeline.classes_, index=binary_df.index
+        )
+
+        for class_label in sklearn_pipeline.classes_:
+            np.testing.assert_allclose(
+                sql_results[f"output_probability.{class_label}"].values.flatten(),
+                sklearn_proba_df[class_label].values.flatten(),
+                rtol=1e-4,
+                atol=1e-4,
+            )
+
     def test_elasticnet(self, diabetes_data, db_connection):
         """Test an ElasticNet pipeline with preprocessing transformations."""
         df, feature_names = diabetes_data

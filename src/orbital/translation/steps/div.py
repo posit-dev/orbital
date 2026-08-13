@@ -11,82 +11,87 @@ from ..variables import NumericVariablesGroup, ValueVariablesGroup, VariablesGro
 class DivTranslator(Translator):
     """Processes a Div node and updates the variables with the output expression.
 
-    This class is responsible for handling the division operation in the
-    translation process. It takes two inputs: the first operand and the second
-    operand (divisor).
+    Both operands are treated symmetrically: each one can be a group of columns,
+    a single column, a constant scalar or a constant list of values.
 
-    The first operand can be a column group or a single column,
-    while the second operand must be a constant value.
+    When any of the two operands is a group of columns, the result is a group of
+    columns too and it borrows its column names from the first operand that is a
+    group, as those names end up being the names of the resulting SQL columns.
+    That group also dictates the width of the result: any other operand must
+    either provide exactly as many values, or a single value that is divided
+    (or divided by) every column of the group.
 
-    When the second operand is a single value, all columns of the column
-    group are divided for that value. If the second operand is instead
-    a list, each column of the column group is divided for the corresponding
-    value in the list.
+    When neither operand is a group, both must be single values and the result
+    is a single column.
     """
 
     def process(self) -> None:
         """Performs the translation and set the output variable."""
         # https://onnx.ai/onnx/operators/onnx__Div.html
 
-        first_operand = self._variables.consume(self.inputs[0])
-        second_arg = self._variables.get_initializer_value(self.inputs[1])
-        if second_arg is None or not isinstance(second_arg, (list, tuple)):
-            raise NotImplementedError(
-                "Div: Second input (divisor) must be a constant list."
-            )
+        left_keys, left_values = self._operand_values(self.inputs[0])
+        right_keys, right_values = self._operand_values(self.inputs[1])
 
-        if isinstance(first_operand, VariablesGroup):
-            first_operand = NumericVariablesGroup(first_operand)
-            struct_fields = list(first_operand.keys())
-            for value in first_operand.values():
-                if not isinstance(value, ibis.expr.types.NumericValue):
-                    raise ValueError("Div: The first operand must be a numeric value.")
-
-            first_operand = typing.cast(
-                dict[str, ibis.expr.types.NumericValue], first_operand
-            )
-            if len(second_arg) == 1:
-                second_arg = second_arg[0]
-                if not isinstance(second_arg, (int, float)):
-                    raise ValueError("Div: The second operand must be a numeric value.")
-                self.set_output(
-                    ValueVariablesGroup(
-                        {
-                            field: (
-                                self._optimizer.fold_operation(
-                                    first_operand[field] / ibis.literal(second_arg)
-                                )
-                            )
-                            for field in struct_fields
-                        }
-                    )
-                )
-            else:
-                if len(second_arg) != len(first_operand):
-                    raise ValueError(
-                        "The number of elements in the second operand must match the number of columns in the first operand."
-                    )
-                self.set_output(
-                    ValueVariablesGroup(
-                        {
-                            field: (
-                                self._optimizer.fold_operation(
-                                    first_operand[field] / second_arg[i]
-                                )
-                            )
-                            for i, field in enumerate(struct_fields)
-                        }
-                    )
-                )
-        else:
-            if not isinstance(first_operand, ibis.expr.types.NumericValue):
-                raise ValueError("Div: The first operand must be a numeric value.")
-            if len(second_arg) != 1:
+        # The first operand that is a group dictates the width of the result
+        # and, at the very end, the names of the resulting columns.
+        keys = left_keys if left_keys is not None else right_keys
+        if keys is None:
+            # Simple case, no columns group involved, so we just divide the two values.
+            if len(left_values) != 1 or len(right_values) != 1:
                 raise ValueError(
-                    "when first operand is a single column, second operand must contain only one value."
+                    "Div: when no operand is a group of columns, each operand must contain only one value."
+                )
+            self.set_output(
+                self._optimizer.fold_operation(left_values[0] / right_values[0])
+            )
+            return
+
+        for values in (left_values, right_values):
+            if len(values) not in (1, len(keys)):
+                raise ValueError(
+                    "Div: the number of values of each operand must match the number of columns of the resulting group."
                 )
 
-            first_operand = typing.cast(ibis.expr.types.NumericValue, first_operand)
-            self.set_output(
-                self._optimizer.fold_operation(first_operand / second_arg[0])
+        # A single value is shared by all columns of the resulting group.
+        if len(left_values) == 1:
+            left_values = left_values * len(keys)
+        if len(right_values) == 1:
+            right_values = right_values * len(keys)
+
+        self.set_output(
+            ValueVariablesGroup(
+                {
+                    key: self._optimizer.fold_operation(left_value / right_value)
+                    for key, left_value, right_value in zip(
+                        keys, left_values, right_values
+                    )
+                }
             )
+        )
+
+    def _operand_values(
+        self, name: str
+    ) -> tuple[typing.Optional[list[str]], list[ibis.expr.types.NumericValue]]:
+        """Consume an operand and return its column names and its values.
+
+        The column names are ``None`` for anything that is not a group of columns,
+        which is what tells apart a group of one column from a plain single value.
+
+        :param name: Name of the variable or constant to consume.
+        """
+        # Classifiers normalize the probabilities of each class with
+        # Div(scores, ReduceSum(Abs(scores))), so an operand can also be a
+        # column computed by a previous node instead of a constant.
+        operand = self._variables.consume(name)
+        if isinstance(operand, VariablesGroup):
+            group = NumericVariablesGroup(operand)
+            return list(group.keys()), list(group.values())
+
+        values = []
+        for value in operand if isinstance(operand, (list, tuple)) else [operand]:
+            if isinstance(value, (int, float)):
+                value = ibis.literal(value)
+            elif not isinstance(value, ibis.expr.types.NumericValue):
+                raise ValueError("Div: the operands must be numeric values.")
+            values.append(value)
+        return None, typing.cast(list[ibis.expr.types.NumericValue], values)

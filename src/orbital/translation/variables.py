@@ -144,6 +144,33 @@ class GraphVariables:
         self._consumed.add(name)
         return self._variables[name]
 
+    def consume_operand_values(
+        self, name: str
+    ) -> tuple[typing.Optional[list[str]], list[ibis.expr.types.NumericValue]]:
+        """Consume an operand of a mathematical operation as column names and values.
+
+        The column names are ``None`` for anything that is not a group of columns,
+        which is what tells apart a group of one column from a plain single value.
+
+        :param name: Name of the variable or constant to consume.
+        """
+        # Classifiers normalize the probabilities of each class with
+        # Div(scores, ReduceSum(Abs(scores))) for example, so an operand can
+        # also be a column computed by a previous node instead of a constant.
+        operand = self.consume(name)
+        if isinstance(operand, VariablesGroup):
+            group = NumericVariablesGroup(operand)
+            return list(group.keys()), list(group.values())
+
+        values = []
+        for value in operand if isinstance(operand, (list, tuple)) else [operand]:
+            if isinstance(value, (int, float)):
+                value = ibis.literal(value)
+            elif not isinstance(value, ibis.expr.types.NumericValue):
+                raise ValueError("The operands must be numeric values.")
+            values.append(value)
+        return None, typing.cast(list[ibis.expr.types.NumericValue], values)
+
     def peek_variable(
         self, name: str, default: typing.Optional[ibis.Expr] = None
     ) -> typing.Union[ibis.Expr, VariablesGroup, None]:

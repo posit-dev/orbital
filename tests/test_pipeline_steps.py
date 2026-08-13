@@ -761,26 +761,175 @@ class TestSubTranslator:
         assert list(backend.execute(result["col_a"])) == [7.0, 17.0, 27.0]
         assert list(backend.execute(result["col_b"])) == [50.0, 150.0, 250.0]
 
-    def test_sub_invalid_non_numeric(self):
-        """Test SubTranslator raises error for non-numeric operand."""
-        table = ibis.memtable({"input": [1.0, 2.0, 3.0]})
+    def test_sub_group_columns_broadcast_single_value(self):
+        """Test SubTranslator with a group of columns and a single value."""
+        table = ibis.memtable(
+            {
+                "col_a": [10.0, 20.0, 30.0],
+                "col_b": [100.0, 200.0, 300.0],
+            }
+        )
         model = onnx.parser.parse_graph("""
             agraph (float[N] input) => (float[N] output)
-            <float[1] sub_value = {5.0}>
+            <float[1] sub_value = {10.0}>
             {
                 output = Sub(input, sub_value)
             }
         """)
 
-        variables = GraphVariables(table, model)
-        variables["input"] = "not_a_numeric_value"  # type: ignore[assignment]
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["col_a"],
+                "col_b": table["col_b"],
+            }
+        )
 
         translator = SubTranslator(
             table, model.node[0], variables, self.optimizer, TranslationOptions()
         )
+        translator.process()
 
-        with pytest.raises(ValueError, match="first operand must be a numeric value"):
-            translator.process()
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [0.0, 10.0, 20.0]
+        assert list(backend.execute(result["col_b"])) == [90.0, 190.0, 290.0]
+
+    def test_sub_constant_minus_column(self):
+        """Test SubTranslator computes the complement of a column.
+
+        Binary classifiers export the negative class probability
+        as Sub(1.0, positive_class_probability).
+        """
+        table = ibis.memtable({"input": [0.25, 0.5, 0.75]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float unity = {1.0}>
+            {
+                output = Sub(unity, input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = SubTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [0.75, 0.5, 0.25]
+
+    def test_sub_constant_minus_group_columns(self):
+        """Test SubTranslator computes the complement of a group of columns."""
+        table = ibis.memtable({"col_a": [0.25, 0.5], "col_b": [0.1, 0.2]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float unity = {1.0}>
+            {
+                output = Sub(unity, input)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["col_a"],
+                "col_b": table["col_b"],
+            }
+        )
+
+        translator = SubTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        assert list(result.keys()) == ["col_a", "col_b"]
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [0.75, 0.5]
+        assert list(backend.execute(result["col_b"])) == [0.9, 0.8]
+
+    def test_sub_column_minus_computed_column(self):
+        """Test SubTranslator subtracts a column computed by a previous node."""
+        table = ibis.memtable(
+            {
+                "input": [10.0, 20.0, 30.0],
+                "other": [1.0, 2.0, 3.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input, float[N] other) => (float[N] output) {
+                output = Sub(input, other)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = SubTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+
+        # The subtrahend must be consumed, or it would leak into the results.
+        assert "other" not in variables
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [9.0, 18.0, 27.0]
+
+    def test_sub_group_columns_minus_group_columns(self):
+        """Test SubTranslator subtracts two groups of columns.
+
+        The resulting columns are named after the first group.
+        """
+        table = ibis.memtable(
+            {
+                "input": [1.0, 1.0],
+                "other": [1.0, 1.0],
+                "minuend_a": [10.0, 20.0],
+                "minuend_b": [100.0, 200.0],
+                "subtrahend_a": [1.0, 2.0],
+                "subtrahend_b": [10.0, 20.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input, float[N] other) => (float[N] output) {
+                output = Sub(input, other)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["minuend_a"],
+                "col_b": table["minuend_b"],
+            }
+        )
+        variables["other"] = NumericVariablesGroup(
+            {
+                "sub_a": table["subtrahend_a"],
+                "sub_b": table["subtrahend_b"],
+            }
+        )
+
+        translator = SubTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        assert list(result.keys()) == ["col_a", "col_b"]
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [9.0, 18.0]
+        assert list(backend.execute(result["col_b"])) == [90.0, 180.0]
 
     def test_sub_single_column_requires_single_value(self):
         """Test SubTranslator raises error when single column given multiple values."""
@@ -799,11 +948,11 @@ class TestSubTranslator:
             table, model.node[0], variables, self.optimizer, TranslationOptions()
         )
 
-        with pytest.raises(ValueError, match="must contain exactly 1 value"):
+        with pytest.raises(ValueError, match="must contain only one value"):
             translator.process()
 
     def test_sub_mismatched_column_count(self):
-        """Test SubTranslator raises error when column count doesn't match."""
+        """Test SubTranslator raises error when column count doesn't match values."""
         table = ibis.memtable(
             {
                 "col_a": [1.0, 2.0, 3.0],
@@ -812,7 +961,7 @@ class TestSubTranslator:
         )
         model = onnx.parser.parse_graph("""
             agraph (float[N] input) => (float[N] output)
-            <float[1] sub_values = {5.0}>
+            <float[3] sub_values = {5.0, 10.0, 15.0}>
             {
                 output = Sub(input, sub_values)
             }
@@ -830,30 +979,7 @@ class TestSubTranslator:
             table, model.node[0], variables, self.optimizer, TranslationOptions()
         )
 
-        with pytest.raises(AssertionError, match="must match the number of fields"):
-            translator.process()
-
-    def test_sub_second_operand_not_constant(self):
-        """Test SubTranslator raises error when second operand is not a constant."""
-        table = ibis.memtable(
-            {
-                "input": [1.0, 2.0, 3.0],
-                "other": [5.0, 5.0, 5.0],
-            }
-        )
-        model = onnx.parser.parse_graph("""
-            agraph (float[N] input, float[N] other) => (float[N] output) {
-                output = Sub(input, other)
-            }
-        """)
-
-        variables = GraphVariables(table, model)
-
-        translator = SubTranslator(
-            table, model.node[0], variables, self.optimizer, TranslationOptions()
-        )
-
-        with pytest.raises(NotImplementedError, match="must be a constant list"):
+        with pytest.raises(ValueError, match="must match the number of columns"):
             translator.process()
 
 

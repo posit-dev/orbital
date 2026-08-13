@@ -1,70 +1,68 @@
 """Implementation of the Sub operator."""
 
-import typing
-
-import ibis
-
-from orbital.translation.variables import (
-    NumericVariablesGroup,
-    ValueVariablesGroup,
-    VariablesGroup,
-)
-
 from ..translator import Translator
+from ..variables import ValueVariablesGroup
 
 
 class SubTranslator(Translator):
     """Processes a Sub node and updates the variables with the output expression.
 
-    Given the node to translate, the variables and constants available for
-    the translation context, generates a query expression that processes
-    the input variables and produces a new output variable that computes
-    based on the Sub operation.
+    Both operands are treated symmetrically: each one can be a group of columns,
+    a single column, a constant scalar or a constant list of values.
+
+    When any of the two operands is a group of columns, the result is a group of
+    columns too and it borrows its column names from the first operand that is a
+    group, as those names end up being the names of the resulting SQL columns.
+    That group also dictates the width of the result: any other operand must
+    either provide exactly as many values, or a single value that is subtracted
+    from (or subtracts) every column of the group.
+
+    When neither operand is a group, both must be single values and the result
+    is a single column.
     """
 
     def process(self) -> None:
         """Performs the translation and set the output variable."""
         # https://onnx.ai/onnx/operators/onnx__Sub.html
-        assert len(self._inputs) == 2, "The Sub node must have exactly 2 inputs."
 
-        first_operand = self._variables.consume(self._inputs[0])
-        second_operand = self._variables.get_initializer_value(self._inputs[1])
-        if second_operand is None or not isinstance(second_operand, (list, tuple)):
-            raise NotImplementedError(
-                "Sub: Second input (divisor) must be a constant list."
-            )
+        left_keys, left_values = self._variables.consume_operand_values(self.inputs[0])
+        right_keys, right_values = self._variables.consume_operand_values(
+            self.inputs[1]
+        )
 
-        type_check_var = first_operand
-        if isinstance(type_check_var, dict):
-            type_check_var = next(iter(type_check_var.values()), None)
-        if not isinstance(type_check_var, ibis.expr.types.NumericValue):
-            raise ValueError("Sub: The first operand must be a numeric value.")
-
-        sub_values = list(second_operand)
-        if isinstance(first_operand, VariablesGroup):
-            first_operand = NumericVariablesGroup(first_operand)
-            struct_fields = list(first_operand.keys())
-            assert len(sub_values) == len(struct_fields), (
-                f"The number of values in the initializer ({len(sub_values)}) must match the number of fields ({len(struct_fields)}"
-            )
-            self.set_output(
-                ValueVariablesGroup(
-                    {
-                        field: (
-                            self._optimizer.fold_operation(
-                                first_operand[field] - sub_values[i]
-                            )
-                        )
-                        for i, field in enumerate(struct_fields)
-                    }
-                )
-            )
-        else:
-            if len(sub_values) != 1:
+        # The first operand that is a group dictates the width of the result
+        # and, at the very end, the names of the resulting columns.
+        keys = left_keys if left_keys is not None else right_keys
+        if keys is None:
+            # Simple case, no columns group involved, so we just subtract the two values.
+            if len(left_values) != 1 or len(right_values) != 1:
                 raise ValueError(
-                    "When the first operand is a single column, the second operand must contain exactly 1 value"
+                    "Sub: when no operand is a group of columns, each operand must contain only one value."
                 )
-            first_operand = typing.cast(ibis.expr.types.NumericValue, first_operand)
             self.set_output(
-                self._optimizer.fold_operation(first_operand - sub_values[0])
+                self._optimizer.fold_operation(left_values[0] - right_values[0])
             )
+            return
+
+        for values in (left_values, right_values):
+            if len(values) not in (1, len(keys)):
+                raise ValueError(
+                    "Sub: the number of values of each operand must match the number of columns of the resulting group."
+                )
+
+        # A single value is shared by all columns of the resulting group.
+        if len(left_values) == 1:
+            left_values = left_values * len(keys)
+        if len(right_values) == 1:
+            right_values = right_values * len(keys)
+
+        self.set_output(
+            ValueVariablesGroup(
+                {
+                    key: self._optimizer.fold_operation(left_value - right_value)
+                    for key, left_value, right_value in zip(
+                        keys, left_values, right_values
+                    )
+                }
+            )
+        )

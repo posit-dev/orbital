@@ -1,11 +1,7 @@
 """Defines the translation step for the Div operation."""
 
-import typing
-
-import ibis
-
 from ..translator import Translator
-from ..variables import NumericVariablesGroup, ValueVariablesGroup, VariablesGroup
+from ..variables import ValueVariablesGroup
 
 
 class DivTranslator(Translator):
@@ -29,8 +25,10 @@ class DivTranslator(Translator):
         """Performs the translation and set the output variable."""
         # https://onnx.ai/onnx/operators/onnx__Div.html
 
-        left_keys, left_values = self._operand_values(self.inputs[0])
-        right_keys, right_values = self._operand_values(self.inputs[1])
+        left_keys, left_values = self._variables.consume_operand_values(self.inputs[0])
+        right_keys, right_values = self._variables.consume_operand_values(
+            self.inputs[1]
+        )
 
         # The first operand that is a group dictates the width of the result
         # and, at the very end, the names of the resulting columns.
@@ -68,30 +66,3 @@ class DivTranslator(Translator):
                 }
             )
         )
-
-    def _operand_values(
-        self, name: str
-    ) -> tuple[typing.Optional[list[str]], list[ibis.expr.types.NumericValue]]:
-        """Consume an operand and return its column names and its values.
-
-        The column names are ``None`` for anything that is not a group of columns,
-        which is what tells apart a group of one column from a plain single value.
-
-        :param name: Name of the variable or constant to consume.
-        """
-        # Classifiers normalize the probabilities of each class with
-        # Div(scores, ReduceSum(Abs(scores))), so an operand can also be a
-        # column computed by a previous node instead of a constant.
-        operand = self._variables.consume(name)
-        if isinstance(operand, VariablesGroup):
-            group = NumericVariablesGroup(operand)
-            return list(group.keys()), list(group.values())
-
-        values = []
-        for value in operand if isinstance(operand, (list, tuple)) else [operand]:
-            if isinstance(value, (int, float)):
-                value = ibis.literal(value)
-            elif not isinstance(value, ibis.expr.types.NumericValue):
-                raise ValueError("Div: the operands must be numeric values.")
-            values.append(value)
-        return None, typing.cast(list[ibis.expr.types.NumericValue], values)

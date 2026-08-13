@@ -3,7 +3,7 @@ import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.feature_selection import SelectKBest, f_regression
 from sklearn.linear_model import ElasticNet, LinearRegression, LogisticRegression
-from sklearn.neural_network import MLPRegressor
+from sklearn.neural_network import MLPClassifier, MLPRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, StandardScaler
 
@@ -272,3 +272,50 @@ class TestEndToEndPipelines:
             rtol=1e-4,
             atol=1e-4,
         )
+
+    def test_binary_mlp_classifier(self, iris_data, db_connection):
+        """Test a binary MLP classifier, whose negative class is Sub(1.0, probability)."""
+        df, feature_names = iris_data
+        conn, dialect = db_connection
+
+        binary_df = df[df["target"].isin([0, 1])].copy()
+
+        sklearn_pipeline = Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                (
+                    "mlp",
+                    MLPClassifier(
+                        hidden_layer_sizes=(8,),
+                        # lbfgs converges on this small dataset,
+                        # avoiding ConvergenceWarning noise from adam.
+                        solver="lbfgs",
+                        max_iter=500,
+                        random_state=0,
+                    ),
+                ),
+            ]
+        )
+
+        X = binary_df[feature_names]
+        y = binary_df["target"]
+        sklearn_pipeline.fit(X, y)
+        sklearn_proba = pd.DataFrame(
+            sklearn_pipeline.predict_proba(X),
+            columns=sklearn_pipeline.classes_,
+            index=binary_df.index,
+        )
+
+        features = {fname: types.FloatColumnType() for fname in feature_names}
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
+
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+        sql_results = execute_sql(sql, conn, dialect, binary_df)
+
+        for class_label in sklearn_pipeline.classes_:
+            np.testing.assert_allclose(
+                sql_results[f"output_probability.{class_label}"].values.flatten(),
+                sklearn_proba[class_label].values.flatten(),
+                rtol=1e-4,
+                atol=1e-4,
+            )

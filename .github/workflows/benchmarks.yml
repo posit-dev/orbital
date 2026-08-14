@@ -35,6 +35,7 @@ jobs:
           uv run pytest benchmarks/ \
             --benchmark-only \
             --benchmark-json pytest-benchmark-sample.json \
+            --benchmark-time-unit=s \
             --no-cov
 
       - name: Upload benchmark artifact

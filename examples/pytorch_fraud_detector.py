@@ -1,6 +1,6 @@
 """Translate a PyTorch neural network into SQL.
 
-A tiny fraud detection network (4 inputs -> 8 hidden neurons with ReLU
+A fraud detection network (4 inputs -> 16 -> 8 hidden neurons with ReLU
 -> 1 sigmoid output) is trained in PyTorch and converted to a SQL query
 that computes the same predictions directly inside DuckDB.
 
@@ -9,7 +9,7 @@ This example requires PyTorch: pip install orbital[pytorch]
 
 import os
 
-import duckdb
+import ibis
 import numpy as np
 import pandas as pd
 import torch
@@ -19,7 +19,7 @@ import orbital.types
 
 PRINT_SQL = int(os.environ.get("PRINT_SQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
-PREDICT_WITH_LIBRARY = int(os.environ.get("PREDICT_WITH_LIBRARY", "1"))
+PREDICT_WITH_LIBRARY = int(os.environ.get("PREDICT_WITH_LIBRARY", "1")) or ASSERT
 
 FEATURES = {
     "amount": orbital.types.DoubleColumnType(),
@@ -47,7 +47,9 @@ fraud_prob = 0.5 / (1 + np.exp(-X_train[:, 0] / 50)) + 0.3 / (
 y_train = (np.random.rand(num_samples) < fraud_prob).astype(np.float32)
 
 model = torch.nn.Sequential(
-    torch.nn.Linear(len(FEATURES), 8),
+    torch.nn.Linear(len(FEATURES), 16),
+    torch.nn.ReLU(),
+    torch.nn.Linear(16, 8),
     torch.nn.ReLU(),
     torch.nn.Linear(8, 1),
     torch.nn.Sigmoid(),
@@ -73,20 +75,33 @@ test_data = pd.DataFrame(
         "v2": [0.5, 2.0, -1.0, 3.0],
     }
 )
-duckdb.register("transactions", test_data)
+con = ibis.duckdb.connect()
+if PRINT_SQL:
+    con.create_table("transactions", obj=test_data)
+
+
+def translate_to_orbital():
+    orbital_pipeline = orbital.parse_pytorch_model(model, FEATURES)
+    print(orbital_pipeline)
+    ibis_table = ibis.memtable(test_data).alias("transactions")
+    ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
+    return orbital_pipeline, ibis_expression
+
+
+orbital_pipeline, ibis_expression = translate_to_orbital()
 
 
 def main():
-    pipeline = orbital.parse_pytorch_model(model, FEATURES)
-
-    sql = orbital.export_sql("transactions", pipeline, dialect="duckdb")
     if PRINT_SQL:
+        sql = orbital.export_sql("transactions", orbital_pipeline, dialect="duckdb")
         print("\nGenerated Query for DuckDB:")
         print(sql)
+        print("\nPrediction with SQL")
+        print(con.raw_sql(sql).fetchall())
 
-    sql_predictions = duckdb.sql(sql).df().iloc[:, 0].to_numpy()
-    print("\nPrediction with SQL")
-    print(sql_predictions)
+    print("\nPrediction with Ibis")
+    ibis_predictions = con.execute(ibis_expression).iloc[:, 0].to_numpy()
+    print(ibis_predictions)
 
     if PREDICT_WITH_LIBRARY:
         print("\nPrediction with PyTorch")
@@ -99,10 +114,10 @@ def main():
         print(torch_predictions)
 
         if ASSERT:
-            assert np.allclose(sql_predictions, torch_predictions, atol=1e-5), (
-                "SQL and PyTorch predictions do not match"
+            assert np.allclose(ibis_predictions, torch_predictions, atol=1e-5), (
+                "Ibis and PyTorch predictions do not match"
             )
-            print("\nSQL and PyTorch predictions match.")
+            print("\nIbis and PyTorch predictions match.")
 
 
 if __name__ == "__main__":

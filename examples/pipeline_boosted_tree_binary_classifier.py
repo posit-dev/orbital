@@ -17,7 +17,7 @@ import orbital.types
 
 PRINT_SQL = int(os.environ.get("PRINT_SQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
-PREDICT_WITH_LIBRARY = int(os.environ.get("PREDICT_WITH_LIBRARY", "1"))
+PREDICT_WITH_LIBRARY = int(os.environ.get("PREDICT_WITH_LIBRARY", "1")) or ASSERT
 BACKEND = os.environ.get("BACKEND", "duckdb").lower()
 
 if BACKEND not in {"duckdb", "sqlite"}:
@@ -99,11 +99,18 @@ if PRINT_SQL:
     con.create_table("DATA_TABLE", obj=data_sample)
 
 
-def main():
-    # Convert the model to an execution pipeline
+def translate_to_orbital():
     orbital_pipeline = orbital.parse_pipeline(model, features=features)
     print(orbital_pipeline)
+    ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
+    ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
+    return orbital_pipeline, ibis_expression
 
+
+orbital_pipeline, ibis_expression = translate_to_orbital()
+
+
+def main():
     if PRINT_SQL:
         sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
         print(f"\nGenerated Query for {BACKEND.upper()}:")
@@ -119,12 +126,10 @@ def main():
         print(f"Probabilities: {sklearn_probabilities}")
 
     print("\nPrediction with Ibis")
-    ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
-    ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
     ibis_result = con.execute(ibis_expression)
     print(ibis_result)
 
-    if ASSERT and PREDICT_WITH_LIBRARY:
+    if ASSERT:
         assert np.array_equal(sklearn_predictions, ibis_result["output_label"]), "Predictions do not match!"
 
         # Binary classification should produce exactly 2 probability columns

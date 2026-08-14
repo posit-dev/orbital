@@ -16,7 +16,7 @@ import orbital.types
 
 PRINT_SQL = int(os.environ.get("PRINT_SQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
-PREDICT_WITH_LIBRARY = int(os.environ.get("PREDICT_WITH_LIBRARY", "1"))
+PREDICT_WITH_LIBRARY = int(os.environ.get("PREDICT_WITH_LIBRARY", "1")) or ASSERT
 BACKEND = os.environ.get("BACKEND", "duckdb").lower()
 
 if BACKEND not in {"duckdb", "sqlite"}:
@@ -72,10 +72,18 @@ if PRINT_SQL:
     con.create_table("DATA_TABLE", obj=example_data)
 
 
-def main():
+def translate_to_orbital():
     orbital_pipeline = orbital.parse_pipeline(pipeline, features=features)
     print(orbital_pipeline)
+    ibis_table = ibis.memtable(example_data).alias("DATA_TABLE")
+    ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
+    return orbital_pipeline, ibis_expression
 
+
+orbital_pipeline, ibis_expression = translate_to_orbital()
+
+
+def main():
     if PRINT_SQL:
         sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
         print(f"\nGenerated Query for {BACKEND.upper()}:")
@@ -84,8 +92,6 @@ def main():
         print(con.raw_sql(sql).fetchall())
 
     print("\nPrediction with Ibis")
-    ibis_table = ibis.memtable(example_data).alias("DATA_TABLE")
-    ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
     ibis_target = con.execute(ibis_expression)
     print(ibis_target)
 
@@ -95,7 +101,7 @@ def main():
         target = pipeline.predict(test_df)
         print(target)
 
-    if ASSERT and PREDICT_WITH_LIBRARY:
+    if ASSERT:
         assert np.array_equal(target, ibis_target["output_label"]), "Predictions do not match!"
         print("\nPredictions match!")
 

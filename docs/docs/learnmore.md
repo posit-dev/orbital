@@ -254,6 +254,18 @@ sql = orbital.export_sql(
 )
 ```
 
+## Neural Networks
+
+Both scikit-learn's `MLPClassifier`/`MLPRegressor` and PyTorch models are
+translated by the same steps once parsed, because both lower to the same
+feed-forward primitives: a matrix multiplication and bias addition per
+layer, followed by an activation (`ReLU`, `Sigmoid`, or `Tanh`), with
+`Softmax` applied for multiclass classification outputs.
+
+This covers feed-forward (fully-connected) networks for regression, binary
+classification, and multiclass classification. Convolutional, recurrent,
+attention, and embedding layers are not supported.
+
 ## SQL Size Expectations
 
 The size of the generated SQL depends on the type of model. Linear models

@@ -2,14 +2,14 @@
 
 ![Orbital](images/orbital_logo.png){ align=left width=128 }
 
-Orbital lets you convert scikit-learn pipelines into pure SQL, 
-allowing execution of machine learning models directly in your database, 
-without requiring a Python environment.
+Orbital lets you convert scikit-learn pipelines and PyTorch neural networks
+into pure SQL, allowing execution of machine learning models directly in
+your database, without requiring a Python environment.
 
 ### Why Orbital?
 
 In regulated, secure, or resource-constrained environments, deploying Python code may be undesirable or even impossible. 
-Orbital provides a lightweight alternative: it translates trained sklearn pipelines into SQL expressions that can be audited, 
+Orbital provides a lightweight alternative: it translates trained sklearn pipelines and PyTorch models into SQL expressions that can be audited, 
 versioned, and executed entirely inside the database engine.
 
 This enables:
@@ -70,4 +70,10 @@ orbital currently supports the following models:
 -   Random Forest Classifier
 -   Gradient Boosting Regressor
 -   Gradient Boosting Classifier
+-   Multi-Layer Perceptron (scikit-learn `MLPClassifier`/`MLPRegressor`)
+-   Neural Networks (PyTorch, feed-forward architectures)
+
+Neural network support, for both frameworks, is limited to feed-forward
+architectures: convolutional, recurrent, attention, and embedding layers
+are not supported.
 

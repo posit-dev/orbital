@@ -48,7 +48,7 @@ class MulTranslator(Translator):
                 ValueVariablesGroup(
                     {
                         field: (
-                            self._optimizer.fold_operation(
+                            self._optimizer.fold_operations(
                                 first_operand[field] * add_values[i]
                             )
                         )
@@ -63,5 +63,5 @@ class MulTranslator(Translator):
                 )
             first_operand = typing.cast(ibis.expr.types.NumericValue, first_operand)
             self.set_output(
-                self._optimizer.fold_operation(first_operand * add_values[0])
+                self._optimizer.fold_operations(first_operand * add_values[0])
             )

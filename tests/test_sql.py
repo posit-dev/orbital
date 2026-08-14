@@ -49,11 +49,12 @@ class TestSQLExport:
         parsed_pipeline = ParsedPipeline._from_onnx_model(BASIC_MODEL, BASIC_FEATURES)
         sql = orbital.export_sql("DATA_TABLE", parsed_pipeline, dialect="duckdb")
         assert sql == (
-            'SELECT ("t0"."sepal_length" - 5.84333E0) * -0.111906E0 + 1.0 + '
+            'WITH "t1" AS (SELECT ("t0"."sepal_length" - 5.84333E0) * -0.111906E0 + '
             '("t0"."sepal_width" - 3.05733E0) * -0.0400795E0 + '
             '("t0"."petal_length" - 3.758E0) * 0.228645E0 + '
             '("t0"."petal_width" - 1.19933E0) * 0.609252E0 '
-            'AS "variable" FROM "DATA_TABLE" AS "t0"'
+            'AS "prs_v5" FROM "DATA_TABLE" AS "t0") '
+            'SELECT "t1"."prs_v5" + 1.0E0 AS "variable" FROM "t1" AS "t1"'
         )
 
     def test_sql_optimization_flag(self, iris_data):
@@ -79,7 +80,7 @@ class TestSQLExport:
 
         assert (
             optimized_sql
-            == 'SELECT 1.0E0 + ("t0"."sepal_length" - 5.8433332443237305E0) * -0.1119058608179397432284150575 + ("t0"."sepal_width" - 3.05733323097229E0) * -0.04007948771815250781921206973 + ("t0"."petal_length" - 3.757999897003174E0) * 0.2286450295022994613348661968 + ("t0"."petal_width" - 1.1993333101272583E0) * 0.6092520419738746983614281006 AS "variable.target_0" FROM "data" AS "t0"'
+            == 'WITH "t1" AS (SELECT ("t0"."sepal_length" - 5.8433332443237305E0) * 1.2116787433624268E0 AS "prs_v1", ("t0"."sepal_width" - 3.05733323097229E0) * 2.3019676208496094E0 AS "prs_v2", ("t0"."petal_length" - 3.757999897003174E0) * 0.5683742761611938E0 AS "prs_v3", ("t0"."petal_width" - 1.1993333101272583E0) * 1.316321849822998E0 AS "prs_v4" FROM "data" AS "t0") SELECT "t1"."prs_v1" * -0.09235604852437973E0 + 1.0E0 + "t1"."prs_v2" * -0.017410969361662865E0 + "t1"."prs_v3" * 0.40227898955345154E0 + "t1"."prs_v4" * 0.46284428238868713E0 AS "variable.target_0" FROM "t1" AS "t1"'
         )
         assert len(optimized_sql) < len(unoptimized_sql)
 

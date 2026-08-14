@@ -68,13 +68,8 @@ class MatMulTranslator(Translator):
                     raise ValueError(
                         "Mismatch: number of features and coefficient vector length"
                     )
-                result = sum(
-                    self._optimizer.fold_contiguous_sum(
-                        [
-                            self._optimizer.fold_operation(left_exprs[i] * coef[i])
-                            for i in range(num_features)
-                        ]
-                    )
+                result = self._optimizer.fold_operations(
+                    sum(left_exprs[i] * coef[i] for i in range(num_features))
                 )
                 self.set_output(result)
             elif len(coef_shape) == 2:
@@ -85,14 +80,10 @@ class MatMulTranslator(Translator):
                     )
                 output_dim = coef_shape[1]
                 result_list: list[ibis.expr.types.NumericValue] = [
-                    sum(
-                        self._optimizer.fold_contiguous_sum(
-                            [
-                                self._optimizer.fold_operation(
-                                    left_exprs[i] * coef[i * output_dim + j]
-                                )
-                                for i in range(num_features)
-                            ]
+                    self._optimizer.fold_operations(
+                        sum(
+                            left_exprs[i] * coef[i * output_dim + j]
+                            for i in range(num_features)
                         )
                     )
                     for j in range(output_dim)
@@ -118,13 +109,15 @@ class MatMulTranslator(Translator):
                     raise ValueError(
                         "Expected coefficient vector of length 1 for single operand"
                     )
-                self.set_output(self._optimizer.fold_operation(first_operand * coef[0]))
+                self.set_output(
+                    self._optimizer.fold_operations(first_operand * coef[0])
+                )
             elif len(coef_shape) == 2:
                 # Two possible shapes: [1, N] or [N, 1]
                 if coef_shape[0] == 1:
                     output_dim = coef_shape[1]
                     result_list = [
-                        self._optimizer.fold_operation(first_operand * coef[j])
+                        self._optimizer.fold_operations(first_operand * coef[j])
                         for j in range(output_dim)
                     ]
                     if output_dim == 1:

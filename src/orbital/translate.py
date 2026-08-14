@@ -172,6 +172,7 @@ def translate(
         translator = TRANSLATORS[op_type](table, node, variables, optimizer, options)  # type: ignore[abstract]
         _log_debug_start(translator, variables)
         translator.process()
+        optimizer.preserve_referenced_outputs(translator, variables)
         table = translator.mutated_table  # Translator might return a new table.
         _log_debug_end(translator, variables)
     return _projection_results(table, variables, projection)

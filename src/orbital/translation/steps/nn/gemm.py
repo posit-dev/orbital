@@ -84,18 +84,14 @@ class GemmTranslator(Translator):
         result_list: list[ibis.expr.types.NumericValue] = []
         for j in range(out_features):
             # alpha scales the matrix product, so it can be folded into each weight.
-            output = sum(
-                self._optimizer.fold_contiguous_sum(
-                    [
-                        self._optimizer.fold_operation(
-                            input_exprs[i] * float(weights[i, j] * alpha)
-                        )
-                        for i in range(in_features)
-                    ]
+            output = self._optimizer.fold_operations(
+                sum(
+                    input_exprs[i] * float(weights[i, j] * alpha)
+                    for i in range(in_features)
                 )
             )
             if bias is not None:
-                output = self._optimizer.fold_operation(output + float(bias[j] * beta))
+                output = self._optimizer.fold_operations(output + float(bias[j] * beta))
             result_list.append(output)
 
         # Project each neuron as a real column so the next layer references

@@ -64,7 +64,7 @@ class LinearRegressorTranslator(Translator):
 
                 # TODO: apply post_transform here if needed
 
-                results[f"target_{target_idx}"] = self._optimizer.fold_operation(
+                results[f"target_{target_idx}"] = self._optimizer.fold_operations(
                     prediction
                 )
 
@@ -83,4 +83,4 @@ class LinearRegressorTranslator(Translator):
 
             # TODO: apply post_transform here if needed
 
-            self.set_output(self._optimizer.fold_operation(prediction))
+            self.set_output(self._optimizer.fold_operations(prediction))

@@ -55,7 +55,7 @@ class ScalerTranslator(Translator):
             self.set_output(
                 ValueVariablesGroup(
                     {
-                        field: self._optimizer.fold_operation(
+                        field: self._optimizer.fold_operations(
                             (val - offset[i]) * scale[i]
                         )
                         for i, (field, val) in enumerate(input_operand.items())
@@ -65,5 +65,5 @@ class ScalerTranslator(Translator):
         else:
             input_operand = typing.cast(ibis.expr.types.NumericValue, input_operand)
             self.set_output(
-                self._optimizer.fold_operation((input_operand - offset[0]) * scale[0])
+                self._optimizer.fold_operations((input_operand - offset[0]) * scale[0])
             )

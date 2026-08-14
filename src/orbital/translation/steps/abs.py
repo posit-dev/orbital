@@ -26,13 +26,13 @@ class AbsTranslator(Translator):
             self.set_output(
                 ValueVariablesGroup(
                     {
-                        name: self._optimizer.fold_operation(value.abs())
+                        name: self._optimizer.fold_operations(value.abs())
                         for name, value in data.items()
                     }
                 )
             )
         elif isinstance(data, ibis.expr.types.NumericValue):
-            self.set_output(self._optimizer.fold_operation(data.abs()))
+            self.set_output(self._optimizer.fold_operations(data.abs()))
         else:
             raise ValueError(
                 "Abs: The first operand must be a numeric column or a column group of numerics."

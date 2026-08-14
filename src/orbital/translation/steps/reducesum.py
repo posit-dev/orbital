@@ -44,4 +44,4 @@ class ReduceSumTranslator(Translator):
         # keepdims is irrelevant here, a [N] and a [N, 1] tensor are both
         # a single column in the columns model used by orbital.
         columns = list(NumericVariablesGroup(data).values())
-        self.set_output(sum(self._optimizer.fold_contiguous_sum(columns)))
+        self.set_output(self._optimizer.fold_operations(sum(columns)))

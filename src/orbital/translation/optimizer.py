@@ -25,7 +25,6 @@ from ibis.expr.operations import (
     FloorDivide,
     Greater,
     GreaterEqual,
-    IdenticalTo,
     Less,
     LessEqual,
     Literal,
@@ -39,7 +38,6 @@ from ibis.expr.operations import (
     Unary,
     Xor,
 )
-from ibis.expr.types import NumericScalar
 
 from .variables import GraphVariables, VariablesGroup
 
@@ -64,10 +62,15 @@ class Optimizer:
 
     BINARY_OPS: dict[type[Binary], typing.Callable] = {
         # Mathematical Operators
-        Add: operator.add,
-        Subtract: operator.sub,
-        Multiply: operator.mul,
-        Divide: operator.truediv,
+        # _OptimizedOps is defined below Optimizer (Zen: public before
+        # private), so it is invoked through a lambda here: the lambda body
+        # is only evaluated on call, once the module has finished loading
+        # and _OptimizedOps exists, rather than at this class body's
+        # evaluation time.
+        Add: lambda x, y: _OptimizedOps.add(x, y),
+        Subtract: lambda x, y: _OptimizedOps.sub(x, y),
+        Multiply: lambda x, y: _OptimizedOps.mul(x, y),
+        Divide: lambda x, y: _OptimizedOps.div(x, y),
         FloorDivide: operator.floordiv,
         Modulus: operator.mod,
         # Logical Operators
@@ -77,7 +80,6 @@ class Optimizer:
         GreaterEqual: operator.ge,
         Less: operator.lt,
         LessEqual: operator.le,
-        IdenticalTo: operator.eq,
         # Binary Operators
         And: operator.and_,
         Or: operator.or_,
@@ -164,56 +166,6 @@ class Optimizer:
             f"Optimizer._ensure_expr: unsupported value type {type(value).__name__!r} "
             f"({value!r}); expected ibis.Expr, ibis Literal, or a Python scalar."
         )
-
-    def _fold_associative_op_contiguous(
-        self, lst: list[ibis.expr.types.NumericValue], pyop: typing.Callable
-    ) -> list[ibis.expr.types.NumericValue]:
-        """Precompute an operation applied on multiple elements.
-
-        Given a list of expressions and a binary operation,
-        this function will precompute the operation on all
-        constant expressions in the list returning a new list
-        of expressions with the folded constants.
-        """
-        if self.ENABLED is False:
-            return list(lst)
-
-        if pyop not in {operator.add, operator.mul}:
-            raise NotImplementedError(
-                "Only addition and multiplication folding are supported."
-            )
-
-        resulting_items = []
-        items = list(lst)
-        folded_value = None
-
-        while items:
-            expr = items.pop(0)
-            if isinstance(expr, NumericScalar):
-                value = expr.op().value
-                if folded_value is None:
-                    folded_value = value
-                else:
-                    folded_value = pyop(folded_value, value)
-            else:
-                resulting_items.append(expr)
-
-        if folded_value is not None:
-            resulting_items.append(ibis.literal(folded_value))
-
-        return resulting_items
-
-    def fold_contiguous_sum(
-        self, lst: list[ibis.expr.types.NumericValue]
-    ) -> list[ibis.expr.types.NumericValue]:
-        """Precompute constants in a list of sums"""
-        return self._fold_associative_op_contiguous(lst, operator.add)
-
-    def fold_contiguous_product(
-        self, lst: list[ibis.expr.types.NumericValue]
-    ) -> list[ibis.expr.types.NumericValue]:
-        """Precompute constants in a list of multiplications"""
-        return self._fold_associative_op_contiguous(lst, operator.mul)
 
     def fold_case(self, expr: typing.Union[ibis.Value, ibis.Deferred]) -> ibis.Value:
         """Apply different folding strategies to CASE WHHEN expressions.
@@ -307,51 +259,17 @@ class Optimizer:
 
         return arg_expr.cast(target_type)
 
-    def fold_zeros(self, expr: ibis.Expr) -> ibis.Expr:
-        """Given a binary expression, precompute the result if it contains zeros.
+    def fold_operations(self, expr: ibis.Expr) -> ibis.Expr:
+        """Given an Ibis expression, fold the constant parts of its whole tree.
 
-        Operations like x + 0, x * 0, x - 0 etc can be folded in just x or 0
-        without the need to compute the operation.
-        """
-        if self.ENABLED is False:
-            return expr
+        The tree is folded bottom-up, so a constant subtree is precomputed and
+        the operations that combine it with the rest of the expression are
+        dropped when they cannot change the result (``x + 0``, ``x * 1``, ...).
+        Only adjacent constants get merged: the tree is never reordered, so
+        ``column + 2 + 3`` keeps both literals while ``2 + 3 + column`` folds
+        them into one.
 
-        op = expr.op()
-        inputs = op.args
-        op_class = type(op)
-
-        if op_class == Multiply:
-            left_val = inputs[0].value if isinstance(inputs[0], Literal) else None
-            right_val = inputs[1].value if isinstance(inputs[1], Literal) else None
-            if left_val == 0 or right_val == 0:
-                return ibis.literal(0)
-        elif op_class == Add:
-            left_val = inputs[0].value if isinstance(inputs[0], Literal) else None
-            right_val = inputs[1].value if isinstance(inputs[1], Literal) else None
-            if left_val == 0:
-                return inputs[1].to_expr()
-            elif right_val == 0:
-                return inputs[0].to_expr()
-        elif op_class == Subtract:
-            left_val = inputs[0].value if isinstance(inputs[0], Literal) else None
-            right_val = inputs[1].value if isinstance(inputs[1], Literal) else None
-            if left_val == 0:
-                return -inputs[1].to_expr()
-            elif right_val == 0:
-                return inputs[0].to_expr()
-
-        return expr
-
-    def fold_operation(self, expr: ibis.Expr) -> ibis.Expr:
-        """Given a node (an Ibis expression) fold constant expressions.
-
-        If all node immediate children are constant (i.e. NumericScalar),
-        compute the operation in Python and return a literal with the result.
-
-        Otherwise, simply return the expression unchanged.
-
-        This function assumes that constant folding has already been applied
-        to the children.
+        :param expr: The expression to fold.
         """
         if self.ENABLED is False:
             return expr
@@ -364,28 +282,39 @@ class Optimizer:
             # return an Ibis expression
             return ibis.literal(expr)
 
-        op = expr.op()
-        inputs = op.args
+        return self._ensure_expr(self._fold_node(expr.op()))
 
-        if not all(isinstance(child, Literal) for child in inputs):
-            # We can only fold operations where all children are literals.
-            # At least we can remove zeros if they exist.
-            return self.fold_zeros(expr)
+    def _fold_node(self, op: ibis.expr.operations.Node) -> typing.Any:
+        """Fold a node, returning a Python constant when the whole subtree is constant.
+
+        Returning a plain Python value for constant subtrees is what allows the
+        operations in ``BINARY_OPS`` to serve both purposes: given two constants
+        they compute the result, given a mix of constant and expression they
+        rebuild the node.
+
+        :param op: The operation node to fold.
+        """
+        if isinstance(op, Literal):
+            return op.value
 
         op_class = type(op)
         if op_class in self.BINARY_OPS:
-            left_val = inputs[0].value
-            right_val = inputs[1].value
-            result = self.BINARY_OPS[typing.cast(type[Binary], op_class)](
-                left_val, right_val
+            return self.BINARY_OPS[typing.cast(type[Binary], op_class)](
+                self._fold_node(op.args[0]), self._fold_node(op.args[1])
             )
-            return self._ensure_expr(result)
-        elif op_class in self.UNARY_OPS and len(inputs) == 1:
-            result = self.UNARY_OPS[typing.cast(type[Unary], op_class)](inputs[0].value)
-            return self._ensure_expr(result)
-        else:
-            # No possible folding
-            return expr
+        elif op_class in self.UNARY_OPS:
+            arg = self._fold_node(op.args[0])
+            if not isinstance(arg, ibis.Expr):
+                return self.UNARY_OPS[typing.cast(type[Unary], op_class)](arg)
+            # The unary functions are pure Python ones (``not``, ``ceil``, ...)
+            # that raise when they are handed an Ibis expression, so the node is
+            # kept as it was, forfeiting whatever was folded below it.
+            return op.to_expr()
+
+        # Any other node is left untouched without descending into it:
+        # a column reference leads to tables, schemas and namespaces, which
+        # hold nothing to fold and can amount to millions of nodes.
+        return op.to_expr()
 
     def _debug(  # pragma: no cover
         self, expr: ibis.Expr, show_args: bool = True
@@ -403,3 +332,72 @@ class Optimizer:
             return f"{type(expr).__name__}(<unknown>)"
         else:
             return f"{type(expr).__name__}({', '.join([self._debug(a, show_args=False) for a in expr.args])})"
+
+
+class _OptimizedOps:
+    """Binary operations that fold constants and drop operands that do not change the result.
+
+    They replace the plain ``operator`` equivalents in ``Optimizer.BINARY_OPS``
+    for the operators that have an algebraic shortcut. Operands are either
+    Python constants, when a whole subtree was folded, or Ibis expressions.
+    """
+
+    @staticmethod
+    def add(x: typing.Any, y: typing.Any) -> typing.Any:
+        xv, yv = _OptimizedOps._constant(x), _OptimizedOps._constant(y)
+        if xv is not None and yv is not None:
+            return xv + yv
+        if xv == 0:
+            # Adding zero cannot change the other operand.
+            return y
+        if yv == 0:
+            return x
+        return x + y
+
+    @staticmethod
+    def sub(x: typing.Any, y: typing.Any) -> typing.Any:
+        xv, yv = _OptimizedOps._constant(x), _OptimizedOps._constant(y)
+        if xv is not None and yv is not None:
+            return xv - yv
+        if yv == 0:
+            return x
+        if xv == 0:
+            return -y
+        return x - y
+
+    @staticmethod
+    def mul(x: typing.Any, y: typing.Any) -> typing.Any:
+        xv, yv = _OptimizedOps._constant(x), _OptimizedOps._constant(y)
+        if xv is not None and yv is not None:
+            return xv * yv
+        if xv == 0 or yv == 0:
+            return 0
+        if xv == 1:
+            return y
+        if yv == 1:
+            return x
+        return x * y
+
+    @staticmethod
+    def div(x: typing.Any, y: typing.Any) -> typing.Any:
+        xv, yv = _OptimizedOps._constant(x), _OptimizedOps._constant(y)
+        if xv is not None and yv is not None:
+            return xv / yv
+        if yv == 1:
+            return x
+        return x / y
+
+    @staticmethod
+    def _constant(operand: typing.Any) -> typing.Any:
+        """Python value of a constant operand, ``None`` when it is not constant.
+
+        Comparing an operand itself against a number is not an option, as the
+        truth value of an Ibis expression is undefined and raises.
+
+        :param operand: A Python value or an Ibis expression.
+        """
+        if isinstance(operand, (int, float, bool)):
+            return operand
+        if isinstance(operand, ibis.Expr) and isinstance(operand.op(), Literal):
+            return operand.op().value
+        return None

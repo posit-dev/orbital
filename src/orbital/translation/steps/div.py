@@ -40,7 +40,7 @@ class DivTranslator(Translator):
                     "Div: when no operand is a group of columns, each operand must contain only one value."
                 )
             self.set_output(
-                self._optimizer.fold_operation(left_values[0] / right_values[0])
+                self._optimizer.fold_operations(left_values[0] / right_values[0])
             )
             return
 
@@ -59,7 +59,7 @@ class DivTranslator(Translator):
         self.set_output(
             ValueVariablesGroup(
                 {
-                    key: self._optimizer.fold_operation(left_value / right_value)
+                    key: self._optimizer.fold_operations(left_value / right_value)
                     for key, left_value, right_value in zip(
                         keys, left_values, right_values
                     )

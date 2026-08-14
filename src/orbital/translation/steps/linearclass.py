@@ -76,7 +76,7 @@ class LinearClassifierTranslator(Translator):
                 score += val * coef
 
             score = apply_post_transform(score, post_transform)
-            scores.append(self._optimizer.fold_operation(score))
+            scores.append(self._optimizer.fold_operations(score))
 
         scores_struct = ValueVariablesGroup(
             {str(label): score for label, score in zip(classlabels, scores)}

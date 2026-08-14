@@ -78,7 +78,7 @@ class TreeEnsembleRegressorTranslator(Translator):
 
         total_value: ibis.NumericValue = ibis.literal(0.0)
         for val in tree_values:
-            total_value = optimizer.fold_operation(total_value + val)
+            total_value = optimizer.fold_operations(total_value + val)
 
         # According to ONNX doc: can be left unassigned (assumed 0)
         base_values = typing.cast(
@@ -86,7 +86,7 @@ class TreeEnsembleRegressorTranslator(Translator):
         )
         if len(base_values) != 1:
             raise NotImplementedError("Base values with length != 1 not supported")
-        total_value = optimizer.fold_operation(
+        total_value = optimizer.fold_operations(
             total_value + ibis.literal(base_values[0])
         )
 

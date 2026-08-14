@@ -144,7 +144,7 @@ class TreeEnsembleClassifierTranslator(Translator):
             # Initialize with base value if available, otherwise 0.0
             total_votes[clslabel] = ibis.literal(base_values[i])
             for votes in tree_votes:
-                total_votes[clslabel] = optimizer.fold_operation(
+                total_votes[clslabel] = optimizer.fold_operations(
                     total_votes[clslabel] + votes.get(clslabel, ibis.literal(0.0))
                 )
         # Preserve the aggregated votes once so that downstream expressions can reuse the aliases.

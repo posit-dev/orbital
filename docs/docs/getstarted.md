@@ -136,3 +136,62 @@ by running the scikitlearn pipeline on the same set of data:
 Prediction with SciKit-Learn
 [ 1.23071715 -0.04010441  2.21970287  1.34966889  1.28429336 ]
 ```
+
+## PyTorch Neural Networks
+
+Neural networks trained with PyTorch can be converted the same way, with
+[orbital.parse_pytorch_model][]:
+
+```bash
+$ pip install orbital[pytorch]
+```
+
+```python
+import torch
+import orbital
+import orbital.types
+
+FEATURES = {
+    "amount": orbital.types.DoubleColumnType(),
+    "hour": orbital.types.DoubleColumnType(),
+}
+
+# Train a tiny fraud-detection network: 2 inputs -> 8 hidden (ReLU) -> 1 sigmoid output
+X_train = torch.rand(500, 2) * torch.tensor([500.0, 24.0])
+y_train = (X_train[:, 0] > 250).float().unsqueeze(1)
+
+model = torch.nn.Sequential(
+    torch.nn.Linear(len(FEATURES), 8),
+    torch.nn.ReLU(),
+    torch.nn.Linear(8, 1),
+    torch.nn.Sigmoid(),
+)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+for _ in range(200):
+    optimizer.zero_grad()
+    loss = torch.nn.functional.binary_cross_entropy(model(X_train), y_train)
+    loss.backward()
+    optimizer.step()
+```
+
+Convert it to orbital and generate the SQL:
+
+```python
+orbital_pipeline = orbital.parse_pytorch_model(model, FEATURES)
+sql = orbital.export_sql("transactions", orbital_pipeline, dialect="duckdb")
+```
+
+Run the SQL in DuckDB:
+
+```python
+import duckdb
+import pandas as pd
+
+test_data = pd.DataFrame({"amount": [50.0, 500.0], "hour": [1.0, 20.0]})
+duckdb.register("transactions", test_data)
+print(duckdb.sql(sql).df())
+```
+
+See [`examples/pytorch_fraud_detector.py`](https://github.com/posit-dev/orbital/blob/main/examples/pytorch_fraud_detector.py)
+for the full runnable version, with realistic synthetic data and a check
+against PyTorch's own predictions.

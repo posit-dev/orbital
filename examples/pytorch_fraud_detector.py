@@ -1,6 +1,6 @@
 """Translate a PyTorch neural network into SQL.
 
-A tiny fraud detection network (4 inputs -> 8 hidden neurons with ReLU
+A fraud detection network (4 inputs -> 16 -> 8 hidden neurons with ReLU
 -> 1 sigmoid output) is trained in PyTorch and converted to a SQL query
 that computes the same predictions directly inside DuckDB.
 
@@ -47,7 +47,9 @@ fraud_prob = 0.5 / (1 + np.exp(-X_train[:, 0] / 50)) + 0.3 / (
 y_train = (np.random.rand(num_samples) < fraud_prob).astype(np.float32)
 
 model = torch.nn.Sequential(
-    torch.nn.Linear(len(FEATURES), 8),
+    torch.nn.Linear(len(FEATURES), 16),
+    torch.nn.ReLU(),
+    torch.nn.Linear(16, 8),
     torch.nn.ReLU(),
     torch.nn.Linear(8, 1),
     torch.nn.Sigmoid(),

@@ -17,7 +17,7 @@ import orbital.types
 
 PRINT_SQL = int(os.environ.get("PRINT_SQL", "0"))
 ASSERT = int(os.environ.get("ASSERT", "0"))
-PREDICT_WITH_LIBRARY = int(os.environ.get("PREDICT_WITH_LIBRARY", "1"))
+PREDICT_WITH_LIBRARY = int(os.environ.get("PREDICT_WITH_LIBRARY", "1")) or ASSERT
 BACKEND = os.environ.get("BACKEND", "duckdb").lower()
 
 if BACKEND not in {"duckdb", "sqlite"}:
@@ -124,7 +124,7 @@ def main():
     ibis_result = con.execute(ibis_expression)
     print(ibis_result)
 
-    if ASSERT and PREDICT_WITH_LIBRARY:
+    if ASSERT:
         assert np.array_equal(sklearn_predictions, ibis_result["output_label"]), "Predictions do not match!"
 
         # Binary classification should produce exactly 2 probability columns

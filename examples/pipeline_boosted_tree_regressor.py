@@ -100,10 +100,18 @@ if PRINT_SQL:
     con.create_table("DATA_TABLE", obj=data_sample)
 
 
-def main():
+def translate_to_orbital():
     orbital_pipeline = orbital.parse_pipeline(model, features=features)
     print(orbital_pipeline)
+    ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
+    ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
+    return orbital_pipeline, ibis_expression
 
+
+orbital_pipeline, ibis_expression = translate_to_orbital()
+
+
+def main():
     if PRINT_SQL:
         sql = orbital.export_sql("DATA_TABLE", orbital_pipeline, dialect=BACKEND)
         print(f"\nGenerated Query for {BACKEND.upper()}:")
@@ -117,8 +125,6 @@ def main():
         print(target)
 
     print("\nPrediction with Ibis")
-    ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
-    ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
     ibis_target = con.execute(ibis_expression)["variable"].to_numpy()
     print(ibis_target)
 

@@ -110,11 +110,24 @@ if PRINT_SQL and BACKEND != "sqlite":
     con.create_table("DATA_TABLE", obj=data_sample)
 
 
-def main():
-    # Convert the model to an execution pipeline
+def translate_to_orbital():
     orbital_pipeline = orbital.parse_pipeline(model, features=features)
     print(orbital_pipeline)
+    ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
+    ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
+    return orbital_pipeline, ibis_expression
 
+
+# Sqlite can't execute this query (see the FIXME in main below); translate()
+# alone already takes tens of seconds for this pipeline regardless of
+# backend, so skip building it here too instead of paying that cost only
+# to then skip execution in main().
+orbital_pipeline = ibis_expression = None
+if BACKEND != "sqlite":
+    orbital_pipeline, ibis_expression = translate_to_orbital()
+
+
+def main():
     if BACKEND == "sqlite":
         # FIXME: Sqlite currently can't handle the boosted tree classifier SQL
         print("Skipping sqlite as it can't handle the query")
@@ -134,8 +147,6 @@ def main():
         print(target)
 
     print("\nPrediction with Ibis")
-    ibis_table = ibis.memtable(data_sample).alias("DATA_TABLE")
-    ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
     ibis_target = con.execute(ibis_expression)
     print(ibis_target)
 

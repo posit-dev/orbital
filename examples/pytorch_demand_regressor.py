@@ -14,7 +14,7 @@ This example requires PyTorch: pip install orbital[pytorch]
 
 import os
 
-import duckdb
+import ibis
 import numpy as np
 import pandas as pd
 import torch
@@ -82,20 +82,33 @@ test_data = pd.DataFrame(
         "prior_week_sales": [400.0, 80.0, 250.0, 300.0],
     }
 )
-duckdb.register("weekly_sales", test_data)
+con = ibis.duckdb.connect()
+if PRINT_SQL:
+    con.create_table("weekly_sales", obj=test_data)
+
+
+def translate_to_orbital():
+    orbital_pipeline = orbital.parse_pytorch_model(model, FEATURES)
+    print(orbital_pipeline)
+    ibis_table = ibis.memtable(test_data).alias("weekly_sales")
+    ibis_expression = orbital.translate(ibis_table, orbital_pipeline)
+    return orbital_pipeline, ibis_expression
+
+
+orbital_pipeline, ibis_expression = translate_to_orbital()
 
 
 def main():
-    pipeline = orbital.parse_pytorch_model(model, FEATURES)
-
-    sql = orbital.export_sql("weekly_sales", pipeline, dialect="duckdb")
     if PRINT_SQL:
+        sql = orbital.export_sql("weekly_sales", orbital_pipeline, dialect="duckdb")
         print("\nGenerated Query for DuckDB:")
         print(sql)
+        print("\nPrediction with SQL")
+        print(con.raw_sql(sql).fetchall())
 
-    sql_predictions = duckdb.sql(sql).df().iloc[:, 0].to_numpy()
-    print("\nPrediction with SQL")
-    print(sql_predictions)
+    print("\nPrediction with Ibis")
+    ibis_predictions = con.execute(ibis_expression).iloc[:, 0].to_numpy()
+    print(ibis_predictions)
 
     if PREDICT_WITH_LIBRARY:
         print("\nPrediction with PyTorch")
@@ -108,10 +121,10 @@ def main():
         print(torch_predictions)
 
         if ASSERT:
-            assert np.allclose(sql_predictions, torch_predictions, atol=1e-4), (
-                "SQL and PyTorch predictions do not match"
+            assert np.allclose(ibis_predictions, torch_predictions, atol=1e-4), (
+                "Ibis and PyTorch predictions do not match"
             )
-            print("\nSQL and PyTorch predictions match.")
+            print("\nIbis and PyTorch predictions match.")
 
 
 if __name__ == "__main__":

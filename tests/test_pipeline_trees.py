@@ -1,3 +1,4 @@
+import duckdb
 import numpy as np
 import pandas as pd
 import pytest
@@ -15,7 +16,7 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
 import orbital
 from orbital import types
-from orbital_testing_helpers import execute_sql
+from orbital_testing_helpers import execute_sql, tree_columns
 
 
 # Run every tree-based test twice: once with the default single-sum tree
@@ -688,4 +689,83 @@ class TestTreePostTransformations:
             sql_predictions,
             sklearn_predictions,
             err_msg="Multi-class GBM: Predictions don't match sklearn",
+        )
+
+
+class TestSeparateTreesColumnLayout:
+    """The separate_trees layout must not emit columns that compute nothing.
+
+    Ensembles that fit one tree per class per iteration (multiclass GBM, and
+    XGBoost multiclass) leave each tree's votes for the other classes at a
+    constant zero. Materialising those wastes SQL size and parallel slots, so
+    only genuinely computed votes get a column.
+    """
+
+    def test_multiclass_gbm_skips_constant_votes(self, iris_data):
+        """A 3-class GBM emits one column per tree, not one per tree and class."""
+        df, feature_names = iris_data
+
+        n_estimators = 4
+        sklearn_pipeline = Pipeline(
+            [
+                (
+                    "gbm",
+                    GradientBoostingClassifier(
+                        n_estimators=n_estimators, max_depth=2, random_state=0
+                    ),
+                )
+            ]
+        )
+        X = df[feature_names]
+        sklearn_pipeline.fit(X, df["target"])
+
+        features = {fname: types.FloatColumnType() for fname in feature_names}
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
+        sql = orbital.export_sql(
+            "data", parsed_pipeline, dialect="duckdb", separate_trees=True
+        )
+
+        constant, computed = tree_columns(sql)
+        assert constant == []
+        # sklearn fits one tree per class per boosting iteration.
+        assert len(computed) == n_estimators * 3
+
+    def test_stump_only_ensemble_emits_no_tree_columns(self, iris_data):
+        """When every tree folds to a constant there is nothing worth preserving."""
+        df, feature_names = iris_data
+
+        sklearn_pipeline = Pipeline(
+            [
+                (
+                    "gbm",
+                    GradientBoostingRegressor(
+                        n_estimators=3,
+                        max_depth=1,
+                        min_samples_leaf=len(df),
+                        random_state=0,
+                    ),
+                )
+            ]
+        )
+        X = df[feature_names]
+        sklearn_pipeline.fit(X, df["target"])
+        expected = sklearn_pipeline.predict(X)
+
+        features = {fname: types.FloatColumnType() for fname in feature_names}
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
+        sql = orbital.export_sql(
+            "data", parsed_pipeline, dialect="duckdb", separate_trees=True
+        )
+
+        constant, computed = tree_columns(sql)
+        assert constant == []
+        assert computed == []
+
+        conn = duckdb.connect(":memory:")
+        try:
+            sql_results = execute_sql(sql, conn, "duckdb", df[feature_names])
+        finally:
+            conn.close()
+        np.testing.assert_allclose(
+            sql_results.values.flatten(), expected.flatten(), rtol=1e-6, atol=1e-6
         )

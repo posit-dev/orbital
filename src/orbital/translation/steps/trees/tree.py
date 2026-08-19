@@ -3,9 +3,25 @@
 import typing
 
 import ibis
+from ibis.expr.operations import Literal
 
 from ...translator import Translator
 from ...variables import VariablesGroup
+
+
+def folded_to_constant(expr: ibis.Expr) -> bool:
+    """Whether ``expr`` folded down to a literal and carries no computation.
+
+    Used by the ``separate_trees`` layout to decide what is worth materialising
+    as its own column. A vote the optimizer reduced to a constant computes
+    nothing, so giving it a column spends SQL size and a parallel slot on a
+    value the engine could inline. This is common for XGBoost multiclass, where
+    each booster tree belongs to a single class and its votes for the remaining
+    classes are structurally zero, and for stump trees that hold one leaf.
+
+    :param expr: The vote or tree expression to inspect
+    """
+    return isinstance(expr.op(), Literal)
 
 
 class BranchConditionCreator:

@@ -6,7 +6,7 @@ import ibis
 
 from ...translator import Translator
 from ...variables import VariablesGroup
-from .tree import BranchConditionCreator, build_tree
+from .tree import BranchConditionCreator, build_tree, folded_to_constant
 
 
 class TreeEnsembleRegressorTranslator(Translator):
@@ -71,10 +71,20 @@ class TreeEnsembleRegressorTranslator(Translator):
         if self._options.separate_trees:
             # Preserve each tree prediction as its own column so that
             # DuckDB (and other columnar engines) can evaluate them in parallel.
-            tree_aliases = [
-                val.name(self.variable_unique_short_alias("tre")) for val in tree_values
+            # Trees the optimizer folded to a constant (a stump holding a single
+            # leaf) are left inline, as a column for them would compute nothing.
+            indexes = [
+                index
+                for index, val in enumerate(tree_values)
+                if not folded_to_constant(val)
             ]
-            tree_values = self.preserve(*tree_aliases)
+            if indexes:
+                tree_aliases = [
+                    tree_values[index].name(self.variable_unique_short_alias("tre"))
+                    for index in indexes
+                ]
+                for index, preserved in zip(indexes, self.preserve(*tree_aliases)):
+                    tree_values[index] = preserved
 
         total_value: ibis.NumericValue = ibis.literal(0.0)
         for val in tree_values:

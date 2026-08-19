@@ -7,7 +7,7 @@ import ibis
 from ...transformations import apply_post_transform
 from ...translator import Translator
 from ...variables import NumericVariablesGroup, VariablesGroup
-from .tree import BranchConditionCreator, build_tree
+from .tree import BranchConditionCreator, build_tree, folded_to_constant
 
 ClassLabel = typing.Union[str, int]
 
@@ -120,17 +120,21 @@ class TreeEnsembleClassifierTranslator(Translator):
             # single projection so DuckDB (and other columnar engines) can
             # evaluate them in parallel. A single preserve() call avoids the
             # super-linear ibis/sqlglot compile cost of stacking one mutation
-            # per tree.
-            aliases = [
-                votes[clslabel].name(self.variable_unique_short_alias("tre"))
+            # per tree. Votes the optimizer folded to a constant are left
+            # inline: a column for them would compute nothing.
+            targets = [
+                (votes, clslabel)
                 for votes in tree_votes
                 for clslabel in classlabels
+                if not folded_to_constant(votes[clslabel])
             ]
-            preserved = iter(self.preserve(*aliases))
-            tree_votes = [
-                {clslabel: next(preserved) for clslabel in classlabels}
-                for _ in tree_votes
-            ]
+            if targets:
+                aliases = [
+                    votes[clslabel].name(self.variable_unique_short_alias("tre"))
+                    for votes, clslabel in targets
+                ]
+                for (votes, clslabel), expr in zip(targets, self.preserve(*aliases)):
+                    votes[clslabel] = expr
 
         # In case base_values are provided, we need to add them to the votes.
         base_values = typing.cast(list[float], self._attributes.get("base_values", []))

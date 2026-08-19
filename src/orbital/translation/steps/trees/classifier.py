@@ -122,22 +122,19 @@ class TreeEnsembleClassifierTranslator(Translator):
             # super-linear ibis/sqlglot compile cost of stacking one mutation
             # per tree. Votes the optimizer folded to a constant are left
             # inline: a column for them would compute nothing.
-            positions = [
-                (tree_index, clslabel)
-                for tree_index, votes in enumerate(tree_votes)
+            targets = [
+                (votes, clslabel)
+                for votes in tree_votes
                 for clslabel in classlabels
                 if not folded_to_constant(votes[clslabel])
             ]
-            if positions:
+            if targets:
                 aliases = [
-                    tree_votes[tree_index][clslabel].name(
-                        self.variable_unique_short_alias("tre")
-                    )
-                    for tree_index, clslabel in positions
+                    votes[clslabel].name(self.variable_unique_short_alias("tre"))
+                    for votes, clslabel in targets
                 ]
-                preserved = self.preserve(*aliases)
-                for (tree_index, clslabel), expr in zip(positions, preserved):
-                    tree_votes[tree_index][clslabel] = expr
+                for (votes, clslabel), expr in zip(targets, self.preserve(*aliases)):
+                    votes[clslabel] = expr
 
         # In case base_values are provided, we need to add them to the votes.
         base_values = typing.cast(list[float], self._attributes.get("base_values", []))

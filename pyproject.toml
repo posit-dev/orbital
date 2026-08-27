@@ -72,8 +72,8 @@ test = [
   "duckdb>=1.4.1,<1.6.0",
 ]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     # Need to repeat test dependencies
     # uv doesn't allow to merge them with extras
     # and we don't want users to know that they need to run

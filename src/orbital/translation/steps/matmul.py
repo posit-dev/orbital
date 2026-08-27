@@ -1,4 +1,4 @@
-"""Implementation of the LabelEncoder operator."""
+"""Implementation of the MatMul operator."""
 
 import typing
 
@@ -41,7 +41,7 @@ class MatMulTranslator(Translator):
         coef = self._variables.get_initializer_value(self.inputs[1])
         if coef is None or not isinstance(coef, (list, tuple)):
             raise NotImplementedError(
-                "MatMul: Second input (divisor) must be a constant list."
+                "MatMul: Second input (coefficient tensor) must be a constant list."
             )
         coef_type_check = coef[0]
         if not isinstance(coef_type_check, (int, float)):

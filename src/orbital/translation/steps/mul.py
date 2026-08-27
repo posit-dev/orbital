@@ -1,67 +1,67 @@
-"""Translate an Mul operation to the equivalent query expression."""
-
-import typing
-
-import ibis
+"""Defines the translation step for the Mul operation."""
 
 from ..translator import Translator
-from ..variables import NumericVariablesGroup, ValueVariablesGroup, VariablesGroup
+from ..variables import ValueVariablesGroup
 
 
 class MulTranslator(Translator):
-    """Processes an Mul node and updates the variables with the output expression.
+    """Processes a Mul node and updates the variables with the output expression.
 
-    Given the node to translate, the variables and constants available for
-    the translation context, generates a query expression that processes
-    the input variables and produces a new output variable that computes
-    based on the Mul operation.
+    Both operands are treated symmetrically: each one can be a group of columns,
+    a single column, a constant scalar or a constant list of values.
+
+    When any of the two operands is a group of columns, the result is a group of
+    columns too and it borrows its column names from the first operand that is a
+    group, as those names end up being the names of the resulting SQL columns.
+    That group also dictates the width of the result: any other operand must
+    either provide exactly as many values, or a single value that is multiplied
+    by every column of the group.
+
+    When neither operand is a group, both must be single values and the result
+    is a single column.
     """
 
     def process(self) -> None:
         """Performs the translation and set the output variable."""
         # https://onnx.ai/onnx/operators/onnx__Mul.html
 
-        first_operand = self._variables.consume(self._inputs[0])
-        second_operand = self._variables.get_initializer_value(self._inputs[1])
-        if second_operand is None or not isinstance(second_operand, (list, tuple)):
-            raise NotImplementedError(
-                "Mul: Second input (divisor) must be a constant list."
-            )
+        left_keys, left_values = self._variables.consume_operand_values(self.inputs[0])
+        right_keys, right_values = self._variables.consume_operand_values(
+            self.inputs[1]
+        )
 
-        type_check_var = first_operand
-        if isinstance(type_check_var, VariablesGroup):
-            type_check_var = next(iter(type_check_var.values()), None)
-        if not isinstance(type_check_var, ibis.expr.types.NumericValue):
-            raise ValueError("Mul: The first operand must be a numeric value.")
-
-        add_values = list(second_operand)
-        if isinstance(first_operand, VariablesGroup):
-            first_operand = NumericVariablesGroup(first_operand)
-            struct_fields = list(first_operand.keys())
-            if len(add_values) != len(struct_fields):
-                # TODO: Implement dividing by a single value,
-                #       see Div implementation.
+        # The first operand that is a group dictates the width of the result
+        # and, at the very end, the names of the resulting columns.
+        keys = left_keys if left_keys is not None else right_keys
+        if keys is None:
+            # Simple case, no columns group involved, so we just multiply the values.
+            if len(left_values) != 1 or len(right_values) != 1:
                 raise ValueError(
-                    "When the first operand is a group of columns, the second operand must contain the same number of values"
+                    "Mul: when no operand is a group of columns, each operand must contain only one value."
                 )
             self.set_output(
-                ValueVariablesGroup(
-                    {
-                        field: (
-                            self._optimizer.fold_operations(
-                                first_operand[field] * add_values[i]
-                            )
-                        )
-                        for i, field in enumerate(struct_fields)
-                    }
-                )
+                self._optimizer.fold_operations(left_values[0] * right_values[0])
             )
-        else:
-            if len(add_values) != 1:
+            return
+
+        for values in (left_values, right_values):
+            if len(values) not in (1, len(keys)):
                 raise ValueError(
-                    "When the first operand is a single column, the second operand must contain exactly 1 value"
+                    "Mul: the number of values of each operand must match the number of columns of the resulting group."
                 )
-            first_operand = typing.cast(ibis.expr.types.NumericValue, first_operand)
-            self.set_output(
-                self._optimizer.fold_operations(first_operand * add_values[0])
+        # A single value is shared by all columns of the resulting group.
+        if len(left_values) == 1:
+            left_values = left_values * len(keys)
+        if len(right_values) == 1:
+            right_values = right_values * len(keys)
+
+        self.set_output(
+            ValueVariablesGroup(
+                {
+                    key: self._optimizer.fold_operations(left_value * right_value)
+                    for key, left_value, right_value in zip(
+                        keys, left_values, right_values
+                    )
+                }
             )
+        )

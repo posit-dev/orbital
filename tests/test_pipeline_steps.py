@@ -619,11 +619,11 @@ class TestAddTranslator:
             table, model.node[0], variables, self.optimizer, TranslationOptions()
         )
 
-        with pytest.raises(ValueError, match="first operand must be a numeric value"):
+        with pytest.raises(ValueError, match="operands must be numeric values"):
             translator.process()
 
-    def test_add_mismatched_column_count(self):
-        """Test AddTranslator raises error when column count doesn't match."""
+    def test_add_group_columns_broadcast_single_value(self):
+        """Test AddTranslator broadcasts a single value over grouped columns."""
         table = ibis.memtable(
             {
                 "col_a": [1.0, 2.0, 3.0],
@@ -632,9 +632,9 @@ class TestAddTranslator:
         )
         model = onnx.parser.parse_graph("""
             agraph (float[N] input) => (float[N] output)
-            <float[1] add_values = {5.0}>
+            <float[1] add_value = {5.0}>
             {
-                output = Add(input, add_values)
+                output = Add(input, add_value)
             }
         """)
 
@@ -650,8 +650,15 @@ class TestAddTranslator:
             table, model.node[0], variables, self.optimizer, TranslationOptions()
         )
 
-        with pytest.raises(ValueError, match="same number of values"):
-            translator.process()
+        translator.process()
+
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        assert list(result.keys()) == ["col_a", "col_b"]
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [6.0, 7.0, 8.0]
+        assert list(backend.execute(result["col_b"])) == [15.0, 25.0, 35.0]
 
     def test_add_single_column_requires_single_value(self):
         """Test AddTranslator raises error when single column given multiple values."""
@@ -670,15 +677,15 @@ class TestAddTranslator:
             table, model.node[0], variables, self.optimizer, TranslationOptions()
         )
 
-        with pytest.raises(ValueError, match="must contain exactly 1 value"):
+        with pytest.raises(ValueError, match="must contain only one value"):
             translator.process()
 
-    def test_add_second_operand_not_constant(self):
-        """Test AddTranslator raises error when second operand is not a constant."""
+    def test_add_column_plus_computed_column(self):
+        """Test AddTranslator adds a column computed by a previous node."""
         table = ibis.memtable(
             {
                 "input": [1.0, 2.0, 3.0],
-                "other": [5.0, 5.0, 5.0],
+                "other": [5.0, 6.0, 7.0],
             }
         )
         model = onnx.parser.parse_graph("""
@@ -693,7 +700,182 @@ class TestAddTranslator:
             table, model.node[0], variables, self.optimizer, TranslationOptions()
         )
 
-        with pytest.raises(NotImplementedError, match="must be a constant list"):
+        translator.process()
+
+        result = variables.peek_variable("output")
+
+        # The second operand must be consumed, or it would leak into the results.
+        assert "other" not in variables
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [6.0, 8.0, 10.0]
+
+    def test_add_constant_plus_column(self):
+        """Test AddTranslator adds a column to a scalar constant."""
+        table = ibis.memtable({"input": [1.0, 2.0, 3.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float add_value = {5.0}>
+            {
+                output = Add(add_value, input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = AddTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [6.0, 7.0, 8.0]
+
+    def test_add_constant_plus_group_columns(self):
+        """Test AddTranslator adds a scalar constant to grouped columns."""
+        table = ibis.memtable({"col_a": [1.0, 2.0], "col_b": [10.0, 20.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float add_value = {5.0}>
+            {
+                output = Add(add_value, input)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["col_a"],
+                "col_b": table["col_b"],
+            }
+        )
+
+        translator = AddTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        assert list(result.keys()) == ["col_a", "col_b"]
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [6.0, 7.0]
+        assert list(backend.execute(result["col_b"])) == [15.0, 25.0]
+
+    def test_add_group_columns_plus_group_columns(self):
+        """Test AddTranslator adds groups and keeps the first group's names."""
+        table = ibis.memtable(
+            {
+                "input": [1.0, 1.0],
+                "other": [1.0, 1.0],
+                "left_a": [1.0, 2.0],
+                "left_b": [10.0, 20.0],
+                "right_a": [3.0, 4.0],
+                "right_b": [30.0, 40.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input, float[N] other) => (float[N] output) {
+                output = Add(input, other)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["left_a"],
+                "col_b": table["left_b"],
+            }
+        )
+        variables["other"] = NumericVariablesGroup(
+            {
+                "other_a": table["right_a"],
+                "other_b": table["right_b"],
+            }
+        )
+
+        translator = AddTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        assert list(result.keys()) == ["col_a", "col_b"]
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [4.0, 6.0]
+        assert list(backend.execute(result["col_b"])) == [40.0, 60.0]
+
+    def test_add_group_columns_plus_computed_column(self):
+        """Test AddTranslator broadcasts a computed column over a group."""
+        table = ibis.memtable(
+            {
+                "input": [1.0, 1.0],
+                "other": [2.0, 4.0],
+                "col_a": [10.0, 20.0],
+                "col_b": [100.0, 200.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input, float[N] other) => (float[N] output) {
+                output = Add(input, other)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["col_a"],
+                "col_b": table["col_b"],
+            }
+        )
+
+        translator = AddTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        assert list(result.keys()) == ["col_a", "col_b"]
+        assert "other" not in variables
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [12.0, 24.0]
+        assert list(backend.execute(result["col_b"])) == [102.0, 204.0]
+
+    def test_add_mismatched_column_count(self):
+        """Test AddTranslator raises error when operand widths do not match."""
+        table = ibis.memtable(
+            {
+                "col_a": [1.0, 2.0, 3.0],
+                "col_b": [10.0, 20.0, 30.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float[3] add_values = {5.0, 10.0, 15.0}>
+            {
+                output = Add(input, add_values)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["col_a"],
+                "col_b": table["col_b"],
+            }
+        )
+
+        translator = AddTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(ValueError, match="must match the number of columns"):
             translator.process()
 
 
@@ -1065,11 +1247,11 @@ class TestMulTranslator:
             table, model.node[0], variables, self.optimizer, TranslationOptions()
         )
 
-        with pytest.raises(ValueError, match="first operand must be a numeric value"):
+        with pytest.raises(ValueError, match="operands must be numeric values"):
             translator.process()
 
-    def test_mul_mismatched_column_count(self):
-        """Test MulTranslator raises error when column count doesn't match."""
+    def test_mul_group_columns_broadcast_single_value(self):
+        """Test MulTranslator broadcasts a single value over grouped columns."""
         table = ibis.memtable(
             {
                 "col_a": [1.0, 2.0, 3.0],
@@ -1078,9 +1260,9 @@ class TestMulTranslator:
         )
         model = onnx.parser.parse_graph("""
             agraph (float[N] input) => (float[N] output)
-            <float[1] mul_values = {5.0}>
+            <float[1] mul_value = {5.0}>
             {
-                output = Mul(input, mul_values)
+                output = Mul(input, mul_value)
             }
         """)
 
@@ -1096,8 +1278,15 @@ class TestMulTranslator:
             table, model.node[0], variables, self.optimizer, TranslationOptions()
         )
 
-        with pytest.raises(ValueError, match="same number of values"):
-            translator.process()
+        translator.process()
+
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        assert list(result.keys()) == ["col_a", "col_b"]
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [5.0, 10.0, 15.0]
+        assert list(backend.execute(result["col_b"])) == [50.0, 100.0, 150.0]
 
     def test_mul_single_column_requires_single_value(self):
         """Test MulTranslator raises error when single column given multiple values."""
@@ -1116,15 +1305,15 @@ class TestMulTranslator:
             table, model.node[0], variables, self.optimizer, TranslationOptions()
         )
 
-        with pytest.raises(ValueError, match="must contain exactly 1 value"):
+        with pytest.raises(ValueError, match="must contain only one value"):
             translator.process()
 
-    def test_mul_second_operand_not_constant(self):
-        """Test MulTranslator raises error when second operand is not a constant."""
+    def test_mul_column_by_computed_column(self):
+        """Test MulTranslator multiplies by a column computed by a previous node."""
         table = ibis.memtable(
             {
                 "input": [1.0, 2.0, 3.0],
-                "other": [5.0, 5.0, 5.0],
+                "other": [5.0, 6.0, 7.0],
             }
         )
         model = onnx.parser.parse_graph("""
@@ -1139,7 +1328,182 @@ class TestMulTranslator:
             table, model.node[0], variables, self.optimizer, TranslationOptions()
         )
 
-        with pytest.raises(NotImplementedError, match="must be a constant list"):
+        translator.process()
+
+        result = variables.peek_variable("output")
+
+        # The second operand must be consumed, or it would leak into the results.
+        assert "other" not in variables
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [5.0, 12.0, 21.0]
+
+    def test_mul_constant_by_column(self):
+        """Test MulTranslator multiplies a scalar constant by a column."""
+        table = ibis.memtable({"input": [1.0, 2.0, 3.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float mul_value = {5.0}>
+            {
+                output = Mul(mul_value, input)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        translator = MulTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result)) == [5.0, 10.0, 15.0]
+
+    def test_mul_constant_by_group_columns(self):
+        """Test MulTranslator multiplies a scalar constant by grouped columns."""
+        table = ibis.memtable({"col_a": [1.0, 2.0], "col_b": [10.0, 20.0]})
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float mul_value = {5.0}>
+            {
+                output = Mul(mul_value, input)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["col_a"],
+                "col_b": table["col_b"],
+            }
+        )
+
+        translator = MulTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        assert list(result.keys()) == ["col_a", "col_b"]
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [5.0, 10.0]
+        assert list(backend.execute(result["col_b"])) == [50.0, 100.0]
+
+    def test_mul_group_columns_by_group_columns(self):
+        """Test MulTranslator multiplies groups and keeps the first group's names."""
+        table = ibis.memtable(
+            {
+                "input": [1.0, 1.0],
+                "other": [1.0, 1.0],
+                "left_a": [1.0, 2.0],
+                "left_b": [10.0, 20.0],
+                "right_a": [3.0, 4.0],
+                "right_b": [30.0, 40.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input, float[N] other) => (float[N] output) {
+                output = Mul(input, other)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["left_a"],
+                "col_b": table["left_b"],
+            }
+        )
+        variables["other"] = NumericVariablesGroup(
+            {
+                "other_a": table["right_a"],
+                "other_b": table["right_b"],
+            }
+        )
+
+        translator = MulTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        assert list(result.keys()) == ["col_a", "col_b"]
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [3.0, 8.0]
+        assert list(backend.execute(result["col_b"])) == [300.0, 800.0]
+
+    def test_mul_group_columns_by_computed_column(self):
+        """Test MulTranslator broadcasts a computed column over a group."""
+        table = ibis.memtable(
+            {
+                "input": [1.0, 1.0],
+                "other": [2.0, 4.0],
+                "col_a": [10.0, 20.0],
+                "col_b": [100.0, 200.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input, float[N] other) => (float[N] output) {
+                output = Mul(input, other)
+            }
+        """)
+
+        variables = GraphVariables(table, model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["col_a"],
+                "col_b": table["col_b"],
+            }
+        )
+
+        translator = MulTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+        translator.process()
+
+        result = variables.peek_variable("output")
+        assert isinstance(result, ValueVariablesGroup)
+        assert list(result.keys()) == ["col_a", "col_b"]
+        assert "other" not in variables
+
+        backend = ibis.duckdb.connect()
+        assert list(backend.execute(result["col_a"])) == [20.0, 80.0]
+        assert list(backend.execute(result["col_b"])) == [200.0, 800.0]
+
+    def test_mul_mismatched_column_count(self):
+        """Test MulTranslator raises error when operand widths do not match."""
+        table = ibis.memtable(
+            {
+                "col_a": [1.0, 2.0, 3.0],
+                "col_b": [10.0, 20.0, 30.0],
+            }
+        )
+        model = onnx.parser.parse_graph("""
+            agraph (float[N] input) => (float[N] output)
+            <float[3] mul_values = {5.0, 10.0, 15.0}>
+            {
+                output = Mul(input, mul_values)
+            }
+        """)
+
+        variables = GraphVariables(ibis.memtable({"input": [1.0]}), model)
+        variables["input"] = NumericVariablesGroup(
+            {
+                "col_a": table["col_a"],
+                "col_b": table["col_b"],
+            }
+        )
+
+        translator = MulTranslator(
+            table, model.node[0], variables, self.optimizer, TranslationOptions()
+        )
+
+        with pytest.raises(ValueError, match="must match the number of columns"):
             translator.process()
 
 

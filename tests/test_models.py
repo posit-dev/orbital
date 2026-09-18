@@ -3,6 +3,8 @@
 import numpy as np
 import pandas as pd
 import pytest
+
+pytest.importorskip("sklearn")
 from sklearn.pipeline import Pipeline
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.ensemble import (
@@ -381,9 +383,9 @@ class TestSingleStepPipelines:
             parse_pipeline(pipeline, features)
 
         error_msg = str(exc_info.value)
-        assert "DoubleTensorType" in error_msg
-        assert "Int64TensorType" in error_msg
-        assert "FloatTensorType" in error_msg
+        assert "DoubleColumnType" in error_msg
+        assert "Int64ColumnType" in error_msg
+        assert "FloatColumnType" in error_msg
 
     def test_string_features_not_supported(self):
         """Test that string features fail with informative error."""

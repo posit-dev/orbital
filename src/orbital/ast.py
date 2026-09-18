@@ -5,17 +5,15 @@ The IR is what will be processed to generate the SQL queries.
 
 import logging
 import pickle
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING
 
 import onnx as _onnx
-import skl2onnx as _skl2o
-import skl2onnx.convert
-import sklearn.pipeline
 
 from ._utils import repr_pipeline
 from .types import ColumnType, FeaturesTypes
 
 if TYPE_CHECKING:
+    import sklearn.pipeline
     import torch
 
 log = logging.getLogger(__name__)
@@ -125,11 +123,13 @@ class ParsedPipeline:
 
 
 def parse_pipeline(
-    pipeline: sklearn.pipeline.Pipeline, features: FeaturesTypes
+    pipeline: "sklearn.pipeline.Pipeline", features: FeaturesTypes
 ) -> ParsedPipeline:
     """Parse a scikit-learn pipeline into an intermediate representation.
 
     Returns a [orbital.ast.ParsedPipeline][] object that can be converted to SQL queries.
+
+    Requires scikit-learn, which can be installed with the ``orbital[sklearn]`` extra.
 
     :param pipeline: The fitted scikit-learn pipeline to parse
     :param features: Mapping of column names to their [orbital.types.ColumnType][] objects from the [orbital.types][] module
@@ -144,44 +144,14 @@ def parse_pipeline(
         }
     ```
     """
-    non_passthrough_features = {
-        fname: ftype for fname, ftype in features.items() if not ftype.is_passthrough
-    }
-
-    if not non_passthrough_features:
-        raise ValueError(
-            "All provided features are passthrough. "
-            "The pipeline would not do anything useful."
-        )
-
-    # Check if pipeline starts with a model (which expects concatenated input)
-    concatenated_inputs = EnsureConcatenatedInputs(non_passthrough_features)
-    pipeline_requires_input_vector = concatenated_inputs.pipeline_requires_input_vector(
-        pipeline
-    )
-
-    if pipeline_requires_input_vector:
-        # Models expect a single feature vector "input", so we need to adapt the user
-        # features to a single concatenated input tensor.
-        # Later, we'll inject a concat operation to ensure the SQL query does work
-        # with individual columns.
-        initial_types = concatenated_inputs.concatenate_inputs()
-    else:
-        initial_types = [
-            (fname, ftype._to_onnxtype())
-            for fname, ftype in non_passthrough_features.items()
-        ]
-
-    onnx_model = cast(
-        _onnx.ModelProto,
-        _skl2o.to_onnx(pipeline, initial_types=initial_types),  # type: ignore[arg-type]
-    )
-
-    if pipeline_requires_input_vector:
-        # Inject concat operation to create the "input" tensor when necessary.
-        onnx_model = concatenated_inputs.inject_concat_step(onnx_model)
-
-    return ParsedPipeline._from_onnx_model(onnx_model, features)
+    try:
+        from . import _sklearn
+    except ImportError as err:
+        raise ImportError(
+            "scikit-learn is required to parse scikit-learn pipelines. "
+            "Install it with: pip install orbital[sklearn]"
+        ) from err
+    return _sklearn.parse_pipeline(pipeline, features)
 
 
 def parse_pytorch_model(
@@ -210,98 +180,23 @@ def parse_pytorch_model(
     of the same type.
     """
     try:
-        import torch
+        from . import _pytorch
     except ImportError as err:
         raise ImportError(
             "PyTorch is required to parse PyTorch models. "
             "Install it with: pip install orbital[pytorch]"
         ) from err
-
-    non_passthrough_features = {
-        fname: ftype for fname, ftype in features.items() if not ftype.is_passthrough
-    }
-
-    if not non_passthrough_features:
-        raise ValueError(
-            "All provided features are passthrough. "
-            "The model would not do anything useful."
-        )
-
-    concatenated_inputs = EnsureConcatenatedInputs(non_passthrough_features)
-    # A neural network consumes a single input tensor, so mixed feature
-    # types cannot be concatenated. Raises a clear error on mixed types.
-    concatenated_inputs.concatenate_inputs()
-
-    # The exporter traces one forward pass to record the operations graph:
-    # the dummy input's values are discarded, only shape/dtype/device matter.
-    # dtype/device must match the model's, otherwise tracing fails for
-    # non-float32 or GPU-resident models. Parameterless models fall back to
-    # torch defaults.
-    param = next(model.parameters(), None)
-    if param is None:
-        dummy_input = torch.zeros(1, len(non_passthrough_features))
-    else:
-        dummy_input = torch.zeros(
-            1,
-            len(non_passthrough_features),
-            dtype=param.dtype,
-            device=param.device,
-        )
-    # The exporter traces the model as-is, but the trace must capture eval
-    # behavior: SQL always runs inference, and train-mode ops (e.g. Dropout
-    # random masking) cannot be translated. Models are commonly left in
-    # training mode after training (torch's default), so instead of asking
-    # callers to eval() first, flip the model ourselves and restore its
-    # exact state afterwards. eval()/train() recurse into every submodule,
-    # so snapshot each module's own flag: mixed states like the fine-tuning
-    # freeze pattern (frozen submodules in eval) must survive the restore.
-    training_flags = [(m, m.training) for m in model.modules()]
-    model.eval()
-    try:
-        onnx_program = torch.onnx.export(
-            model,
-            (dummy_input,),
-            input_names=["input"],
-            # Pin the lowest opset the dynamo exporter supports so the
-            # emitted graph does not change with the installed torch version.
-            opset_version=18,
-            dynamo=True,
-            # The exporter prints conversion progress by default,
-            # a library function must stay silent.
-            verbose=False,
-        )
-    finally:
-        # eval() mutated the caller's model. If the flags were not restored,
-        # a user resuming training afterwards would silently train with
-        # eval behavior (e.g. Dropout disabled, BatchNorm stats frozen).
-        for module, was_training in training_flags:
-            module.training = was_training
-    # export() is typed Optional only because the legacy exporter could
-    # return None, with dynamo=True a program is always returned.
-    # The cast only informs mypy, it has no runtime effect.
-    onnx_model = cast("torch.onnx.ONNXProgram", onnx_program).model_proto
-
-    # The network expects a single concatenated tensor, while SQL provides
-    # individual columns. Inject a Concat step to bridge the two.
-    onnx_model = concatenated_inputs.inject_concat_step(onnx_model)
-    return ParsedPipeline._from_onnx_model(onnx_model, features)
+    return _pytorch.parse_pytorch_model(model, features)
 
 
 class EnsureConcatenatedInputs:
     """Handle ONNX input tensor requirements for scikit-learn pipelines and PyTorch models.
 
-    ONNX models require a single "input" tensor for models (as opposed to transformers).
-    When a pipeline contains only a model without preprocessing steps, sklearn2onnx
-    doesn't always automatically add a Concat operation.
+    Models (as opposed to transformers) consume a single "input" tensor, while
+    SQL provides individual columns. This class provides the logic to:
 
-    This class provides the necessary logic to:
-
-    1. Detect when a pipeline starts with a model that expects concatenated input
-    2. Create proper initial_types for sklearn2onnx with a single concatenated tensor
-    3. Inject a Concat operation into the ONNX graph for SQL compatibility
-
-    This bridges the gap between SQL (individual columns) and ONNX models
-    (concatenated input tensors).
+    1. Verify that all features share a type, so they can be concatenated
+    2. Inject a Concat operation into the ONNX graph for SQL compatibility
     """
 
     def __init__(self, features: FeaturesTypes) -> None:
@@ -311,75 +206,24 @@ class EnsureConcatenatedInputs:
         """
         self.features = features
 
-    def pipeline_requires_input_vector(
-        self, pipeline: sklearn.pipeline.Pipeline
-    ) -> bool:
-        """Determine if pipeline requires concatenated inputs by testing operator compatibility.
+    def uniform_type(self) -> ColumnType:
+        """Return the type shared by all features.
 
-        This method directly tests whether the first operator in the pipeline can handle
-        individual feature inputs by calling `infer_types`. If it fails, the operator
-        requires concatenated inputs.
-
-        Returns True if the pipeline requires concatenated inputs, False otherwise.
-
-        :param pipeline: The scikit-learn pipeline to analyze
+        Models expect a single concatenated input tensor, so all features
+        must be of the same type for this to work.
         """
-        individual_types = [
-            (fname, ftype._to_onnxtype()) for fname, ftype in self.features.items()
-        ]
+        feature_types = {type(ftype) for ftype in self.features.values()}
 
-        topology = skl2onnx.convert.parse_sklearn_model(
-            pipeline, initial_types=individual_types
-        )
-
-        if len(self.features) <= 1:
-            # The user provided only one feature, no need for concatenation
-            return False
-
-        # Get the first operator in the topology
-        first_operator = next(topology.unordered_operator_iterator(), None)
-        if not first_operator:
-            return False
-
-        # Test if the operator can handle the individual inputs we provided
-        try:
-            first_operator.infer_types()
-            # If infer_types() succeeds, the operator accepts the inputs the user provided
-            return False
-        except RuntimeError as err:
-            if "at most 1 input" in str(err):
-                # If infer_types() fails with "at most 1 input", the operator needs concatenated inputs
-                # This is the best we can do as SKL2ONNX doesn't tell us how many inputs it expects.
-                # And the `check_input_and_output_numbers` function always throws a RuntimeError
-                return True
-            return False
-
-    def concatenate_inputs(self) -> list[tuple[str, Any]]:
-        """Create initial_types for skl2onnx when pipeline starts with a model.
-
-        Models expect a single concatenated input tensor, so we create initial_types
-        with a single "input" tensor containing all features concatenated together.
-        All features must be of the same ONNX type for this to work.
-
-        Returns a list with single tuple: `[("input", onnx_type([None, num_features]))]`.
-        """
-        # All features must be of the same type for model input
-        feature_onnx_types = {
-            type(ftype._to_onnxtype()) for ftype in self.features.values()
-        }
-
-        if len(feature_onnx_types) != 1:
+        if len(feature_types) != 1:
             # Mixed types not allowed for model input
-            type_names = [t.__name__ for t in feature_onnx_types]
+            type_names = [t.__name__ for t in feature_types]
             raise ValueError(
                 f"All features must be of the same type when pipeline starts with a model. "
                 f"Found mixed types: {', '.join(sorted(type_names))}. "
                 f"Please ensure all features use the same ColumnType."
             )
 
-        # All features have the same type, use it for concatenated input
-        uniform_type = next(iter(feature_onnx_types))
-        return [("input", uniform_type([None, len(self.features)]))]
+        return next(iter(self.features.values()))
 
     def inject_concat_step(self, onnx_model: _onnx.ModelProto) -> _onnx.ModelProto:
         """Inject a Concat operation for pipelines starting with models to enable SQL generation.
@@ -411,11 +255,10 @@ class EnsureConcatenatedInputs:
 
         for fname in feature_names:
             # Create new input tensor for each feature with shape [None, 1]
-            ftype = self.features[fname]._to_onnxtype().to_onnx_type()
             new_inputs.append(
                 _onnx.helper.make_tensor_value_info(
                     fname,
-                    ftype.tensor_type.elem_type,
+                    self.features[fname]._onnx_elem_type,
                     [None, 1],
                 )
             )

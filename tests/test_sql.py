@@ -2,6 +2,8 @@ import ibis
 import onnx
 import pandas as pd
 import pytest
+
+pytest.importorskip("sklearn")
 from sklearn.datasets import load_iris
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer

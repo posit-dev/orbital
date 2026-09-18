@@ -86,6 +86,8 @@ dev = [
     "pytest-cov>=5.0.0",
     "pytest>=8.3.2",
     "ibis-framework[duckdb]>=5.1.0",
+    # ibis 12.0.0 create_table(obj=...) on duckdb emits a nameless DROP VIEW with sqlglot>=30.18
+    "sqlglot<30.18",
     # Necessary for development workflow
     "mypy>=1.11.2",
     "pre-commit",

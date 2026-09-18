@@ -3,8 +3,11 @@
 Install orbital:
 
 ```bash
-$ pip install orbital
+$ pip install orbital[sklearn]
 ```
+
+A bare `pip install orbital` ships only the shared core; the `[sklearn]` and
+`[pytorch]` extras add support for the respective framework.
 
 Prepare some data:
 

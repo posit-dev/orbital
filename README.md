@@ -20,8 +20,11 @@ See `examples` directory for [example pipelines](https://github.com/posit-dev/or
 Install orbital:
 
 ```bash
-$ pip install orbital
+$ pip install orbital[sklearn]
 ```
+
+A bare `pip install orbital` ships only the shared core; the `[sklearn]` and
+`[pytorch]` extras add support for the respective framework.
 
 Prepare some data:
 
@@ -252,13 +255,13 @@ agents working on the codebase.
 Setup testing environment:
 
 ```bash
-$ uv sync --no-dev --extra test
+$ uv sync --no-dev --extra test --extra sklearn --extra pytorch
 ```
 
 Run Tests:
 
 ```bash
-$ uv run pytest -v
+$ uv run --no-sync pytest -v
 ```
 
 Try Examples:

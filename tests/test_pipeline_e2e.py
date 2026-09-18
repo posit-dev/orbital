@@ -1,5 +1,8 @@
 import numpy as np
 import pandas as pd
+import pytest
+
+pytest.importorskip("sklearn")
 from sklearn.compose import ColumnTransformer
 from sklearn.feature_selection import SelectKBest, f_regression
 from sklearn.linear_model import ElasticNet, LinearRegression, LogisticRegression

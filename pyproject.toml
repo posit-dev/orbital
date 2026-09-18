@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orbital"
-version = "0.6.0"
+version = "0.7.0"
 description = "Allow SKLearn predictions to run on database systems in pure SQL."
 keywords = ["database", "machine learning", "sql"]
 readme = { file = "README.md", content-type = "text/markdown" }
@@ -38,9 +38,9 @@ classifiers = [
 
 requires-python = ">=3.10,<3.15"
 dependencies = [
-  "packaging",  # somehow required by skl2onnx/operator_converters
-  "scikit-learn",
-  "skl2onnx~=1.20.0",
+  # ibis.backends.sql.compilers.datafusion imports packaging.version,
+  # but ibis-framework only declares packaging in its backend extras.
+  "packaging",
   "onnx>=1.20,<1.23",
   "ibis-framework~=12.0.0",
 ]
@@ -50,6 +50,10 @@ Homepage = "https://posit-dev.github.io/orbital/"
 Repository = "https://github.com/posit-dev/orbital"
 
 [project.optional-dependencies]
+sklearn = [
+  "scikit-learn",
+  "skl2onnx~=1.20.0",
+]
 pytorch = [
   # torch 2.9 made the dynamo exporter the default, earlier releases are
   # not exercised. Older onnxscript/onnx-ir releases break the dynamo
@@ -98,6 +102,7 @@ dev = [
     "onnxscript",
     "sqlalchemy",
     "psycopg2-binary",
+    "orbital[sklearn]",
     "orbital[pytorch]",
 ]
 

@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 import pytest
+
+pytest.importorskip("sklearn")
 from google.protobuf.json_format import MessageToDict
 from sklearn.datasets import make_classification
 from sklearn.ensemble import GradientBoostingClassifier

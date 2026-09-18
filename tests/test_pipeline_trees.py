@@ -2,6 +2,8 @@ import duckdb
 import numpy as np
 import pandas as pd
 import pytest
+
+pytest.importorskip("sklearn")
 from sklearn.compose import ColumnTransformer
 from sklearn.datasets import make_classification
 from sklearn.ensemble import (

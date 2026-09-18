@@ -1,4 +1,5 @@
 import builtins
+import sys
 
 import duckdb
 import numpy as np
@@ -27,6 +28,9 @@ class TestParsePytorchModel:
             return real_import(name, *args, **kwargs)
 
         monkeypatch.setattr(builtins, "__import__", block_torch)
+        # Force the lazy import to re-run even if torch was already loaded.
+        monkeypatch.delitem(sys.modules, "orbital._pytorch", raising=False)
+        monkeypatch.delattr(orbital, "_pytorch", raising=False)
         with pytest.raises(ImportError, match=r"orbital\[pytorch\]"):
             orbital.parse_pytorch_model(object(), FEATURES)
 

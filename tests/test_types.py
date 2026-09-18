@@ -1,5 +1,4 @@
-from unittest import mock
-
+import numpy as np
 import pandas as pd
 import polars as pl
 import pyarrow as pa
@@ -32,20 +31,36 @@ class TestDataTypesGuessing:
         df = pa.table(self.DF_DATA)
         assert types.guess_datatypes(df) == self.EXPECTED_TYPES
 
+    @pytest.mark.parametrize(
+        "dtype, expected",
+        [
+            (np.bool_, types.BooleanColumnType()),
+            (np.float16, types.Float16ColumnType()),
+            (np.float32, types.FloatColumnType()),
+            (np.int32, types.Int32ColumnType()),
+            (np.uint8, types.UInt8ColumnType()),
+            (object, types.StringColumnType()),
+        ],
+    )
+    def test_numpy_dtypes(self, dtype, expected):
+        df = pd.DataFrame({"c": np.array([0, 1]).astype(dtype)})
+        assert types.guess_datatypes(df) == {"c": expected}
+
     def test_invalid_datatype(self):
         with pytest.raises(ValueError) as exc:
             types.guess_datatypes({"column": 5})
         assert exc.match("Unable to guess types of dataframe")
 
-    def test_invalid_datatype_conversion(self):
-        with mock.patch.object(
-            types._sl2o_types, "guess_data_type", return_value=[("somecol", "invalid")]
-        ):
-            with pytest.raises(ValueError) as exc:
-                types.guess_datatypes("Doesn't matter")
-            assert exc.match("Unsupported datatype for column somecol")
+    def test_unsupported_column_dtype(self):
+        # complex128 has no ColumnType counterpart.
+        with pytest.raises(ValueError) as exc:
+            types.guess_datatypes(pd.DataFrame({"c": np.array([1 + 2j, 3j])}))
+        assert exc.match("Unsupported datatype for column c")
 
     def test_alltypes(self):
+        pytest.importorskip("sklearn")
+        from orbital import _sklearn
+
         for t in [
             types.FloatColumnType,
             types.Float16ColumnType,
@@ -61,18 +76,10 @@ class TestDataTypesGuessing:
             types.UInt8ColumnType,
             types.BooleanColumnType,
         ]:
-            onxtype = t()._to_onnxtype()
-            assert isinstance(onxtype, types._sl2o_types.DataType)
-            assert t._from_onnxtype(onxtype) == t()
-
-    def test_only_support_column_types(self):
-        with pytest.raises(ValueError) as exc:
-            types.ColumnType._from_onnxtype(
-                types._sl2o_types.FloatTensorType(shape=[1, 1])
+            onxtype = _sklearn.TENSOR_TYPES[t._onnx_elem_type]([None, 1])
+            assert (
+                types.ColumnType._from_onnx_elem_type(
+                    onxtype.to_onnx_type().tensor_type.elem_type
+                )
+                == t()
             )
-        assert exc.match("Only columnar data is supported")
-
-    def test_invalid_datatype_shape(self):
-        with pytest.raises(TypeError) as exc:
-            types.ColumnType._from_onnxtype(mock.Mock(shape=[None, 1]))
-        assert exc.match("Unsupported data type Mock")

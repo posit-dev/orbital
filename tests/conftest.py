@@ -8,7 +8,6 @@ import sqlalchemy
 import numpy as np
 import pandas as pd
 import pytest
-from sklearn.datasets import load_diabetes, load_iris
 
 PY39 = sys.version_info[:2] < (3, 10)
 
@@ -28,6 +27,8 @@ def pytest_configure(config):
 @pytest.fixture(scope="class")
 def iris_data():
     """Load and prepare the iris dataset for testing."""
+    from sklearn.datasets import load_iris
+
     iris = load_iris()
     # Clean feature names to match what's used in the example
     feature_names = ["sepal_length", "sepal_width", "petal_length", "petal_width"]
@@ -40,6 +41,8 @@ def iris_data():
 @pytest.fixture(scope="class")
 def diabetes_data():
     """Load and prepare the diabetes dataset for testing."""
+    from sklearn.datasets import load_diabetes
+
     diabetes = load_diabetes()
     feature_names = diabetes.feature_names
     X = pd.DataFrame(diabetes.data, columns=feature_names)

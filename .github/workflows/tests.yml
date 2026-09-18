@@ -48,6 +48,37 @@ jobs:
           name: coverage-report
           path: coverage.xml
 
+  optional-frameworks:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        extra: ["", "--extra sklearn", "--extra pytorch"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        run: |
+          pip install uv
+
+      - name: Install dependencies
+        run: |
+          uv sync --no-dev --extra test ${{ matrix.extra }}
+
+      - name: Import orbital
+        run: |
+          uv run --no-sync python -c "import orbital"
+
+      - name: Run Test Suite
+        run: |
+          uv run --no-sync pytest -v --tb=short --disable-warnings --maxfail=1 -rs --no-cov
+
   coverage:
     needs: tests
     runs-on: ubuntu-latest

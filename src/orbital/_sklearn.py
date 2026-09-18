@@ -1,6 +1,5 @@
 """Parse scikit-learn pipelines through skl2onnx."""
 
-import logging
 import typing
 
 import onnx as _onnx
@@ -10,9 +9,7 @@ import skl2onnx.convert
 import sklearn.pipeline
 
 from .ast import EnsureConcatenatedInputs, ParsedPipeline
-from .types import ColumnType, FeaturesTypes
-
-log = logging.getLogger(__name__)
+from .types import FeaturesTypes
 
 TENSOR_TYPES: dict[int, type[_sl2o_types.DataType]] = {
     _onnx.TensorProto.FLOAT: _sl2o_types.FloatTensorType,
@@ -132,34 +129,3 @@ def pipeline_requires_input_vector(
             # And the `check_input_and_output_numbers` function always throws a RuntimeError
             return True
         return False
-
-
-def guess_datatypes(dataframe: typing.Any) -> FeaturesTypes:
-    """Given a DataFrame, guess the [orbital.types.FeaturesTypes][] of its columns.
-
-    :param dataframe: A Pandas, Polars or PyArrow dataframe
-    """
-    if hasattr(dataframe, "to_pandas"):
-        # Easiest way to ensure compatibility with Polars, Pandas and PyArrow.
-        dataframe = dataframe.to_pandas()
-
-    try:
-        dtypes = _sl2o_types.guess_data_type(dataframe)
-    except (TypeError, NotImplementedError) as exc:
-        log.debug(f"Unable to guess types from {repr(dataframe)}, exception: {exc}")
-        raise ValueError("Unable to guess types of dataframe") from None
-
-    typesmap: FeaturesTypes = {}
-    for name, dtype in dtypes:
-        try:
-            if dtype.shape != [None, 1]:
-                raise ValueError("Only columnar data is supported.")
-            typesmap[name] = ColumnType._from_onnx_elem_type(
-                dtype.to_onnx_type().tensor_type.elem_type
-            )
-        except (ValueError, TypeError, AttributeError) as exc:
-            log.debug(
-                f"Unable to convert to column type from {name}:{repr(dtype)}, exception: {exc}"
-            )
-            raise ValueError(f"Unsupported datatype for column {name}") from None
-    return typesmap

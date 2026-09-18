@@ -4,9 +4,7 @@ import polars as pl
 import pyarrow as pa
 import pytest
 
-pytest.importorskip("sklearn")
-
-from orbital import _sklearn, types
+from orbital import types
 
 
 class TestDataTypesGuessing:
@@ -33,6 +31,21 @@ class TestDataTypesGuessing:
         df = pa.table(self.DF_DATA)
         assert types.guess_datatypes(df) == self.EXPECTED_TYPES
 
+    @pytest.mark.parametrize(
+        "dtype, expected",
+        [
+            (np.bool_, types.BooleanColumnType()),
+            (np.float16, types.Float16ColumnType()),
+            (np.float32, types.FloatColumnType()),
+            (np.int32, types.Int32ColumnType()),
+            (np.uint8, types.UInt8ColumnType()),
+            (object, types.StringColumnType()),
+        ],
+    )
+    def test_numpy_dtypes(self, dtype, expected):
+        df = pd.DataFrame({"c": np.array([0, 1]).astype(dtype)})
+        assert types.guess_datatypes(df) == {"c": expected}
+
     def test_invalid_datatype(self):
         with pytest.raises(ValueError) as exc:
             types.guess_datatypes({"column": 5})
@@ -45,6 +58,9 @@ class TestDataTypesGuessing:
         assert exc.match("Unsupported datatype for column c")
 
     def test_alltypes(self):
+        pytest.importorskip("sklearn")
+        from orbital import _sklearn
+
         for t in [
             types.FloatColumnType,
             types.Float16ColumnType,
@@ -67,10 +83,3 @@ class TestDataTypesGuessing:
                 )
                 == t()
             )
-
-    def test_only_support_column_types(self):
-        # A 2D array is guessed as a single "input" tensor of shape (3, 2),
-        # which is not columnar data.
-        with pytest.raises(ValueError) as exc:
-            types.guess_datatypes(np.zeros((3, 2)))
-        assert exc.match("Unsupported datatype for column input")

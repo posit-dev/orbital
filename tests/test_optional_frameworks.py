@@ -1,4 +1,4 @@
-"""The sklearn-only entry points point to the extra when scikit-learn is missing."""
+"""The sklearn-only entry point points to the extra when scikit-learn is missing."""
 
 import importlib.util
 
@@ -14,8 +14,3 @@ pytestmark = pytest.mark.skipif(
 def test_parse_pipeline_without_sklearn():
     with pytest.raises(ImportError, match=r"orbital\[sklearn\]"):
         orbital.parse_pipeline(None, {})
-
-
-def test_guess_datatypes_without_sklearn():
-    with pytest.raises(ImportError, match=r"orbital\[sklearn\]"):
-        orbital.types.guess_datatypes(None)

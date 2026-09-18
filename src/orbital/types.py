@@ -1,10 +1,13 @@
 """Data types of the features processed by models."""
 
 import abc
+import logging
 import typing
 
 import ibis.expr.datatypes as ibis_types
 import onnx as _onnx
+
+log = logging.getLogger(__name__)
 
 
 class ColumnType(abc.ABC):
@@ -51,22 +54,35 @@ def guess_datatypes(dataframe: typing.Any) -> FeaturesTypes:
     """Given a DataFrame, try to guess the types of each feature in it.
 
     This procudes a [orbital.types.FeaturesTypes][] dictionary that can be used by
-    parse_pipeline to generate the SQL queries from the sklearn pipeline.
+    the parse functions to generate the SQL queries from the model.
 
     In most cases this shouldn't be necessary as the user should know
-    on what data the pipeline was trained on, but it can be convenient
+    on what data the model was trained on, but it can be convenient
     when experimenting or writing tests.
-
-    Requires scikit-learn, which can be installed with the ``orbital[sklearn]`` extra.
     """
-    try:
-        from . import _sklearn
-    except ImportError as err:
-        raise ImportError(
-            "scikit-learn is required to guess datatypes. "
-            "Install it with: pip install orbital[sklearn]"
-        ) from err
-    return _sklearn.guess_datatypes(dataframe)
+    if hasattr(dataframe, "to_pandas"):
+        # Easiest way to ensure compatibility with Polars, Pandas and PyArrow.
+        dataframe = dataframe.to_pandas()
+
+    if not hasattr(dataframe, "dtypes"):
+        raise ValueError("Unable to guess types of dataframe")
+
+    typesmap: FeaturesTypes = {}
+    for name, dtype in dataframe.dtypes.items():
+        try:
+            if dtype.type is str:
+                # Pandas string columns have a pandas-specific dtype
+                # that ONNX can't map from numpy.
+                elem_type = _onnx.TensorProto.STRING
+            else:
+                elem_type = _onnx.helper.np_dtype_to_tensor_dtype(dtype)
+            typesmap[name] = ColumnType._from_onnx_elem_type(elem_type)
+        except (TypeError, ValueError) as exc:
+            log.debug(
+                f"Unable to convert to column type from {name}:{repr(dtype)}, exception: {exc}"
+            )
+            raise ValueError(f"Unsupported datatype for column {name}") from None
+    return typesmap
 
 
 class FloatColumnType(ColumnType):

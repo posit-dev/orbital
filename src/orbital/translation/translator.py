@@ -5,6 +5,7 @@ import typing
 
 import ibis
 import onnx
+from ibis.expr import operations as ops
 
 from .._utils import onnx as onnx_utils
 from .optimizer import Optimizer
@@ -107,7 +108,7 @@ class Translator(abc.ABC):
                 )
 
         mutate_args = {v.get_name(): v for v in variables}
-        self._table = self._table.mutate(**mutate_args)
+        self._table = self._table.mutate(**self._rebind_to_current_table(mutate_args))
 
         # TODO: Should probably update self._variables too
         # in case the same variable is used in multiple places
@@ -115,6 +116,38 @@ class Translator(abc.ABC):
         # we don't know the variable name (!= column_name)
         # so we'll leave it for now.
         return [self._table[cname] for cname in mutate_args]
+
+    def _rebind_to_current_table(
+        self, values: dict[str, ibis.Expr]
+    ) -> dict[str, ibis.Expr]:
+        """Point expressions that read an older version of the table at the current one.
+
+        A variable consumed while translating a node holds a column of the table as
+        it was when that variable was produced, which is usually a few projections
+        behind the table being extended. Handing those expressions to ``mutate``
+        makes Ibis dereference them, and dereferencing builds a substitution map
+        over every column the table already has: each preserved column is hashed
+        again on every projection, so preserving hundreds of them costs
+        quadratic time. Columns are only ever appended, so a reference to a
+        column of an earlier table is the same value as the column of the
+        current table under the same name, and rebinding to the current table
+        lets Ibis skip the dereference.
+
+        :param values: The expressions being preserved, keyed by column name
+        """
+        current = self._table.op()
+        columns = set(self._table.columns)
+        rebound = {}
+        for name, value in values.items():
+            replacements = {
+                field: self._table[field.name].op()
+                for field in value.op().find(ops.Field, filter=ops.Value)
+                if field.rel is not current and field.name in columns
+            }
+            if replacements:
+                value = value.op().replace(replacements, filter=ops.Value).to_expr()
+            rebound[name] = value
+        return rebound
 
     def variable_unique_short_alias(self, prefix: typing.Optional[str] = None) -> str:
         """Generate a unique short name for a variable.

@@ -11,6 +11,9 @@ def get_initializer_data(var: onnx.TensorProto) -> VariableTypes:
     """Given a constant initializer, return its value"""
     attr_name = onnx.helper.tensor_dtype_to_field(var.data_type)
     values = list(getattr(var, attr_name))
+    if var.data_type == onnx.TensorProto.STRING:
+        # String tensors store bytes, decode them like string attributes
+        values = [v.decode("utf-8") if isinstance(v, bytes) else v for v in values]
     dimensions = getattr(var, "dims", None)
 
     if not dimensions and len(values) == 1:

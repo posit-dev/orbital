@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 from sklearn.compose import ColumnTransformer
 from sklearn.feature_selection import SelectKBest, f_regression
 from sklearn.linear_model import ElasticNet, LinearRegression, LogisticRegression
@@ -200,6 +201,35 @@ class TestEndToEndPipelines:
                 rtol=1e-4,
                 atol=1e-4,
             )
+
+    @pytest.mark.parametrize("binary", [False, True])
+    def test_logistic_regression_string_labels(self, iris_data, db_connection, binary):
+        """Test that string class labels are returned as strings, not bytes."""
+        df, feature_names = iris_data
+        conn, dialect = db_connection
+
+        if binary:
+            df = df[df["target"].isin([0, 1])].copy()
+
+        sklearn_pipeline = Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                ("classifier", LogisticRegression(random_state=42)),
+            ]
+        )
+
+        X = df[feature_names]
+        y = np.array(["setosa", "versicolor", "virginica"])[df["target"]]
+        sklearn_pipeline.fit(X, y)
+
+        features = {fname: types.DoubleColumnType() for fname in feature_names}
+        parsed_pipeline = orbital.parse_pipeline(sklearn_pipeline, features=features)
+
+        sql = orbital.export_sql("data", parsed_pipeline, dialect=dialect)
+
+        sql_results = execute_sql(sql, conn, dialect, df)
+
+        assert sql_results["output_label"].tolist() == list(sklearn_pipeline.predict(X))
 
     def test_elasticnet(self, diabetes_data, db_connection):
         """Test an ElasticNet pipeline with preprocessing transformations."""
